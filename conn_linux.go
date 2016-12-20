@@ -1,0 +1,144 @@
+//+build linux
+
+package netlink
+
+import (
+	"errors"
+	"os"
+	"syscall"
+	"unsafe"
+)
+
+var (
+	errInvalidSockaddr = errors.New("expected syscall.SockaddrNetlink but received different syscall.Sockaddr")
+	errInvalidFamily   = errors.New("received invalid netlink family")
+)
+
+var _ osConn = &conn{}
+
+// A conn is the Linux implementation of a netlink sockets connection.
+type conn struct {
+	s      socket
+	family int
+}
+
+// A socket is an interface over socket system calls.
+type socket interface {
+	Bind(sa syscall.Sockaddr) error
+	Close() error
+	Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)
+	Sendto(p []byte, flags int, to syscall.Sockaddr) error
+}
+
+// dial is the entry point for Dial.  dial opens a netlink socket using
+// system calls.
+func dial(family int) (*conn, error) {
+	fd, err := syscall.Socket(
+		syscall.AF_NETLINK,
+		syscall.SOCK_RAW,
+		family,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return bind(family, &sysSocket{fd: fd})
+}
+
+// bind binds a connection to netlink using the input socket, which may be
+// a system call implementation or a mocked one for tests.
+func bind(family int, s socket) (*conn, error) {
+	addr := &syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+	}
+
+	if err := s.Bind(addr); err != nil {
+		return nil, err
+	}
+
+	return &conn{
+		s:      s,
+		family: family,
+	}, nil
+}
+
+// Send sends a single Message to netlink.
+func (c *conn) Send(m Message) error {
+	b, err := m.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	return c.s.Sendto(b, 0, &syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+	})
+}
+
+// Receive receives one or more Messages from netlink.
+func (c *conn) Receive() ([]Message, error) {
+	b := make([]byte, os.Getpagesize())
+
+	n, from, err := c.s.Recvfrom(b, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	addr, ok := from.(*syscall.SockaddrNetlink)
+	if !ok {
+		return nil, errInvalidSockaddr
+	}
+	if int(addr.Family) != c.family {
+		return nil, errInvalidFamily
+	}
+
+	raw, err := syscall.ParseNetlinkMessage(b[:n])
+	if err != nil {
+		return nil, err
+	}
+
+	msgs := make([]Message, 0, len(raw))
+	for _, r := range raw {
+		m := Message{
+			Header: sysToHeader(r.Header),
+			Data:   r.Data,
+		}
+
+		msgs = append(msgs, m)
+	}
+
+	return msgs, nil
+}
+
+// Close closes the connection.
+func (c *conn) Close() error {
+	return c.s.Close()
+}
+
+// sysToHeader converts a syscall.NlMsghdr to a Header.
+func sysToHeader(r syscall.NlMsghdr) Header {
+	// NB: the memory layout of Header and syscall.NlMsgHdr must be
+	// exactly the same for this unsafe cast to work
+	return *(*Header)(unsafe.Pointer(&r))
+}
+
+// newError converts an error number from netlink into the appropriate
+// system call error for Linux.
+func newError(errno int) error {
+	return syscall.Errno(errno)
+}
+
+var _ socket = &sysSocket{}
+
+// A sysSocket is a socket which uses system calls for socket operations.
+type sysSocket struct {
+	fd int
+}
+
+func (s *sysSocket) Bind(sa syscall.Sockaddr) error { return syscall.Bind(s.fd, sa) }
+func (s *sysSocket) Close() error                   { return syscall.Close(s.fd) }
+func (s *sysSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) {
+	return syscall.Recvfrom(s.fd, p, flags)
+}
+func (s *sysSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error {
+	return syscall.Sendto(s.fd, p, flags, to)
+}
