@@ -11,7 +11,7 @@ import (
 
 func TestLinuxConn_bind(t *testing.T) {
 	s := &testSocket{}
-	if _, err := bind(s); err != nil {
+	if _, err := bind(s, &Config{}); err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestLinuxConnReceive(t *testing.T) {
 func TestLinuxConnIntegration(t *testing.T) {
 	const protocolGeneric = 16
 
-	c, err := Dial(protocolGeneric)
+	c, err := Dial(protocolGeneric, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestLinuxValidate(t *testing.T) {
 
 func testLinuxConn(t *testing.T) (*conn, *testSocket) {
 	s := &testSocket{}
-	c, err := bind(s)
+	c, err := bind(s, &Config{})
 	if err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
