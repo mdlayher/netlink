@@ -11,7 +11,7 @@ import (
 
 func TestLinuxConn_bind(t *testing.T) {
 	s := &testSocket{}
-	if _, err := bind(0, s); err != nil {
+	if _, err := bind(s); err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
 
@@ -82,10 +82,10 @@ func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 
 func TestLinuxConnReceiveInvalidFamily(t *testing.T) {
 	c, s := testLinuxConn(t)
-	c.family = 1
 
 	s.recvfrom.from = &syscall.SockaddrNetlink{
-		Family: 2,
+		// Should always be AF_NETLINK
+		Family: syscall.AF_NETLINK + 1,
 	}
 
 	_, got := c.Receive()
@@ -130,10 +130,9 @@ func TestLinuxConnReceive(t *testing.T) {
 	}
 
 	c, s := testLinuxConn(t)
-	c.family = 16
 
 	from := &syscall.SockaddrNetlink{
-		Family: 16,
+		Family: syscall.AF_NETLINK,
 	}
 
 	s.recvfrom.p = resb
@@ -272,7 +271,7 @@ func TestLinuxValidate(t *testing.T) {
 
 func testLinuxConn(t *testing.T) (*conn, *testSocket) {
 	s := &testSocket{}
-	c, err := bind(0, s)
+	c, err := bind(s)
 	if err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}

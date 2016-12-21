@@ -18,8 +18,7 @@ var _ osConn = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
-	s      socket
-	family int
+	s socket
 }
 
 // A socket is an interface over socket system calls.
@@ -42,12 +41,12 @@ func dial(family int) (*conn, error) {
 		return nil, err
 	}
 
-	return bind(family, &sysSocket{fd: fd})
+	return bind(&sysSocket{fd: fd})
 }
 
 // bind binds a connection to netlink using the input socket, which may be
 // a system call implementation or a mocked one for tests.
-func bind(family int, s socket) (*conn, error) {
+func bind(s socket) (*conn, error) {
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
 	}
@@ -57,8 +56,7 @@ func bind(family int, s socket) (*conn, error) {
 	}
 
 	return &conn{
-		s:      s,
-		family: family,
+		s: s,
 	}, nil
 }
 
@@ -87,7 +85,7 @@ func (c *conn) Receive() ([]Message, error) {
 	if !ok {
 		return nil, errInvalidSockaddr
 	}
-	if int(addr.Family) != c.family {
+	if addr.Family != syscall.AF_NETLINK {
 		return nil, errInvalidFamily
 	}
 
