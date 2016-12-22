@@ -1,6 +1,9 @@
 language: go
 go:
   - 1.x
+os:
+  - linux
+  - osx
 before_install:
   - go get github.com/golang/lint/golint
   - go get -d ./...
