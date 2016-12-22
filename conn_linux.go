@@ -49,7 +49,7 @@ func dial(family int, config *Config) (*conn, error) {
 func bind(s socket, opts *Config) (*conn, error) {
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
-		Groups: opts.NLGroups,
+		Groups: opts.Groups,
 	}
 
 	if err := s.Bind(addr); err != nil {
