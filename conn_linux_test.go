@@ -270,7 +270,6 @@ func TestLinuxValidate(t *testing.T) {
 }
 
 func TestLinuxConnConfig(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		config *Config
@@ -284,28 +283,25 @@ func TestLinuxConnConfig(t *testing.T) {
 		{
 			name:   "Config with Groups RTMGRP_IPV4_IFADDR",
 			config: &Config{Groups: 0x10},
-			groups: 16,
+			groups: 0x10,
 		},
 		{
 			name:   "Config with Groups RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE",
 			config: &Config{Groups: 0x10 | 0x40},
-			groups: 80,
+			groups: 0x50,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			_, s := testLinuxConn(t, tt.config)
 
 			if want, got := tt.groups, s.bind.(*syscall.SockaddrNetlink).Groups; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}
-
 		})
 	}
-
 }
 
 func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
