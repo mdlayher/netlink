@@ -31,11 +31,9 @@ func nlaAlign(len int) int {
 	return ((len) + nlaAlignTo - 1) & ^(nlaAlignTo - 1)
 }
 
-// #define NLA_HDRLEN              ((int) NLA_ALIGN(sizeof(struct nlattr)))
-var nlaHeaderLen = nlaAlign(int(unsafe.Sizeof(attribute{})))
+// Because this package's Attribute type contains a byte slice, unsafe.Sizeof
+// can't be used to determine the correct length.
+const sizeofAttribute = 4
 
-// TODO(mdlayher): find home for Attribute type
-type attribute struct {
-	Length uint16
-	Type   uint16
-}
+// #define NLA_HDRLEN              ((int) NLA_ALIGN(sizeof(struct nlattr)))
+var nlaHeaderLen = nlaAlign(sizeofAttribute)
