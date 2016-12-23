@@ -18,7 +18,8 @@ var _ osConn = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
-	s socket
+	s  socket
+	sa *syscall.SockaddrNetlink
 }
 
 // A socket is an interface over socket system calls.
@@ -50,6 +51,7 @@ func bind(s socket, config *Config) (*conn, error) {
 	if config == nil {
 		config = &Config{}
 	}
+
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
 		Groups: config.Groups,
@@ -60,7 +62,8 @@ func bind(s socket, config *Config) (*conn, error) {
 	}
 
 	return &conn{
-		s: s,
+		s:  s,
+		sa: addr,
 	}, nil
 }
 

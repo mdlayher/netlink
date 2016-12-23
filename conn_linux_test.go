@@ -294,9 +294,9 @@ func TestLinuxConnConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, s := testLinuxConn(t, tt.config)
+			c, _ := testLinuxConn(t, tt.config)
 
-			if want, got := tt.groups, s.bind.(*syscall.SockaddrNetlink).Groups; want != got {
+			if want, got := tt.groups, c.sa.Groups; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}
