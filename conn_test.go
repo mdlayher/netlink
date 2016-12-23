@@ -123,6 +123,26 @@ func TestConnReceive(t *testing.T) {
 	}
 }
 
+func TestConnReceiveShortErrorMessage(t *testing.T) {
+	c, tc := testConn(t)
+	tc.receive = []Message{
+		{
+			Header: Header{
+				Length: uint32(nlmsgAlign(nlmsgLength(4))),
+				Type:   HeaderTypeError,
+			},
+			Data: []byte{0x01},
+		},
+	}
+
+	_, got := c.Receive()
+
+	if want := errShortErrorMessage; want != got {
+		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
+			want, got)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name string
@@ -201,34 +221,7 @@ func TestValidate(t *testing.T) {
 			err: errMismatchedPID,
 		},
 		{
-			name: "short error message",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-					PID:      1,
-				},
-			},
-			rep: []Message{
-				{
-					Header: Header{
-						Sequence: 1,
-						PID:      1,
-					},
-				},
-				{
-					Header: Header{
-						Type:     HeaderTypeError,
-						Sequence: 1,
-						PID:      1,
-					},
-					// One byte short of error
-					Data: []byte{0x00, 0x11, 0x22},
-				},
-			},
-			err: errShortErrorMessage,
-		},
-		{
-			name: "OK success",
+			name: "OK",
 			req: Message{
 				Header: Header{
 					Sequence: 1,
@@ -237,25 +230,6 @@ func TestValidate(t *testing.T) {
 			},
 			rep: []Message{{
 				Header: Header{
-					Type:     HeaderTypeError,
-					Sequence: 1,
-					PID:      1,
-				},
-				// Success
-				Data: make([]byte, 4),
-			}},
-		},
-		{
-			name: "OK header type noop",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-					PID:      1,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					Type:     HeaderTypeNoop,
 					Sequence: 1,
 					PID:      1,
 				},

@@ -124,9 +124,34 @@ func (c *Conn) Send(m Message) (Message, error) {
 	return m, nil
 }
 
-// Receive receives one or more messages from netlink.
+// Receive receives one or more messages from netlink.  If any of the messages
+// indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
-	return c.c.Receive()
+	msgs, err := c.c.Receive()
+	if err != nil {
+		return nil, err
+	}
+
+	const success = 0
+
+	for _, m := range msgs {
+		// HeaderTypeError may indicate an error code, or success
+		if m.Header.Type != HeaderTypeError {
+			continue
+		}
+
+		if len(m.Data) < 4 {
+			return nil, errShortErrorMessage
+		}
+
+		if c := getInt32(m.Data[0:4]); c != success {
+			// Error code is a negative integer, convert it into
+			// an OS-specific system call error
+			return nil, newError(-1 * int(c))
+		}
+	}
+
+	return msgs, nil
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
@@ -136,32 +161,14 @@ func (c *Conn) nextSequence() uint32 {
 }
 
 // Validate validates one or more reply Messages against a request Message,
-// ensuring that they contain matching sequence numbers, PIDs, and that
-// no netlink errors were returned.
+// ensuring that they contain matching sequence numbers and PIDs.
 func Validate(request Message, replies []Message) error {
-	const success = 0
-
 	for _, m := range replies {
 		if m.Header.Sequence != request.Header.Sequence {
 			return errMismatchedSequence
 		}
 		if m.Header.PID != request.Header.PID {
 			return errMismatchedPID
-		}
-
-		// HeaderTypeError may indicate an error code, or success
-		if m.Header.Type != HeaderTypeError {
-			continue
-		}
-
-		if len(m.Data) < 4 {
-			return errShortErrorMessage
-		}
-
-		if c := getInt32(m.Data[0:4]); c != success {
-			// Error code is a negative integer, convert it into
-			// an OS-specific system call error
-			return newError(-1 * int(c))
 		}
 	}
 
