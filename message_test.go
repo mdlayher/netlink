@@ -135,6 +135,16 @@ func TestMessageUnmarshal(t *testing.T) {
 			err:  errUnalignedMessage,
 		},
 		{
+			name: "fuzz crasher: length shorter than slice",
+			b:    []byte("\x1d000000000000000"),
+			err:  errShortMessage,
+		},
+		{
+			name: "fuzz crasher: length longer than slice",
+			b:    []byte("\x13\x00\x00\x000000000000000000"),
+			err:  errShortMessage,
+		},
+		{
 			name: "OK no data",
 			b: []byte{
 				0x10, 0x00, 0x00, 0x00,
