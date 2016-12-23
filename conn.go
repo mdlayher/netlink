@@ -38,9 +38,6 @@ type osConn interface {
 // Config specifies optional configuration for Conn.  If config is nil, a default
 // configuration will be used.
 func Dial(proto int, config *Config) (*Conn, error) {
-	if config == nil {
-		config = &Config{}
-	}
 	// Use OS-specific dial() to create osConn
 	c, err := dial(proto, config)
 	if err != nil {

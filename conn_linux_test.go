@@ -306,9 +306,6 @@ func TestLinuxConnConfig(t *testing.T) {
 
 func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 	s := &testSocket{}
-	if config == nil {
-		config = &Config{}
-	}
 	c, err := bind(s, config)
 	if err != nil {
 		t.Fatalf("failed to bind: %v", err)

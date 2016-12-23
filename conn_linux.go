@@ -46,10 +46,13 @@ func dial(family int, config *Config) (*conn, error) {
 
 // bind binds a connection to netlink using the input socket, which may be
 // a system call implementation or a mocked one for tests.
-func bind(s socket, opts *Config) (*conn, error) {
+func bind(s socket, config *Config) (*conn, error) {
+	if config == nil {
+		config = &Config{}
+	}
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
-		Groups: opts.Groups,
+		Groups: config.Groups,
 	}
 
 	if err := s.Bind(addr); err != nil {
