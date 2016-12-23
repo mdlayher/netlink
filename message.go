@@ -120,7 +120,12 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 		return errUnalignedMessage
 	}
 
+	// Don't allow misleading length
 	m.Header.Length = Uint32(b[0:4])
+	if int(m.Header.Length) != len(b) {
+		return errShortMessage
+	}
+
 	m.Header.Type = HeaderType(Uint16(b[4:6]))
 	m.Header.Flags = HeaderFlags(Uint16(b[6:8]))
 	m.Header.Sequence = Uint32(b[8:12])
