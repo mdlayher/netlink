@@ -3,10 +3,16 @@
 package netlink
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"reflect"
 	"syscall"
 	"testing"
+	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestLinuxConn_bind(t *testing.T) {
@@ -357,3 +363,77 @@ func (s *noopSocket) Bind(sa syscall.Sockaddr) error                            
 func (s *noopSocket) Close() error                                                { return nil }
 func (s *noopSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) { return 0, nil, nil }
 func (s *noopSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error       { return nil }
+
+func TestLinuxRtNetlinkMulticast(t *testing.T) {
+	cfg := &Config{
+		Groups: 0x10, // RTMGRP_IPV4_IFADDR
+	}
+
+	c, err := Dial(0, cfg) // dials NETLINK_ROUTE
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+
+	}
+
+	testIf := "test0"
+
+	def := sudoIfCreate(testIf)
+	defer def()
+
+	in := make(chan []Message)
+
+	// routine for receiving any messages
+	recv := func() {
+		for {
+			data, err := c.Receive()
+			if err != nil {
+				fmt.Printf("error in receive: %s\n", err)
+			}
+			in <- data
+		}
+	}
+	go recv()
+
+	// routine for sending ip event
+	event := func() {
+		time.Sleep(1 * time.Second)
+		cmd := exec.Command("sudo", "ip", "ad", "add", "1.1.1.1/32", "dev", testIf)
+		err := cmd.Run()
+		if err != nil {
+			t.Fatalf("error in sending sudo cmd to add ip: %s\n", err)
+		}
+	}
+	go event()
+
+	timeout := time.After(5 * time.Second)
+	var data []Message
+	select {
+	case data = <-in:
+		break
+	case <-timeout:
+		break
+	}
+	if data == nil {
+		t.Fatal("did not receive any messages after 5 seconds\n")
+	}
+	t.Logf("received data: %#v\n", data)
+	spew.Dump(data)
+}
+
+func sudoIfCreate(ifName string) func() {
+	cmd := exec.Command("sudo", "ip", "tuntap", "add", ifName, "mode", "tun")
+	err := cmd.Start()
+	if err != nil {
+		log.Fatalf("error creating tuntap device: %s\n", err)
+	}
+	cmd.Wait()
+
+	return func() {
+		cmd := exec.Command("sudo", "ip", "link", "del", ifName)
+		err := cmd.Start()
+		if err != nil {
+			log.Fatalf("error removing tuntap device: %s\n", err)
+		}
+		cmd.Wait()
+	}
+}
