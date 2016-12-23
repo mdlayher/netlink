@@ -50,10 +50,15 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 		return errInvalidAttribute
 	}
 
-	if a.Length == 0 {
+	switch {
+	// No length, no data
+	case a.Length == 0:
 		a.Data = make([]byte, 0)
-	}
-	if a.Length > 0 {
+	// Not enough length for any data
+	case a.Length < 4:
+		return errInvalidAttribute
+	// Data present
+	case a.Length >= 4:
 		a.Data = make([]byte, len(b[4:a.Length]))
 		copy(a.Data, b[4:a.Length])
 	}

@@ -249,6 +249,11 @@ func TestUnmarshalAttributes(t *testing.T) {
 			err: errInvalidAttribute,
 		},
 		{
+			name: "fuzz crasher: length 1, too short",
+			b:    []byte("\x01\x0000"),
+			err:  errInvalidAttribute,
+		},
+		{
 			name: "no attributes, length 0",
 			b: []byte{
 				0x00, 0x00,
