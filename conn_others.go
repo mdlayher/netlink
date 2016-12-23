@@ -20,7 +20,7 @@ var _ osConn = &conn{}
 type conn struct{}
 
 // dial is the entry point for Dial.  dial always returns an error.
-func dial(family int) (*conn, error) {
+func dial(family int, config *Config) (*conn, error) {
 	return nil, errUnimplemented
 }
 

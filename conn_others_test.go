@@ -15,7 +15,7 @@ func TestOthersConnUnimplemented(t *testing.T) {
 			want, got)
 	}
 
-	if _, got := dial(0); want != got {
+	if _, got := dial(0, nil); want != got {
 		t.Fatalf("unexpected error during dial:\n- want: %v\n-  got: %v",
 			want, got)
 	}

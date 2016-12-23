@@ -35,9 +35,11 @@ type osConn interface {
 }
 
 // Dial dials a connection to netlink, using the specified protocol number.
-func Dial(proto int) (*Conn, error) {
+// Config specifies optional configuration for Conn.  If config is nil, a default
+// configuration will be used.
+func Dial(proto int, config *Config) (*Conn, error) {
 	// Use OS-specific dial() to create osConn
-	c, err := dial(proto)
+	c, err := dial(proto, config)
 	if err != nil {
 		return nil, err
 	}
@@ -164,4 +166,11 @@ func Validate(request Message, replies []Message) error {
 	}
 
 	return nil
+}
+
+// Config contains options for a Conn.
+type Config struct {
+	// Groups is a bitmask which specifies multicast groups. If set to 0,
+	// no multicast group subscriptions will be made.
+	Groups uint32
 }

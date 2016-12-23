@@ -11,7 +11,7 @@ import (
 
 func TestLinuxConn_bind(t *testing.T) {
 	s := &testSocket{}
-	if _, err := bind(s); err != nil {
+	if _, err := bind(s, &Config{}); err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
 
@@ -26,7 +26,7 @@ func TestLinuxConn_bind(t *testing.T) {
 }
 
 func TestLinuxConnSend(t *testing.T) {
-	c, s := testLinuxConn(t)
+	c, s := testLinuxConn(t, nil)
 
 	req := Message{
 		Header: Header{
@@ -70,7 +70,7 @@ func TestLinuxConnSend(t *testing.T) {
 }
 
 func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
-	c, s := testLinuxConn(t)
+	c, s := testLinuxConn(t, nil)
 
 	s.recvfrom.from = &syscall.SockaddrInet4{}
 
@@ -81,7 +81,7 @@ func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 }
 
 func TestLinuxConnReceiveInvalidFamily(t *testing.T) {
-	c, s := testLinuxConn(t)
+	c, s := testLinuxConn(t, nil)
 
 	s.recvfrom.from = &syscall.SockaddrNetlink{
 		// Should always be AF_NETLINK
@@ -129,7 +129,7 @@ func TestLinuxConnReceive(t *testing.T) {
 		t.Fatalf("failed to marshal response to binary: %v", err)
 	}
 
-	c, s := testLinuxConn(t)
+	c, s := testLinuxConn(t, nil)
 
 	from := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
@@ -165,7 +165,7 @@ func TestLinuxConnReceive(t *testing.T) {
 func TestLinuxConnIntegration(t *testing.T) {
 	const protocolGeneric = 16
 
-	c, err := Dial(protocolGeneric)
+	c, err := Dial(protocolGeneric, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -269,9 +269,44 @@ func TestLinuxValidate(t *testing.T) {
 	}
 }
 
-func testLinuxConn(t *testing.T) (*conn, *testSocket) {
+func TestLinuxConnConfig(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *Config
+		groups uint32
+	}{
+		{
+			name:   "Default Config",
+			config: &Config{},
+			groups: 0x0,
+		},
+		{
+			name:   "Config with Groups RTMGRP_IPV4_IFADDR",
+			config: &Config{Groups: 0x10},
+			groups: 0x10,
+		},
+		{
+			name:   "Config with Groups RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE",
+			config: &Config{Groups: 0x10 | 0x40},
+			groups: 0x50,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := testLinuxConn(t, tt.config)
+
+			if want, got := tt.groups, c.sa.Groups; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+		})
+	}
+}
+
+func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 	s := &testSocket{}
-	c, err := bind(s)
+	c, err := bind(s, config)
 	if err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
