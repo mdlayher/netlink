@@ -16,6 +16,8 @@ var (
 type HeaderFlags uint16
 
 const (
+	// General netlink communication flags.
+
 	// HeaderFlagsRequest indicates a request to netlink.
 	HeaderFlagsRequest HeaderFlags = 1
 
@@ -39,6 +41,25 @@ const (
 	// HeaderFlagsDumpFiltered indicates that a dump was filtered
 	// as requested.
 	HeaderFlagsDumpFiltered HeaderFlags = 32
+
+	// Flags used to retrieve data from netlink.
+
+	// HeaderFlagsRoot requests that netlink return a complete table instead
+	// of a single entry.
+	HeaderFlagsRoot HeaderFlags = 0x100
+
+	// HeaderFlagsMatch requests that netlink return a list of all matching
+	// entries.
+	HeaderFlagsMatch HeaderFlags = 0x200
+
+	// HeaderFlagsAtomic requests that netlink send an atomic snapshot of
+	// its entries.  Requires CAP_NET_ADMIN or an effective UID of 0.
+	// May be obsolete.
+	HeaderFlagsAtomic HeaderFlags = 0x300
+
+	// HeaderFlagsDump requests that netlink return a complete list of
+	// all entries.
+	HeaderFlagsDump HeaderFlags = HeaderFlagsRoot | HeaderFlagsMatch
 )
 
 // HeaderType specifies the type of a Header.
