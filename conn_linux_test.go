@@ -229,46 +229,6 @@ func TestLinuxConnIntegration(t *testing.T) {
 	}
 }
 
-func TestLinuxValidate(t *testing.T) {
-	tests := []struct {
-		name string
-		req  Message
-		rep  []Message
-		err  error
-	}{
-		{
-			name: "ENOENT",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-					PID:      1,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					Type:     HeaderTypeError,
-					Sequence: 1,
-					PID:      1,
-				},
-				// -2, little endian (ENOENT)
-				Data: []byte{0xfe, 0xff, 0xff, 0xff},
-			}},
-			err: syscall.ENOENT,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := Validate(tt.req, tt.rep)
-
-			if want, got := tt.err, err; want != got {
-				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
-					want, got)
-			}
-		})
-	}
-}
-
 func TestLinuxConnConfig(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -297,6 +257,47 @@ func TestLinuxConnConfig(t *testing.T) {
 			c, _ := testLinuxConn(t, tt.config)
 
 			if want, got := tt.groups, c.sa.Groups; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestConnReceiveErrorLinux(t *testing.T) {
+	// Note: using *Conn instead of Linux-only *conn, to test
+	// error handling logic in *Conn.Receive
+
+	tests := []struct {
+		name string
+		req  Message
+		rep  []Message
+		err  error
+	}{
+		{
+			name: "ENOENT",
+			rep: []Message{{
+				Header: Header{
+					Length:   uint32(nlmsgAlign(nlmsgLength(4))),
+					Type:     HeaderTypeError,
+					Sequence: 1,
+					PID:      1,
+				},
+				// -2, little endian (ENOENT)
+				Data: []byte{0xfe, 0xff, 0xff, 0xff},
+			}},
+			err: syscall.ENOENT,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, tc := testConn(t)
+			tc.receive = tt.rep
+
+			_, err := c.Receive()
+
+			if want, got := tt.err, err; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}
