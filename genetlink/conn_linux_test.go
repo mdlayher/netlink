@@ -17,8 +17,8 @@ func TestLinuxConnIntegration(t *testing.T) {
 		t.Fatalf("failed to dial generic netlink: %v", err)
 	}
 
-	// Ask netlink for TASKSTATS family; must be null-terminated string
-	const name = "TASKSTATS"
+	// Ask netlink for specified family; must be null-terminated string
+	const name = "nlctrl"
 	family := append([]byte(name), 0x00)
 
 	const (
@@ -46,11 +46,9 @@ func TestLinuxConnIntegration(t *testing.T) {
 	}
 
 	// Perform a request, receive replies, and validate the replies
-	flags := netlink.HeaderFlagsRequest | netlink.HeaderFlagsAcknowledge
+	flags := netlink.HeaderFlagsRequest
 	msgs, err := c.Execute(req, flags)
 	if err != nil {
-		// TODO(mdlayher): this test currently does not work in Travis. See if
-		// it's possible to get around that with some family
 		if os.IsNotExist(err) {
 			t.Skipf("skipping because %q family not available", name)
 		}
