@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"syscall"
 	"testing"
+
+	"github.com/mdlayher/netlink/nlenc"
 )
 
 func TestLinuxConn_bind(t *testing.T) {
@@ -194,7 +196,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 
 	m := msgs[0]
 
-	if want, got := 0, int(Uint32(m.Data[0:4])); want != got {
+	if want, got := 0, int(nlenc.Uint32(m.Data[0:4])); want != got {
 		t.Fatalf("unexpected error code:\n- want: %v\n-  got: %v", want, got)
 	}
 

@@ -1,4 +1,4 @@
-package netlink
+package nlenc
 
 import (
 	"bytes"
@@ -72,14 +72,14 @@ func TestUintPanic(t *testing.T) {
 			name: "short get signed 32",
 			b:    make([]byte, 3),
 			fn: func(b []byte) {
-				getInt32(b)
+				Int32(b)
 			},
 		},
 		{
 			name: "long get signed 32",
 			b:    make([]byte, 5),
 			fn: func(b []byte) {
-				getInt32(b)
+				Int32(b)
 			},
 		},
 	}
@@ -192,7 +192,7 @@ func TestUint32(t *testing.T) {
 	}
 }
 
-func Test_getInt32(t *testing.T) {
+func TestInt32(t *testing.T) {
 	tests := []struct {
 		b []byte
 		v int32
@@ -233,7 +233,7 @@ func Test_getInt32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("0x%04x", tt.v), func(t *testing.T) {
-			v := getInt32(tt.b)
+			v := Int32(tt.b)
 
 			if want, got := tt.v, v; want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
