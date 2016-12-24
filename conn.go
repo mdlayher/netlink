@@ -9,9 +9,10 @@ import (
 
 // Error messages which can be returned by Validate.
 var (
-	errMismatchedSequence = errors.New("mismatched sequence in netlink reply")
-	errMismatchedPID      = errors.New("mismatched PID in netlink reply")
-	errShortErrorMessage  = errors.New("not enough data for netlink error code")
+	errInvalidMultiPartMessage = errors.New("invalid multi-part netlink message")
+	errMismatchedSequence      = errors.New("mismatched sequence in netlink reply")
+	errMismatchedPID           = errors.New("mismatched PID in netlink reply")
+	errShortErrorMessage       = errors.New("not enough data for netlink error code")
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -124,34 +125,59 @@ func (c *Conn) Send(m Message) (Message, error) {
 	return m, nil
 }
 
-// Receive receives one or more messages from netlink.  If any of the messages
-// indicate a netlink error, that error will be returned.
+// Receive receives one or more messages from netlink.  Multi-part messages are
+// handled transparently and returned as a single slice of Messages.  If any of
+// the messages indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
 	msgs, err := c.c.Receive()
 	if err != nil {
 		return nil, err
 	}
 
-	const success = 0
+	// If this message is multi-part, we will need to perform an additional
+	// receive at the end to drain the socket's last message
+	var multi bool
 
 	for _, m := range msgs {
-		// HeaderTypeError may indicate an error code, or success
-		if m.Header.Type != HeaderTypeError {
-			continue
+		// Is this a multi-part message and is it not done yet?
+		if m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type != HeaderTypeDone {
+			multi = true
 		}
 
-		if len(m.Data) < 4 {
-			return nil, errShortErrorMessage
-		}
-
-		if c := getInt32(m.Data[0:4]); c != success {
-			// Error code is a negative integer, convert it into
-			// an OS-specific system call error
-			return nil, newError(-1 * int(c))
+		if err := checkMessage(m); err != nil {
+			return nil, err
 		}
 	}
 
-	return msgs, nil
+	if !multi {
+		return msgs, nil
+	}
+
+	// If needed, receive the final part of the multi-part message
+	final, err := c.c.Receive()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(final) != 1 {
+		return nil, errInvalidMultiPartMessage
+	}
+	fm := final[0]
+
+	// Final message may contain errors
+	if err := checkMessage(fm); err != nil {
+		return nil, err
+	}
+
+	// Final message must be done and indicate multi
+	isDone := fm.Header.Type == HeaderTypeDone
+	isMulti := fm.Header.Flags&HeaderFlagsMulti != 0
+
+	if !isDone || !isMulti {
+		return nil, errInvalidMultiPartMessage
+	}
+
+	return append(msgs, fm), nil
 }
 
 // nextSequence atomically increments Conn's sequence number and returns

@@ -272,6 +272,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 		name string
 		req  Message
 		rep  []Message
+		mp   []Message
 		err  error
 	}{
 		{
@@ -288,12 +289,30 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 			}},
 			err: syscall.ENOENT,
 		},
+		{
+			name: "EINTR multipart",
+			rep: []Message{{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+				},
+			}},
+			mp: []Message{{
+				Header: Header{
+					Type:  HeaderTypeError,
+					Flags: HeaderFlagsMulti,
+				},
+				Data: []byte{0xfc, 0xff, 0xff, 0xff},
+			}},
+			// -4, little endian (EINTR)
+			err: syscall.EINTR,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c, tc := testConn(t)
 			tc.receive = tt.rep
+			tc.multipart = tt.mp
 
 			_, err := c.Receive()
 
