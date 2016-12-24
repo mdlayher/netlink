@@ -1,4 +1,4 @@
-package netlink
+package nlenc
 
 import (
 	"fmt"
@@ -45,13 +45,11 @@ func Uint32(b []byte) uint32 {
 	return *(*uint32)(unsafe.Pointer(&b[0]))
 }
 
-// getInt32 decodes an int32 from b using the host machine's native endianness.
-// If b is not exactly 4 bytes in length, getInt32 will panic.
-//
-// getInt32 is named as such to prevent collision with the built-in int32 type.
-func getInt32(b []byte) int32 {
+// Int32 decodes an int32 from b using the host machine's native endianness.
+// If b is not exactly 4 bytes in length, Int32 will panic.
+func Int32(b []byte) int32 {
 	if l := len(b); l != 4 {
-		panic(fmt.Sprintf("getInt32: unexpected byte slice length: %d", l))
+		panic(fmt.Sprintf("Int32: unexpected byte slice length: %d", l))
 	}
 
 	return *(*int32)(unsafe.Pointer(&b[0]))

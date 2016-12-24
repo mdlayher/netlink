@@ -2,6 +2,8 @@ package netlink
 
 import (
 	"errors"
+
+	"github.com/mdlayher/netlink/nlenc"
 )
 
 var (
@@ -30,8 +32,8 @@ func (a Attribute) MarshalBinary() ([]byte, error) {
 
 	b := make([]byte, nlaAlign(int(a.Length)))
 
-	PutUint16(b[0:2], a.Length)
-	PutUint16(b[2:4], a.Type)
+	nlenc.PutUint16(b[0:2], a.Length)
+	nlenc.PutUint16(b[2:4], a.Type)
 	copy(b[4:], a.Data)
 
 	return b, nil
@@ -43,8 +45,8 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 		return errInvalidAttribute
 	}
 
-	a.Length = Uint16(b[0:2])
-	a.Type = Uint16(b[2:4])
+	a.Length = nlenc.Uint16(b[0:2])
+	a.Type = nlenc.Uint16(b[2:4])
 
 	if nlaAlign(int(a.Length)) > len(b) {
 		return errInvalidAttribute
