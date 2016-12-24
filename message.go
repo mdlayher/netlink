@@ -155,3 +155,25 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 
 	return nil
 }
+
+// checkMessage checks a single Message for netlink errors.
+func checkMessage(m Message) error {
+	const success = 0
+
+	// HeaderTypeError may indicate an error code, or success
+	if m.Header.Type != HeaderTypeError {
+		return nil
+	}
+
+	if len(m.Data) < 4 {
+		return errShortErrorMessage
+	}
+
+	if c := getInt32(m.Data[0:4]); c != success {
+		// Error code is a negative integer, convert it into
+		// an OS-specific system call error
+		return newError(-1 * int(c))
+	}
+
+	return nil
+}
