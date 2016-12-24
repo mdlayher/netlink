@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"reflect"
 )
 
 func TestLinuxNetlinkMulticast(t *testing.T) {
@@ -17,42 +19,54 @@ func TestLinuxNetlinkMulticast(t *testing.T) {
 	c, err := Dial(0, cfg) // dials NETLINK_ROUTE
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
-
 	}
 
 	in := make(chan []Message)
 
 	// routine for receiving any messages
 	recv := func() {
-		data, er := c.Receive()
-		if er != nil {
-			fmt.Printf("error in receive: %s\n", err)
+		data, err := c.Receive()
+		if err != nil {
+			panic(fmt.Sprintf("error in receive: %s", err))
 		}
 		in <- data
 	}
 
 	go recv()
 
-	def := sudoIfCreate(t, "test0")
+	ifName := "test0"
+
+	def := sudoIfCreate(t, ifName)
 	defer def()
 
 	timeout := time.After(5 * time.Second)
-	var got []Message
+	var data []Message
 	select {
-	case got = <-in:
+	case data = <-in:
 		break
 	case <-timeout:
-		t.Fatal("did not receive any messages after 5 seconds\n")
+		t.Fatal("did not receive any messages after 5 seconds")
 		break
 	}
-	t.Logf("received netlink data: %#v\n", got)
+
+	interf := []byte(ifName)
+	want := make([]uint8, len(ifName))
+	copy(want, interf[:])
+
+	got := make([]uint8, len(ifName))
+	copy(got, data[0].Data[20:len(ifName)+20])
+
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("received message doesn not mention ifName %s", ifName)
+	}
 }
 
 func sudoIfCreate(t *testing.T, ifName string) func() {
 	cmd := exec.Command("sudo", "ip", "tuntap", "add", ifName, "mode", "tun")
 	err := cmd.Start()
 	if err != nil {
-		t.Fatalf("error creating tuntap device: %s\n", err)
+		t.Fatalf("error creating tuntap device: %s", err)
+		return func() {}
 	}
 	cmd.Wait()
 
@@ -60,7 +74,7 @@ func sudoIfCreate(t *testing.T, ifName string) func() {
 		cmd := exec.Command("sudo", "ip", "link", "del", ifName)
 		err := cmd.Start()
 		if err != nil {
-			t.Fatalf("error removing tuntap device: %s\n", err)
+			panic(fmt.Sprintf("error removing tuntap device: %s", err))
 		}
 		cmd.Wait()
 	}
