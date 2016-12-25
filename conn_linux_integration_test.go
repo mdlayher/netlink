@@ -5,10 +5,9 @@ package netlink
 import (
 	"fmt"
 	"os/exec"
+	"reflect"
 	"testing"
 	"time"
-
-	"reflect"
 )
 
 func TestLinuxNetlinkMulticast(t *testing.T) {
@@ -45,8 +44,7 @@ func TestLinuxNetlinkMulticast(t *testing.T) {
 	case data = <-in:
 		break
 	case <-timeout:
-		t.Fatal("did not receive any messages after 5 seconds")
-		break
+		panic("did not receive any messages after 5 seconds")
 	}
 
 	interf := []byte(ifName)
@@ -57,25 +55,36 @@ func TestLinuxNetlinkMulticast(t *testing.T) {
 	copy(got, data[0].Data[20:len(ifName)+20])
 
 	if !reflect.DeepEqual(want, got) {
-		t.Fatalf("received message doesn not mention ifName %s", ifName)
+		t.Fatalf("received message does not mention ifName %q", ifName)
 	}
 }
 
 func sudoIfCreate(t *testing.T, ifName string) func() {
+	var err error
+
 	cmd := exec.Command("sudo", "ip", "tuntap", "add", ifName, "mode", "tun")
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		t.Fatalf("error creating tuntap device: %s", err)
 		return func() {}
 	}
-	cmd.Wait()
+	err = cmd.Wait()
+	if err != nil {
+		t.Fatalf("error running command to create tuntap device: %s", err)
+		return func() {}
+	}
 
 	return func() {
+		var err error
+
 		cmd := exec.Command("sudo", "ip", "link", "del", ifName)
-		err := cmd.Start()
+		err = cmd.Start()
 		if err != nil {
 			panic(fmt.Sprintf("error removing tuntap device: %s", err))
 		}
-		cmd.Wait()
+		err = cmd.Wait()
+		if err != nil {
+			panic(fmt.Sprintf("error running command to remove tuntap device: %s", err))
+		}
 	}
 }
