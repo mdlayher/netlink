@@ -2,12 +2,15 @@ package genetlink
 
 import "github.com/mdlayher/netlink"
 
-// Family is the netlink family constant used to specify generic netlink.
-const Family = 16
+// Protocol is the netlink protocol constant used to specify generic netlink.
+const Protocol = 16
 
 // A Conn is a generic netlink connection.  A Conn can be used to send and
 // receive generic netlink messages to and from netlink.
 type Conn struct {
+	// Family provides functions to help retrieve generic netlink families.
+	Family *FamilyService
+
 	c conn
 }
 
@@ -24,7 +27,7 @@ type conn interface {
 // configuration for the underlying netlink connection.  If config is
 // nil, a default configuration will be used.
 func Dial(config *netlink.Config) (*Conn, error) {
-	c, err := netlink.Dial(Family, config)
+	c, err := netlink.Dial(Protocol, config)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +37,13 @@ func Dial(config *netlink.Config) (*Conn, error) {
 
 // newConn is the internal constructor for Conn, used in tests.
 func newConn(c conn) *Conn {
-	return &Conn{
+	gc := &Conn{
 		c: c,
 	}
+
+	gc.Family = &FamilyService{c: gc}
+
+	return gc
 }
 
 // Close closes the connection.
@@ -50,7 +57,7 @@ func (c *Conn) Close() error {
 func (c *Conn) Send(m Message, flags netlink.HeaderFlags) (netlink.Message, error) {
 	nm := netlink.Message{
 		Header: netlink.Header{
-			Type:  Family,
+			Type:  Protocol,
 			Flags: flags,
 		},
 	}
