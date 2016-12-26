@@ -48,7 +48,7 @@ func TestConnExecute(t *testing.T) {
 		},
 	}}
 
-	msgs, err := c.Execute(req, netlink.HeaderFlagsRequest)
+	msgs, err := c.Execute(req, Controller, netlink.HeaderFlagsRequest)
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestConnSend(t *testing.T) {
 
 	c, tc := testConn(t)
 
-	nlreq, err := c.Send(req, netlink.HeaderFlagsRequest)
+	nlreq, err := c.Send(req, Controller, netlink.HeaderFlagsRequest)
 	if err != nil {
 		t.Fatalf("failed to send: %v", err)
 	}
