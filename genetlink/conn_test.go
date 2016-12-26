@@ -1,6 +1,8 @@
 package genetlink
 
 import (
+	"encoding"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -18,19 +20,12 @@ func TestConnExecute(t *testing.T) {
 
 	wantnl := netlink.Message{
 		Header: netlink.Header{
-			Type:  Family,
+			Type:  Protocol,
 			Flags: netlink.HeaderFlagsRequest,
 			// Sequence and PID not set because we are mocking the underlying
 			// netlink connection.
 		},
-		Data: func() []byte {
-			reqb, err := req.MarshalBinary()
-			if err != nil {
-				t.Fatalf("failed to marshal request: %v", err)
-			}
-
-			return reqb
-		}(),
+		Data: mustMarshal(req),
 	}
 	wantgenl := []Message{{
 		Header: Header{
@@ -90,7 +85,7 @@ func TestConnSend(t *testing.T) {
 
 	want := netlink.Message{
 		Header: netlink.Header{
-			Type:  Family,
+			Type:  Protocol,
 			Flags: netlink.HeaderFlagsRequest,
 		},
 		Data: reqb,
@@ -190,3 +185,21 @@ type noopConn struct{}
 func (c *noopConn) Close() error                                    { return nil }
 func (c *noopConn) Send(m netlink.Message) (netlink.Message, error) { return netlink.Message{}, nil }
 func (c *noopConn) Receives() ([]netlink.Message, error)            { return nil, nil }
+
+func mustMarshal(m encoding.BinaryMarshaler) []byte {
+	b, err := m.MarshalBinary()
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal binary: %v", err))
+	}
+
+	return b
+}
+
+func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
+	b, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal attributes: %v", err))
+	}
+
+	return b
+}

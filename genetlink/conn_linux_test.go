@@ -3,82 +3,81 @@
 package genetlink_test
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
-	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/genetlink"
 )
 
-func TestLinuxConnIntegration(t *testing.T) {
+func TestLinuxConnFamilyGetIsNotExistIntegration(t *testing.T) {
+	// Test that the documented behavior of returning an error that is compatible
+	// with os.IsNotExist is correct
+	const name = "NOTEXISTS"
+
 	c, err := genetlink.Dial(nil)
 	if err != nil {
 		t.Fatalf("failed to dial generic netlink: %v", err)
 	}
 
-	// Ask netlink for specified family; must be null-terminated string
-	const name = "nlctrl"
-	family := append([]byte(name), 0x00)
-
-	const (
-		commandGetFamily    = 3
-		attributeFamilyName = 2
-	)
-
-	// Ask netlink for attributes about the specified family
-	req := genetlink.Message{
-		Header: genetlink.Header{
-			Command: commandGetFamily,
-			Version: 1,
-		},
-		Data: func() []byte {
-			ab, err := netlink.MarshalAttributes([]netlink.Attribute{{
-				Type: attributeFamilyName,
-				Data: family,
-			}})
-			if err != nil {
-				t.Fatalf("failed to marshal attributes: %v", err)
-			}
-
-			return ab
-		}(),
+	if _, err := c.Family.Get(name); !os.IsNotExist(err) {
+		t.Fatalf("expected not exists error, got: %v", err)
 	}
 
-	// Perform a request, receive replies, and validate the replies
-	flags := netlink.HeaderFlagsRequest
-	msgs, err := c.Execute(req, flags)
+	if err := c.Close(); err != nil {
+		t.Fatalf("error closing netlink connection: %v", err)
+	}
+}
+
+func TestLinuxConnFamilyGetIntegration(t *testing.T) {
+	c, err := genetlink.Dial(nil)
+	if err != nil {
+		t.Fatalf("failed to dial generic netlink: %v", err)
+	}
+
+	const name = "nlctrl"
+	family, err := c.Family.Get(name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			t.Skipf("skipping because %q family not available", name)
 		}
 
-		t.Fatalf("failed to execute request: %v", err)
-	}
-
-	if want, got := 1, len(msgs); want != got {
-		t.Fatalf("unexpected message count from netlink:\n- want: %v\n-  got: %v",
-			want, got)
+		t.Fatalf("failed to query for family: %v", err)
 	}
 
 	if err := c.Close(); err != nil {
 		t.Fatalf("error closing netlink connection: %v", err)
 	}
 
-	m := msgs[0]
-	attrs, err := netlink.UnmarshalAttributes(m.Data)
+	if want, got := name, family.Name; want != got {
+		t.Fatalf("unexpected family name:\n- want: %q\n-  got: %q", want, got)
+	}
+}
+
+func TestLinuxConnFamilyListIntegration(t *testing.T) {
+	c, err := genetlink.Dial(nil)
 	if err != nil {
-		t.Fatalf("failed to unmarshal attributes: %v", err)
+		t.Fatalf("failed to dial generic netlink: %v", err)
 	}
 
-	for _, a := range attrs {
-		if a.Type != attributeFamilyName {
-			continue
-		}
+	families, err := c.Family.List()
+	if err != nil {
+		t.Fatalf("failed to query for families: %v", err)
+	}
 
-		// Verify the family name we requested was returned to us
-		if want, got := family, a.Data; !bytes.Equal(want, got) {
-			t.Fatalf("unexpected family name:\n- want: [%# x]\n-  got: [%# x]", want, got)
+	if err := c.Close(); err != nil {
+		t.Fatalf("error closing netlink connection: %v", err)
+	}
+
+	// Should be at least nlctrl present
+	var found bool
+	const name = "nlctrl"
+	for _, f := range families {
+		if f.Name == name {
+			found = true
 		}
+	}
+
+	if !found {
+		t.Fatalf("family %q was not found", name)
 	}
 }
