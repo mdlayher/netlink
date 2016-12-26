@@ -54,7 +54,7 @@ func (s *FamilyService) Get(name string) (Family, error) {
 		Data: b,
 	}
 
-	msgs, err := s.c.Execute(req, netlink.HeaderFlagsRequest)
+	msgs, err := s.c.Execute(req, Controller, netlink.HeaderFlagsRequest)
 	if err != nil {
 		return Family{}, err
 	}
@@ -84,7 +84,7 @@ func (s *FamilyService) List() ([]Family, error) {
 	}
 
 	flags := netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump
-	msgs, err := s.c.Execute(req, flags)
+	msgs, err := s.c.Execute(req, Controller, flags)
 	if err != nil {
 		return nil, err
 	}

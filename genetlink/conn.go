@@ -2,8 +2,12 @@ package genetlink
 
 import "github.com/mdlayher/netlink"
 
+// Controller is the generic netlink controller family ID, used to issue
+// requests to the controller.
+const Controller = 0x10
+
 // Protocol is the netlink protocol constant used to specify generic netlink.
-const Protocol = 16
+const Protocol = 0x10
 
 // A Conn is a generic netlink connection.  A Conn can be used to send and
 // receive generic netlink messages to and from netlink.
@@ -52,12 +56,13 @@ func (c *Conn) Close() error {
 }
 
 // Send sends a single Message to netlink, wrapping it in a netlink.Message
-// using the specified flags.  On success, Send returns a copy of the
-// netlink.Message with all parameters populated, for later validation.
-func (c *Conn) Send(m Message, flags netlink.HeaderFlags) (netlink.Message, error) {
+// using the specified generic netlink family and flags.  On success, Send
+// returns a copy of the netlink.Message with all parameters populated, for
+// later validation.
+func (c *Conn) Send(m Message, family uint16, flags netlink.HeaderFlags) (netlink.Message, error) {
 	nm := netlink.Message{
 		Header: netlink.Header{
-			Type:  Protocol,
+			Type:  netlink.HeaderType(family),
 			Flags: flags,
 		},
 	}
@@ -103,8 +108,8 @@ func (c *Conn) Receive() ([]Message, []netlink.Message, error) {
 //
 // See the documentation of Conn.Send, Conn.Receive, and netlink.Validate for
 // details about each function.
-func (c *Conn) Execute(m Message, flags netlink.HeaderFlags) ([]Message, error) {
-	req, err := c.Send(m, flags)
+func (c *Conn) Execute(m Message, family uint16, flags netlink.HeaderFlags) ([]Message, error) {
+	req, err := c.Send(m, family, flags)
 	if err != nil {
 		return nil, err
 	}
