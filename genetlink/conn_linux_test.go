@@ -129,6 +129,12 @@ func TestLinuxConnNL80211Integration(t *testing.T) {
 
 	// Verify that nl80211 reported the same information as package net
 	for _, info := range infos {
+		// TODO(mdlayher): figure out why nl80211 returns a subdevice with
+		// an empty name on newer kernel
+		if info.Name == "" {
+			continue
+		}
+
 		ifi, err := net.InterfaceByName(info.Name)
 		if err != nil {
 			t.Fatalf("error retrieving interface %q: %v", info.Name, err)
