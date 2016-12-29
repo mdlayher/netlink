@@ -149,10 +149,21 @@ func TestLinuxConnReceive(t *testing.T) {
 		t.Fatalf("unexpected recvfrom address:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
-	if want, got := 0, s.recvfrom.flags; want != got {
-		t.Fatalf("unexpected recvfrom flags:\n- want: %v\n-  got: %v",
+
+	// Expect a MSG_PEEK and then no flags on second call
+	if want, got := 2, len(s.recvfrom.flags); want != got {
+		t.Fatalf("unexpected number of calls to recvfrom:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+	if want, got := syscall.MSG_PEEK, s.recvfrom.flags[0]; want != got {
+		t.Fatalf("unexpected first recvfrom flags:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+	if want, got := 0, s.recvfrom.flags[1]; want != got {
+		t.Fatalf("unexpected second recvfrom flags:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+
 	if want, got := 1, len(msgs); want != got {
 		t.Fatalf("unexpected number of messages:\n- want: %v\n-  got: %v",
 			want, got)
@@ -160,6 +171,51 @@ func TestLinuxConnReceive(t *testing.T) {
 
 	if want, got := res, msgs[0]; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output message:\n- want: %#v\n-  got: %#v",
+			want, got)
+	}
+}
+
+func TestLinuxConnReceiveLargeMessage(t *testing.T) {
+	n := os.Getpagesize() * 4
+
+	res := Message{
+		Header: Header{
+			Length:   uint32(nlmsgAlign(nlmsgLength(n))),
+			Type:     HeaderTypeError,
+			Sequence: 1,
+			PID:      uint32(os.Getpid()),
+		},
+		Data: make([]byte, n),
+	}
+	resb, err := res.MarshalBinary()
+	if err != nil {
+		t.Fatalf("failed to marshal response to binary: %v", err)
+	}
+
+	c, s := testLinuxConn(t, nil)
+
+	from := &syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+	}
+
+	s.recvfrom.p = resb
+	s.recvfrom.from = from
+
+	if _, err := c.Receive(); err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	// Expect several MSG_PEEK and then no flags
+	want := []int{
+		syscall.MSG_PEEK,
+		syscall.MSG_PEEK,
+		syscall.MSG_PEEK,
+		syscall.MSG_PEEK,
+		0,
+	}
+
+	if got := s.recvfrom.flags; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected number recvfrom flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
 }
@@ -345,7 +401,7 @@ type testSocket struct {
 	}
 	recvfrom struct {
 		// Received from caller
-		flags int
+		flags []int
 		// Sent to caller
 		p    []byte
 		from syscall.Sockaddr
@@ -360,7 +416,7 @@ func (s *testSocket) Bind(sa syscall.Sockaddr) error {
 }
 
 func (s *testSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) {
-	s.recvfrom.flags = flags
+	s.recvfrom.flags = append(s.recvfrom.flags, flags)
 	n := copy(p, s.recvfrom.p)
 
 	return n, s.recvfrom.from, nil
