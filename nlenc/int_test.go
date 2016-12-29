@@ -69,6 +69,34 @@ func TestUintPanic(t *testing.T) {
 			},
 		},
 		{
+			name: "short put 64",
+			b:    make([]byte, 7),
+			fn: func(b []byte) {
+				PutUint64(b, 0)
+			},
+		},
+		{
+			name: "long put 64",
+			b:    make([]byte, 9),
+			fn: func(b []byte) {
+				PutUint64(b, 0)
+			},
+		},
+		{
+			name: "short get 64",
+			b:    make([]byte, 7),
+			fn: func(b []byte) {
+				Uint64(b)
+			},
+		},
+		{
+			name: "long get 64",
+			b:    make([]byte, 9),
+			fn: func(b []byte) {
+				Uint64(b)
+			},
+		},
+		{
 			name: "short get signed 32",
 			b:    make([]byte, 3),
 			fn: func(b []byte) {
@@ -173,7 +201,7 @@ func TestUint32(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("0x%04x", tt.v), func(t *testing.T) {
+		t.Run(fmt.Sprintf("0x%08x", tt.v), func(t *testing.T) {
 			b := make([]byte, 4)
 			PutUint32(b, tt.v)
 
@@ -183,6 +211,65 @@ func TestUint32(t *testing.T) {
 			}
 
 			v := Uint32(b)
+
+			if want, got := tt.v, v; want != got {
+				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestUint64(t *testing.T) {
+	tests := []struct {
+		v uint64
+		b []byte
+	}{
+		{
+			v: 0x1,
+			b: []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0x0102,
+			b: []byte{0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0x1234,
+			b: []byte{0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0xffff,
+			b: []byte{0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0x01020304,
+			b: []byte{0x04, 0x03, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0x1a2a3a4a,
+			b: []byte{0x4a, 0x3a, 0x2a, 0x1a, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			v: 0x0102030405060708,
+			b: []byte{0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01},
+		},
+		{
+			v: 0x1a2a3a4a5a6a7a8a,
+			b: []byte{0x8a, 0x7a, 0x6a, 0x5a, 0x4a, 0x3a, 0x2a, 0x1a},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("0x%016x", tt.v), func(t *testing.T) {
+			b := make([]byte, 8)
+			PutUint64(b, tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
+					want, got)
+			}
+
+			v := Uint64(b)
 
 			if want, got := tt.v, v; want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
@@ -232,7 +319,7 @@ func TestInt32(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("0x%04x", tt.v), func(t *testing.T) {
+		t.Run(fmt.Sprintf("0x%08x", tt.v), func(t *testing.T) {
 			v := Int32(tt.b)
 
 			if want, got := tt.v, v; want != got {
