@@ -24,7 +24,7 @@ func TestConnExecute(t *testing.T) {
 	}}
 
 	c, tc := testConn(t)
-	tc.receive = replies
+	tc.receive = [][]Message{replies}
 
 	msgs, err := c.Execute(req)
 	if err != nil {
@@ -93,7 +93,7 @@ func TestConnSend(t *testing.T) {
 
 func TestConnReceive(t *testing.T) {
 	c, tc := testConn(t)
-	tc.receive = []Message{
+	tc.receive = [][]Message{{
 		{
 			Header: Header{
 				Length:   uint32(nlmsgAlign(nlmsgLength(4))),
@@ -110,40 +110,92 @@ func TestConnReceive(t *testing.T) {
 			},
 			Data: []byte{0x44, 0x55, 0x66, 0x77},
 		},
-	}
+	}}
 
 	msgs, err := c.Receive()
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
-	if want, got := tc.receive, msgs; !reflect.DeepEqual(want, got) {
+	if want, got := tc.receive[0], msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
 }
 
-func TestConnReceiveMultiPart(t *testing.T) {
+func TestConnReceiveMultiPartOnce(t *testing.T) {
 	c, tc := testConn(t)
 
-	tc.receive = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
+	tc.receive = [][]Message{
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+				},
+			},
 		},
-	}}
-	tc.multipart = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
-			Type:  HeaderTypeDone,
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+					Type:  HeaderTypeDone,
+				},
+			},
 		},
-	}}
+	}
 
 	msgs, err := c.Receive()
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
-	want := append(tc.receive, tc.multipart...)
+	if want, got := tc.receive[0], msgs; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
+			want, got)
+	}
+}
+
+func TestConnReceiveMultiPartRecursive(t *testing.T) {
+	c, tc := testConn(t)
+
+	tc.receive = [][]Message{
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+				},
+			},
+		},
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+				},
+			},
+		},
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+				},
+			},
+		},
+		{
+			{
+				Header: Header{
+					Flags: HeaderFlagsMulti,
+					Type:  HeaderTypeDone,
+				},
+			},
+		},
+	}
+
+	msgs, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	want := append(tc.receive[0], append(tc.receive[1], tc.receive[2]...)...)
 	if got := msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
 			want, got)
@@ -152,7 +204,7 @@ func TestConnReceiveMultiPart(t *testing.T) {
 
 func TestConnReceiveShortErrorMessage(t *testing.T) {
 	c, tc := testConn(t)
-	tc.receive = []Message{
+	tc.receive = [][]Message{{
 		{
 			Header: Header{
 				Length: uint32(nlmsgAlign(nlmsgLength(4))),
@@ -160,87 +212,11 @@ func TestConnReceiveShortErrorMessage(t *testing.T) {
 			},
 			Data: []byte{0x01},
 		},
-	}
+	}}
 
 	_, got := c.Receive()
 
 	if want := errShortErrorMessage; want != got {
-		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
-}
-
-func TestConnReceiveInvalidMultiPartMessageTooMany(t *testing.T) {
-	c, tc := testConn(t)
-	tc.receive = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
-		},
-	}}
-
-	// Too many multi-part termination messages
-	tc.multipart = []Message{
-		{
-			Header: Header{
-				Type: HeaderTypeDone,
-			},
-		},
-		{
-			Header: Header{
-				Type: HeaderTypeDone,
-			},
-		},
-	}
-
-	_, got := c.Receive()
-
-	if want := errInvalidMultiPartMessage; want != got {
-		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
-}
-
-func TestConnReceiveInvalidMultiPartMessageNotDone(t *testing.T) {
-	c, tc := testConn(t)
-	tc.receive = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
-		},
-	}}
-
-	// HeaderTypeDone not set
-	tc.multipart = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
-		},
-	}}
-
-	_, got := c.Receive()
-
-	if want := errInvalidMultiPartMessage; want != got {
-		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
-}
-
-func TestConnReceiveInvalidMultiPartMessageNotMulti(t *testing.T) {
-	c, tc := testConn(t)
-	tc.receive = []Message{{
-		Header: Header{
-			Flags: HeaderFlagsMulti,
-		},
-	}}
-
-	// HeaderFlagsMulti not set
-	tc.multipart = []Message{{
-		Header: Header{
-			Type: HeaderTypeDone,
-		},
-	}}
-
-	_, got := c.Receive()
-
-	if want := errInvalidMultiPartMessage; want != got {
 		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
@@ -358,9 +334,8 @@ func testConn(t *testing.T) (*Conn, *testOSConn) {
 }
 
 type testOSConn struct {
-	send      Message
-	receive   []Message
-	multipart []Message
+	send    Message
+	receive [][]Message
 
 	calls int
 
@@ -375,11 +350,7 @@ func (c *testOSConn) Send(m Message) error {
 func (c *testOSConn) Receive() ([]Message, error) {
 	defer func() { c.calls++ }()
 
-	if c.calls > 0 && len(c.multipart) > 0 {
-		return c.multipart, nil
-	}
-
-	return c.receive, nil
+	return c.receive[c.calls], nil
 }
 
 type noopConn struct{}

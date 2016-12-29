@@ -178,19 +178,9 @@ func TestConnFamilyList(t *testing.T) {
 				}),
 			}),
 		},
-		{
-			Header: netlink.Header{
-				Length: headerLen,
-				Flags:  netlink.HeaderFlagsMulti,
-				Type:   netlink.HeaderTypeDone,
-			},
-			Data: mustMarshal(Message{
-				Header: Header{
-					Command: 0x1,
-					Version: 0x2,
-				},
-			}),
-		},
+		// Normally a "multi-part" done message would be here, but package
+		// netlink takes care of trimming that away for us, so this package
+		// assumes that has already been taken care of
 	}
 
 	families, err := c.Family.List()

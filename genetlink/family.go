@@ -89,8 +89,7 @@ func (s *FamilyService) List() ([]Family, error) {
 		return nil, err
 	}
 
-	// Last message indicates end of multi-part message, so trim it
-	return buildFamilies(msgs[:len(msgs)-1])
+	return buildFamilies(msgs)
 }
 
 // buildFamilies builds a slice of Families by parsing attributes from the

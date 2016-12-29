@@ -112,9 +112,8 @@ func ExampleConn_nl80211WiFi() {
 		MAC   net.HardwareAddr
 	}
 
-	// Last message is end of multi-part indicator
 	var infos []ifInfo
-	for _, m := range msgs[:len(msgs)-1] {
+	for _, m := range msgs {
 		// nl80211's response contains packed netlink attributes
 		attrs, err := netlink.UnmarshalAttributes(m.Data)
 		if err != nil {

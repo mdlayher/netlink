@@ -329,13 +329,12 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 	tests := []struct {
 		name string
 		req  Message
-		rep  []Message
-		mp   []Message
+		rep  [][]Message
 		err  error
 	}{
 		{
 			name: "ENOENT",
-			rep: []Message{{
+			rep: [][]Message{{{
 				Header: Header{
 					Length:   uint32(nlmsgAlign(nlmsgLength(4))),
 					Type:     HeaderTypeError,
@@ -344,23 +343,29 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				},
 				// -2, little endian (ENOENT)
 				Data: []byte{0xfe, 0xff, 0xff, 0xff},
-			}},
+			}}},
 			err: syscall.ENOENT,
 		},
 		{
 			name: "EINTR multipart",
-			rep: []Message{{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
+			rep: [][]Message{
+				{
+					{
+						Header: Header{
+							Flags: HeaderFlagsMulti,
+						},
+					},
 				},
-			}},
-			mp: []Message{{
-				Header: Header{
-					Type:  HeaderTypeError,
-					Flags: HeaderFlagsMulti,
+				{
+					{
+						Header: Header{
+							Type:  HeaderTypeError,
+							Flags: HeaderFlagsMulti,
+						},
+						Data: []byte{0xfc, 0xff, 0xff, 0xff},
+					},
 				},
-				Data: []byte{0xfc, 0xff, 0xff, 0xff},
-			}},
+			},
 			// -4, little endian (EINTR)
 			err: syscall.EINTR,
 		},
@@ -370,7 +375,6 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c, tc := testConn(t)
 			tc.receive = tt.rep
-			tc.multipart = tt.mp
 
 			_, err := c.Receive()
 
