@@ -82,7 +82,23 @@ func (c *conn) Send(m Message) error {
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
+	for {
+		// Peek at the buffer to see how many bytes are available
+		n, _, err := c.s.Recvfrom(b, syscall.MSG_PEEK)
+		if err != nil {
+			return nil, err
+		}
 
+		// Break when we can read all messages
+		if n < len(b) {
+			break
+		}
+
+		// Double in size if not enough bytes
+		b = make([]byte, len(b)*2)
+	}
+
+	// Read out all available messages
 	n, from, err := c.s.Recvfrom(b, 0)
 	if err != nil {
 		return nil, err
