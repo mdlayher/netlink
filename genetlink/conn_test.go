@@ -184,7 +184,7 @@ type noopConn struct{}
 
 func (c *noopConn) Close() error                                    { return nil }
 func (c *noopConn) Send(m netlink.Message) (netlink.Message, error) { return netlink.Message{}, nil }
-func (c *noopConn) Receives() ([]netlink.Message, error)            { return nil, nil }
+func (c *noopConn) Receive() ([]netlink.Message, error)             { return nil, nil }
 
 func mustMarshal(m encoding.BinaryMarshaler) []byte {
 	b, err := m.MarshalBinary()

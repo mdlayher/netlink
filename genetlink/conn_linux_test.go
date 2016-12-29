@@ -104,9 +104,8 @@ func TestLinuxConnNL80211Integration(t *testing.T) {
 		MAC   net.HardwareAddr
 	}
 
-	// Last message is end of multi-part indicator
 	var infos []ifInfo
-	for _, m := range msgs[:len(msgs)-1] {
+	for _, m := range msgs {
 		attrs, err := netlink.UnmarshalAttributes(m.Data)
 		if err != nil {
 			t.Fatalf("failed to unmarshal attributes: %v", err)

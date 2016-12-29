@@ -9,10 +9,9 @@ import (
 
 // Error messages which can be returned by Validate.
 var (
-	errInvalidMultiPartMessage = errors.New("invalid multi-part netlink message")
-	errMismatchedSequence      = errors.New("mismatched sequence in netlink reply")
-	errMismatchedPID           = errors.New("mismatched PID in netlink reply")
-	errShortErrorMessage       = errors.New("not enough data for netlink error code")
+	errMismatchedSequence = errors.New("mismatched sequence in netlink reply")
+	errMismatchedPID      = errors.New("mismatched PID in netlink reply")
+	errShortErrorMessage  = errors.New("not enough data for netlink error code")
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -126,16 +125,34 @@ func (c *Conn) Send(m Message) (Message, error) {
 }
 
 // Receive receives one or more messages from netlink.  Multi-part messages are
-// handled transparently and returned as a single slice of Messages.  If any of
-// the messages indicate a netlink error, that error will be returned.
+// handled transparently and returned as a single slice of Messages, with the
+// final empty "multi-part done" message removed.  If any of the messages
+// indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
+	msgs, err := c.receive()
+	if err != nil {
+		return nil, err
+	}
+
+	// Trim the final message with multi-part done indicator if
+	// present
+	if m := msgs[len(msgs)-1]; m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type == HeaderTypeDone {
+		return msgs[:len(msgs)-1], nil
+	}
+
+	return msgs, nil
+}
+
+// receive is the internal implementation of Conn.Receive, which can be called
+// recursively to handle multi-part messages.
+func (c *Conn) receive() ([]Message, error) {
 	msgs, err := c.c.Receive()
 	if err != nil {
 		return nil, err
 	}
 
-	// If this message is multi-part, we will need to perform an additional
-	// receive at the end to drain the socket's last message
+	// If this message is multi-part, we will need to perform an recursive call
+	// to continue draining the socket
 	var multi bool
 
 	for _, m := range msgs {
@@ -153,31 +170,13 @@ func (c *Conn) Receive() ([]Message, error) {
 		return msgs, nil
 	}
 
-	// If needed, receive the final part of the multi-part message
-	final, err := c.c.Receive()
+	// More messages waiting
+	mmsgs, err := c.receive()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(final) != 1 {
-		return nil, errInvalidMultiPartMessage
-	}
-	fm := final[0]
-
-	// Final message may contain errors
-	if err := checkMessage(fm); err != nil {
-		return nil, err
-	}
-
-	// Final message must be done and indicate multi
-	isDone := fm.Header.Type == HeaderTypeDone
-	isMulti := fm.Header.Flags&HeaderFlagsMulti != 0
-
-	if !isDone || !isMulti {
-		return nil, errInvalidMultiPartMessage
-	}
-
-	return append(msgs, fm), nil
+	return append(msgs, mmsgs...), nil
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
