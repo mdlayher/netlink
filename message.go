@@ -57,7 +57,7 @@ const (
 	// HeaderFlagsAtomic requests that netlink send an atomic snapshot of
 	// its entries.  Requires CAP_NET_ADMIN or an effective UID of 0.
 	// May be obsolete.
-	HeaderFlagsAtomic HeaderFlags = 0x300
+	HeaderFlagsAtomic HeaderFlags = 0x400
 
 	// HeaderFlagsDump requests that netlink return a complete list of
 	// all entries.
