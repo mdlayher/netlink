@@ -8,6 +8,112 @@ import (
 
 // TODO(mdlayher): tests all assume little endian host machine
 
+func TestHeaderFlagsString(t *testing.T) {
+	tests := []struct {
+		f HeaderFlags
+		s string
+	}{
+		{
+			f: 0,
+			s: "0",
+		},
+		{
+			f: HeaderFlagsRequest,
+			s: "request",
+		},
+		{
+			f: HeaderFlagsMulti,
+			s: "multi",
+		},
+		{
+			f: HeaderFlagsEcho,
+			s: "echo",
+		},
+		{
+			f: HeaderFlagsDumpInterrupted,
+			s: "dumpinterrupted",
+		},
+		{
+			f: HeaderFlagsDumpFiltered,
+			s: "dumpfiltered",
+		},
+		{
+			f: 1 << 6,
+			s: "1<<6",
+		},
+		{
+			f: 1 << 7,
+			s: "1<<7",
+		},
+		{
+			f: HeaderFlagsRoot,
+			s: "root",
+		},
+		{
+			f: HeaderFlagsMatch,
+			s: "match",
+		},
+		{
+			f: HeaderFlagsAtomic,
+			s: "atomic",
+		},
+		{
+			f: HeaderFlagsDump,
+			s: "root|match",
+		},
+		{
+			f: HeaderFlagsRequest | HeaderFlagsDump,
+			s: "request|root|match",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.s, func(t *testing.T) {
+			if want, got := tt.s, tt.f.String(); want != got {
+				t.Fatalf("unexpected flag string for: %016b\n- want: %q\n-  got: %q",
+					tt.f, want, got)
+			}
+		})
+	}
+}
+
+func TestHeaderTypeString(t *testing.T) {
+	tests := []struct {
+		t HeaderType
+		s string
+	}{
+		{
+			t: 0,
+			s: "unknown(0)",
+		},
+		{
+			t: HeaderTypeNoop,
+			s: "noop",
+		},
+		{
+			t: HeaderTypeError,
+			s: "error",
+		},
+		{
+			t: HeaderTypeDone,
+			s: "done",
+		},
+		{
+			t: HeaderTypeOverrun,
+			s: "overrun",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.s, func(t *testing.T) {
+			if want, got := tt.s, tt.t.String(); want != got {
+				t.Fatalf("unexpected header type string:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMessageMarshal(t *testing.T) {
 	tests := []struct {
 		name string

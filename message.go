@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -64,6 +65,40 @@ const (
 	HeaderFlagsDump HeaderFlags = HeaderFlagsRoot | HeaderFlagsMatch
 )
 
+// String returns the string representation of a HeaderFlags.
+func (f HeaderFlags) String() string {
+	names := []string{
+		"request",
+		"multi",
+		"acknowledge",
+		"echo",
+		"dumpinterrupted",
+		"dumpfiltered",
+		"1<<6",
+		"1<<7",
+		"root",
+		"match",
+		"atomic",
+	}
+
+	var s string
+	for i, name := range names {
+		if f&(1<<uint(i)) != 0 {
+			if s != "" {
+				s += "|"
+			}
+
+			s += name
+		}
+	}
+
+	if s == "" {
+		s = "0"
+	}
+
+	return s
+}
+
 // HeaderType specifies the type of a Header.
 type HeaderType uint16
 
@@ -81,6 +116,22 @@ const (
 	// HeaderTypeOverrun indicates that data was lost from this message.
 	HeaderTypeOverrun HeaderType = 0x4
 )
+
+// String returns the string representation of a HeaderType.
+func (t HeaderType) String() string {
+	switch t {
+	case HeaderTypeNoop:
+		return "noop"
+	case HeaderTypeError:
+		return "error"
+	case HeaderTypeDone:
+		return "done"
+	case HeaderTypeOverrun:
+		return "overrun"
+	default:
+		return fmt.Sprintf("unknown(%d)", t)
+	}
+}
 
 // NB: the memory layout of Header and Linux's syscall.NlMsgHdr must be
 // exactly the same.  Cannot reorder, change data type, add, or remove fields.
