@@ -165,6 +165,13 @@ func TestUint16(t *testing.T) {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
 					want, got)
 			}
+
+			b = Uint16Bytes(tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
+					want, got)
+			}
 		})
 	}
 }
@@ -214,6 +221,13 @@ func TestUint32(t *testing.T) {
 
 			if want, got := tt.v, v; want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
+					want, got)
+			}
+
+			b = Uint32Bytes(tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 		})
@@ -273,6 +287,13 @@ func TestUint64(t *testing.T) {
 
 			if want, got := tt.v, v; want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
+					want, got)
+			}
+
+			b = Uint64Bytes(tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 		})

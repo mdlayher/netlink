@@ -74,3 +74,30 @@ func Int32(b []byte) int32 {
 
 	return *(*int32)(unsafe.Pointer(&b[0]))
 }
+
+// Uint16Bytes encodes a uint16 into a newly-allocated byte slice using the
+// host machine's native endianness.  It is a shortcut for allocating a new
+// byte slice and filling it using PutUint16.
+func Uint16Bytes(v uint16) []byte {
+	b := make([]byte, 2)
+	PutUint16(b, v)
+	return b
+}
+
+// Uint32Bytes encodes a uint32 into a newly-allocated byte slice using the
+// host machine's native endianness.  It is a shortcut for allocating a new
+// byte slice and filling it using PutUint32.
+func Uint32Bytes(v uint32) []byte {
+	b := make([]byte, 4)
+	PutUint32(b, v)
+	return b
+}
+
+// Uint64Bytes encodes a uint64 into a newly-allocated byte slice using the
+// host machine's native endianness.  It is a shortcut for allocating a new
+// byte slice and filling it using PutUint64.
+func Uint64Bytes(v uint64) []byte {
+	b := make([]byte, 8)
+	PutUint64(b, v)
+	return b
+}
