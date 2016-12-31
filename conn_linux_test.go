@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -287,6 +288,42 @@ func TestLinuxConnIntegration(t *testing.T) {
 	}
 }
 
+func TestLinuxConnJoinLeaveGroup(t *testing.T) {
+	c, s := testLinuxConn(t, nil)
+
+	group := uint32(1)
+
+	if err := c.JoinGroup(group); err != nil {
+		t.Fatalf("failed to join group: %v", err)
+	}
+
+	if err := c.LeaveGroup(group); err != nil {
+		t.Fatalf("failed to leave group: %v", err)
+	}
+
+	l := uint32(unsafe.Sizeof(group))
+
+	want := []setSockopt{
+		{
+			level: solNetlink,
+			name:  syscall.NETLINK_ADD_MEMBERSHIP,
+			v:     group,
+			l:     l,
+		},
+		{
+			level: solNetlink,
+			name:  syscall.NETLINK_DROP_MEMBERSHIP,
+			v:     group,
+			l:     l,
+		},
+	}
+
+	if got := s.setSockopt; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected socket options:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+}
+
 func TestLinuxConnConfig(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -410,8 +447,16 @@ type testSocket struct {
 		p    []byte
 		from syscall.Sockaddr
 	}
+	setSockopt []setSockopt
 
 	noopSocket
+}
+
+type setSockopt struct {
+	level int
+	name  int
+	v     uint32
+	l     uint32
 }
 
 func (s *testSocket) Bind(sa syscall.Sockaddr) error {
@@ -433,9 +478,21 @@ func (s *testSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error {
 	return nil
 }
 
+func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
+	s.setSockopt = append(s.setSockopt, setSockopt{
+		level: level,
+		name:  name,
+		v:     *(*uint32)(v),
+		l:     l,
+	})
+
+	return nil
+}
+
 type noopSocket struct{}
 
-func (s *noopSocket) Bind(sa syscall.Sockaddr) error                              { return nil }
-func (s *noopSocket) Close() error                                                { return nil }
-func (s *noopSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) { return 0, nil, nil }
-func (s *noopSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error       { return nil }
+func (s *noopSocket) Bind(sa syscall.Sockaddr) error                               { return nil }
+func (s *noopSocket) Close() error                                                 { return nil }
+func (s *noopSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)  { return 0, nil, nil }
+func (s *noopSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error        { return nil }
+func (s *noopSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error { return nil }

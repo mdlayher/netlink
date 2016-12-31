@@ -34,4 +34,14 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.Close:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+
+	if got := c.JoinGroup(0); want != got {
+		t.Fatalf("unexpected error during c.JoinGroup:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+
+	if got := c.LeaveGroup(0); want != got {
+		t.Fatalf("unexpected error during c.LeaveGroup:\n- want: %v\n-  got: %v",
+			want, got)
+	}
 }

@@ -353,8 +353,12 @@ func (c *testOSConn) Receive() ([]Message, error) {
 	return c.receive[c.calls], nil
 }
 
+var _ osConn = &noopConn{}
+
 type noopConn struct{}
 
-func (c *noopConn) Close() error                 { return nil }
-func (c *noopConn) Send(m Message) error         { return nil }
-func (c *noopConn) Receives() ([]Message, error) { return nil, nil }
+func (c *noopConn) Close() error                  { return nil }
+func (c *noopConn) Send(m Message) error          { return nil }
+func (c *noopConn) Receive() ([]Message, error)   { return nil, nil }
+func (c *noopConn) JoinGroup(group uint32) error  { return nil }
+func (c *noopConn) LeaveGroup(group uint32) error { return nil }

@@ -28,6 +28,7 @@ type socket interface {
 	Close() error
 	Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)
 	Sendto(p []byte, flags int, to syscall.Sockaddr) error
+	SetSockopt(level, name int, v unsafe.Pointer, l uint32) error
 }
 
 // dial is the entry point for Dial.  dial opens a netlink socket using
@@ -135,6 +136,31 @@ func (c *conn) Close() error {
 	return c.s.Close()
 }
 
+const (
+	// #define SOL_NETLINK     270
+	solNetlink = 270
+)
+
+// JoinGroup joins a multicast group by ID.
+func (c *conn) JoinGroup(group uint32) error {
+	return c.s.SetSockopt(
+		solNetlink,
+		syscall.NETLINK_ADD_MEMBERSHIP,
+		unsafe.Pointer(&group),
+		uint32(unsafe.Sizeof(group)),
+	)
+}
+
+// LeaveGroup leaves a multicast group by ID.
+func (c *conn) LeaveGroup(group uint32) error {
+	return c.s.SetSockopt(
+		solNetlink,
+		syscall.NETLINK_DROP_MEMBERSHIP,
+		unsafe.Pointer(&group),
+		uint32(unsafe.Sizeof(group)),
+	)
+}
+
 // sysToHeader converts a syscall.NlMsghdr to a Header.
 func sysToHeader(r syscall.NlMsghdr) Header {
 	// NB: the memory layout of Header and syscall.NlMsgHdr must be
@@ -162,4 +188,7 @@ func (s *sysSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)
 }
 func (s *sysSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error {
 	return syscall.Sendto(s.fd, p, flags, to)
+}
+func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
+	return setsockopt(s.fd, level, name, v, l)
 }
