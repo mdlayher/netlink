@@ -47,20 +47,12 @@ func TestConnFamilyGet(t *testing.T) {
 				{
 					Length: 6,
 					Type:   attrFamilyID,
-					Data: func() []byte {
-						b := make([]byte, 2)
-						nlenc.PutUint16(b, 16)
-						return b
-					}(),
+					Data:   nlenc.Uint16Bytes(16),
 				},
 				{
 					Length: 8,
 					Type:   attrVersion,
-					Data: func() []byte {
-						b := make([]byte, 4)
-						nlenc.PutUint32(b, 2)
-						return b
-					}(),
+					Data:   nlenc.Uint32Bytes(2),
 				},
 			}),
 		}),
@@ -123,20 +115,12 @@ func TestConnFamilyList(t *testing.T) {
 					{
 						Length: 6,
 						Type:   attrFamilyID,
-						Data: func() []byte {
-							b := make([]byte, 2)
-							nlenc.PutUint16(b, 16)
-							return b
-						}(),
+						Data:   nlenc.Uint16Bytes(16),
 					},
 					{
 						Length: 8,
 						Type:   attrVersion,
-						Data: func() []byte {
-							b := make([]byte, 4)
-							nlenc.PutUint32(b, 2)
-							return b
-						}(),
+						Data:   nlenc.Uint32Bytes(2),
 					},
 				}),
 			}),
@@ -160,20 +144,12 @@ func TestConnFamilyList(t *testing.T) {
 					{
 						Length: 6,
 						Type:   attrFamilyID,
-						Data: func() []byte {
-							b := make([]byte, 2)
-							nlenc.PutUint16(b, 26)
-							return b
-						}(),
+						Data:   nlenc.Uint16Bytes(26),
 					},
 					{
 						Length: 8,
 						Type:   attrVersion,
-						Data: func() []byte {
-							b := make([]byte, 4)
-							nlenc.PutUint32(b, 1)
-							return b
-						}(),
+						Data:   nlenc.Uint32Bytes(1),
 					},
 				}),
 			}),
