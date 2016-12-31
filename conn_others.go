@@ -39,6 +39,16 @@ func (c *conn) Close() error {
 	return errUnimplemented
 }
 
+// JoinGroup always returns an error.
+func (c *conn) JoinGroup(group uint32) error {
+	return errUnimplemented
+}
+
+// LeaveGroup always returns an error.
+func (c *conn) LeaveGroup(group uint32) error {
+	return errUnimplemented
+}
+
 // newError always returns an error.
 func newError(errno int) error {
 	return errUnimplemented

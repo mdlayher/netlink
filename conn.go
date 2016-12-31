@@ -32,6 +32,8 @@ type osConn interface {
 	Close() error
 	Send(m Message) error
 	Receive() ([]Message, error)
+	JoinGroup(group uint32) error
+	LeaveGroup(group uint32) error
 }
 
 // Dial dials a connection to netlink, using the specified protocol number.
@@ -177,6 +179,16 @@ func (c *Conn) receive() ([]Message, error) {
 	}
 
 	return append(msgs, mmsgs...), nil
+}
+
+// JoinGroup joins a netlink multicast group by its ID.
+func (c *Conn) JoinGroup(group uint32) error {
+	return c.c.JoinGroup(group)
+}
+
+// LeaveGroup leaves a netlink multicast group by its ID.
+func (c *Conn) LeaveGroup(group uint32) error {
+	return c.c.LeaveGroup(group)
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
