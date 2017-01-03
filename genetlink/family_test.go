@@ -196,12 +196,27 @@ func TestFamily_parseAttributes(t *testing.T) {
 		err   error
 	}{
 		{
-			name: "family too large",
+			name: "version too large",
 			attrs: []netlink.Attribute{{
 				Type: attrVersion,
 				Data: []byte{0xff, 0x01, 0x00, 0x00},
 			}},
 			err: errInvalidFamilyVersion,
+		},
+		{
+			name: "bad multicast group array",
+			attrs: []netlink.Attribute{{
+				Type: attrMulticastGroups,
+				Data: mustMarshalAttributes([]netlink.Attribute{
+					{
+						Type: 1,
+					},
+					{
+						Type: 3,
+					},
+				}),
+			}},
+			err: errInvalidMulticastGroupArray,
 		},
 		{
 			name: "OK",
@@ -218,11 +233,52 @@ func TestFamily_parseAttributes(t *testing.T) {
 					Type: attrVersion,
 					Data: []byte{0x02, 0x00, 0x00, 0x00},
 				},
+				{
+					Type: attrMulticastGroups,
+					Data: mustMarshalAttributes([]netlink.Attribute{
+						{
+							Type: 1,
+							Data: mustMarshalAttributes([]netlink.Attribute{
+								{
+									Type: attrMGID,
+									Data: nlenc.Uint32Bytes(16),
+								},
+								{
+									Type: attrMGName,
+									Data: nlenc.Bytes("notify"),
+								},
+							}),
+						},
+						{
+							Type: 2,
+							Data: mustMarshalAttributes([]netlink.Attribute{
+								{
+									Type: attrMGID,
+									Data: nlenc.Uint32Bytes(17),
+								},
+								{
+									Type: attrMGName,
+									Data: nlenc.Bytes("foobar"),
+								},
+							}),
+						},
+					}),
+				},
 			},
 			f: &Family{
 				ID:      16,
 				Version: 2,
 				Name:    "nlctrl",
+				Groups: []MulticastGroup{
+					{
+						ID:   16,
+						Name: "notify",
+					},
+					{
+						ID:   17,
+						Name: "foobar",
+					},
+				},
 			},
 		},
 	}
