@@ -23,6 +23,8 @@ var _ conn = &netlink.Conn{}
 // A conn is a netlink connection, which can be swapped for tests.
 type conn interface {
 	Close() error
+	JoinGroup(group uint32) error
+	LeaveGroup(group uint32) error
 	Send(m netlink.Message) (netlink.Message, error)
 	Receive() ([]netlink.Message, error)
 }
@@ -53,6 +55,16 @@ func newConn(c conn) *Conn {
 // Close closes the connection.
 func (c *Conn) Close() error {
 	return c.c.Close()
+}
+
+// JoinGroup joins a netlink multicast group by its ID.
+func (c *Conn) JoinGroup(group uint32) error {
+	return c.c.JoinGroup(group)
+}
+
+// LeaveGroup leaves a netlink multicast group by its ID.
+func (c *Conn) LeaveGroup(group uint32) error {
+	return c.c.LeaveGroup(group)
 }
 
 // Send sends a single Message to netlink, wrapping it in a netlink.Message
