@@ -180,9 +180,13 @@ func (c *testNetlinkConn) Receive() ([]netlink.Message, error) {
 	return c.receive, nil
 }
 
+var _ conn = &noopConn{}
+
 type noopConn struct{}
 
 func (c *noopConn) Close() error                                    { return nil }
+func (c *noopConn) JoinGroup(group uint32) error                    { return nil }
+func (c *noopConn) LeaveGroup(group uint32) error                   { return nil }
 func (c *noopConn) Send(m netlink.Message) (netlink.Message, error) { return netlink.Message{}, nil }
 func (c *noopConn) Receive() ([]netlink.Message, error)             { return nil, nil }
 
