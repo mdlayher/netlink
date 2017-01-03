@@ -21,6 +21,10 @@ var (
 	// errInvalidFamilyVersion is returned when a family's version is greater
 	// than an 8-bit integer.
 	errInvalidFamilyVersion = errors.New("invalid family version attribute")
+
+	// errInvalidMulticastGroupArray is returned when a multicast group array
+	// of attributes is malformed.
+	errInvalidMulticastGroupArray = errors.New("invalid multicast group attribute array")
 )
 
 // A Family is a generic netlink family.
@@ -28,6 +32,15 @@ type Family struct {
 	ID      uint16
 	Version uint8
 	Name    string
+	Groups  []MulticastGroup
+}
+
+// A MulticastGroup is a generic netlink multicast group, which can be joined
+// for notifications from generic netlink families when specific events take
+// place.
+type MulticastGroup struct {
+	ID   uint32
+	Name string
 }
 
 // A FamilyService is used to retrieve generic netlink family information.
@@ -115,10 +128,18 @@ func buildFamilies(msgs []Message) ([]Family, error) {
 
 // Attribute IDs mapped to specific family fields.
 const (
-	attrUnspecified = 0
-	attrFamilyID    = 1
-	attrFamilyName  = 2
-	attrVersion     = 3
+	// TODO(mdlayher): parse additional attributes
+
+	// Family attributes
+	attrUnspecified     = 0
+	attrFamilyID        = 1
+	attrFamilyName      = 2
+	attrVersion         = 3
+	attrMulticastGroups = 7
+
+	// Multicast group-specific attributes
+	attrMGName = 1
+	attrMGID   = 2
 )
 
 // parseAttributes parses netlink attributes into a Family's fields.
@@ -136,10 +157,52 @@ func (f *Family) parseAttributes(attrs []netlink.Attribute) error {
 			}
 
 			f.Version = uint8(v)
-		default:
-			// TODO(mdlayher): parse additional attributes
+		case attrMulticastGroups:
+			groups, err := parseMulticastGroups(a.Data)
+			if err != nil {
+				return err
+			}
+
+			f.Groups = groups
 		}
 	}
 
 	return nil
+}
+
+// parseMulticastGroups parses an array of multicast group nested attributes
+// into a slice of MulticastGroups.
+func parseMulticastGroups(b []byte) ([]MulticastGroup, error) {
+	attrs, err := netlink.UnmarshalAttributes(b)
+	if err != nil {
+		return nil, err
+	}
+
+	groups := make([]MulticastGroup, 0, len(attrs))
+	for i, a := range attrs {
+		// The type attribute is essentially an array index here; it starts
+		// at 1 and should increment for each new array element
+		if int(a.Type) != i+1 {
+			return nil, errInvalidMulticastGroupArray
+		}
+
+		nattrs, err := netlink.UnmarshalAttributes(a.Data)
+		if err != nil {
+			return nil, err
+		}
+
+		var g MulticastGroup
+		for _, na := range nattrs {
+			switch na.Type {
+			case attrMGName:
+				g.Name = nlenc.String(na.Data)
+			case attrMGID:
+				g.ID = nlenc.Uint32(na.Data)
+			}
+		}
+
+		groups = append(groups, g)
+	}
+
+	return groups, nil
 }
