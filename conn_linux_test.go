@@ -3,10 +3,14 @@
 package netlink
 
 import (
+	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
+	"sync"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
@@ -280,12 +284,74 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := req.Header.Flags, reply.Header.Flags; want != got {
 		t.Fatalf("unexpected copy header flags:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := os.Getpid(), int(reply.Header.PID); want != got {
+	if want, got := 0, int(reply.Header.PID); want != got {
 		t.Fatalf("unexpected copy header PID:\n- want: %v\n-  got: %v", want, got)
 	}
 	if want, got := len(req.Data), len(reply.Data); want != got {
 		t.Fatalf("unexpected copy header data length:\n- want: %v\n-  got: %v", want, got)
 	}
+}
+
+func TestLinuxConnIntegrationConcurrent(t *testing.T) {
+	dial := func() *Conn {
+		const protocolGeneric = 16
+
+		c, err := Dial(protocolGeneric, nil)
+		if err != nil {
+			panic(fmt.Sprintf("failed to dial netlink: %v", err))
+		}
+
+		return c
+	}
+
+	execN := func(c *Conn, n int, wg *sync.WaitGroup) {
+		req := Message{
+			Header: Header{
+				Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			},
+		}
+
+		for i := 0; i < n; i++ {
+			msgs, err := c.Execute(req)
+			if err != nil {
+				panic(fmt.Sprintf("failed to execute request: %v", err))
+			}
+
+			if l := len(msgs); l != 1 {
+				panic(fmt.Sprintf("unexpected number of reply messages: %d", l))
+			}
+		}
+
+		wg.Done()
+	}
+
+	const (
+		workers    = 16
+		iterations = 10000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	conns := make([]*Conn, 0, workers)
+	for i := 0; i < workers; i++ {
+		c := dial()
+
+		// Assign each worker a random starting sequence number, so that
+		// if any messages get crossed, tests will fail immediately
+		seq := uint32(r.Int31())
+		c.seq = &seq
+
+		conns = append(conns, c)
+	}
+
+	for _, c := range conns {
+		go execN(c, iterations, &wg)
+	}
+
+	wg.Wait()
 }
 
 func TestLinuxConnJoinLeaveGroup(t *testing.T) {
