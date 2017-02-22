@@ -44,4 +44,9 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.LeaveGroup:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+
+	if got := c.SetBPF(nil); want != got {
+		t.Fatalf("unexpected error during c.SetBPF:\n- want: %v\n-  got: %v",
+			want, got)
+	}
 }
