@@ -8,12 +8,12 @@ import (
 	"os"
 	"reflect"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
+	"golang.org/x/sys/unix"
 )
 
 func TestLinuxConn_bind(t *testing.T) {
@@ -22,8 +22,8 @@ func TestLinuxConn_bind(t *testing.T) {
 		t.Fatalf("failed to bind: %v", err)
 	}
 
-	addr := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	addr := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 	}
 
 	if want, got := addr, s.bind; !reflect.DeepEqual(want, got) {
@@ -52,8 +52,8 @@ func TestLinuxConnSend(t *testing.T) {
 	// Pad data to 4 bytes as is done when marshaling for later comparison
 	req.Data = append(req.Data, 0x00, 0x00)
 
-	to := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	to := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 	}
 
 	if want, got := 0, s.sendto.flags; want != got {
@@ -79,7 +79,7 @@ func TestLinuxConnSend(t *testing.T) {
 func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
-	s.recvfrom.from = &syscall.SockaddrInet4{}
+	s.recvfrom.from = &unix.SockaddrInet4{}
 
 	_, got := c.Receive()
 	if want := errInvalidSockaddr; want != got {
@@ -90,9 +90,9 @@ func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 func TestLinuxConnReceiveInvalidFamily(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
-	s.recvfrom.from = &syscall.SockaddrNetlink{
+	s.recvfrom.from = &unix.SockaddrNetlink{
 		// Should always be AF_NETLINK
-		Family: syscall.AF_NETLINK + 1,
+		Family: unix.AF_NETLINK + 1,
 	}
 
 	_, got := c.Receive()
@@ -138,8 +138,8 @@ func TestLinuxConnReceive(t *testing.T) {
 
 	c, s := testLinuxConn(t, nil)
 
-	from := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	from := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 	}
 
 	s.recvfrom.p = resb
@@ -160,7 +160,7 @@ func TestLinuxConnReceive(t *testing.T) {
 		t.Fatalf("unexpected number of calls to recvfrom:\n- want: %v\n-  got: %v",
 			want, got)
 	}
-	if want, got := syscall.MSG_PEEK, s.recvfrom.flags[0]; want != got {
+	if want, got := unix.MSG_PEEK, s.recvfrom.flags[0]; want != got {
 		t.Fatalf("unexpected first recvfrom flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
@@ -199,8 +199,8 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 
 	c, s := testLinuxConn(t, nil)
 
-	from := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	from := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 	}
 
 	s.recvfrom.p = resb
@@ -212,10 +212,10 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 
 	// Expect several MSG_PEEK and then no flags
 	want := []int{
-		syscall.MSG_PEEK,
-		syscall.MSG_PEEK,
-		syscall.MSG_PEEK,
-		syscall.MSG_PEEK,
+		unix.MSG_PEEK,
+		unix.MSG_PEEK,
+		unix.MSG_PEEK,
+		unix.MSG_PEEK,
 		0,
 	}
 
@@ -372,13 +372,13 @@ func TestLinuxConnJoinLeaveGroup(t *testing.T) {
 	want := []setSockopt{
 		{
 			level: solNetlink,
-			name:  syscall.NETLINK_ADD_MEMBERSHIP,
+			name:  unix.NETLINK_ADD_MEMBERSHIP,
 			v:     group,
 			l:     l,
 		},
 		{
 			level: solNetlink,
-			name:  syscall.NETLINK_DROP_MEMBERSHIP,
+			name:  unix.NETLINK_DROP_MEMBERSHIP,
 			v:     group,
 			l:     l,
 		},
@@ -447,7 +447,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				// -2, little endian (ENOENT)
 				Data: []byte{0xfe, 0xff, 0xff, 0xff},
 			}}},
-			err: syscall.ENOENT,
+			err: unix.ENOENT,
 		},
 		{
 			name: "EINTR multipart",
@@ -470,7 +470,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				},
 			},
 			// -4, little endian (EINTR)
-			err: syscall.EINTR,
+			err: unix.EINTR,
 		},
 	}
 
@@ -500,18 +500,18 @@ func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 }
 
 type testSocket struct {
-	bind   syscall.Sockaddr
+	bind   unix.Sockaddr
 	sendto struct {
 		p     []byte
 		flags int
-		to    syscall.Sockaddr
+		to    unix.Sockaddr
 	}
 	recvfrom struct {
 		// Received from caller
 		flags []int
 		// Sent to caller
 		p    []byte
-		from syscall.Sockaddr
+		from unix.Sockaddr
 	}
 	setSockopt []setSockopt
 
@@ -525,19 +525,19 @@ type setSockopt struct {
 	l     uint32
 }
 
-func (s *testSocket) Bind(sa syscall.Sockaddr) error {
+func (s *testSocket) Bind(sa unix.Sockaddr) error {
 	s.bind = sa
 	return nil
 }
 
-func (s *testSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) {
+func (s *testSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error) {
 	s.recvfrom.flags = append(s.recvfrom.flags, flags)
 	n := copy(p, s.recvfrom.p)
 
 	return n, s.recvfrom.from, nil
 }
 
-func (s *testSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error {
+func (s *testSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error {
 	s.sendto.p = p
 	s.sendto.flags = flags
 	s.sendto.to = to
@@ -557,8 +557,8 @@ func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) err
 
 type noopSocket struct{}
 
-func (s *noopSocket) Bind(sa syscall.Sockaddr) error                               { return nil }
+func (s *noopSocket) Bind(sa unix.Sockaddr) error                                  { return nil }
 func (s *noopSocket) Close() error                                                 { return nil }
-func (s *noopSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)  { return 0, nil, nil }
-func (s *noopSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error        { return nil }
+func (s *noopSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error)     { return 0, nil, nil }
+func (s *noopSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error           { return nil }
 func (s *noopSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error { return nil }

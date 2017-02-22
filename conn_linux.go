@@ -7,10 +7,12 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 var (
-	errInvalidSockaddr = errors.New("expected syscall.SockaddrNetlink but received different syscall.Sockaddr")
+	errInvalidSockaddr = errors.New("expected unix.SockaddrNetlink but received different unix.Sockaddr")
 	errInvalidFamily   = errors.New("received invalid netlink family")
 )
 
@@ -19,24 +21,24 @@ var _ osConn = &conn{}
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
 	s  socket
-	sa *syscall.SockaddrNetlink
+	sa *unix.SockaddrNetlink
 }
 
 // A socket is an interface over socket system calls.
 type socket interface {
-	Bind(sa syscall.Sockaddr) error
+	Bind(sa unix.Sockaddr) error
 	Close() error
-	Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error)
-	Sendto(p []byte, flags int, to syscall.Sockaddr) error
+	Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error)
+	Sendto(p []byte, flags int, to unix.Sockaddr) error
 	SetSockopt(level, name int, v unsafe.Pointer, l uint32) error
 }
 
 // dial is the entry point for Dial.  dial opens a netlink socket using
 // system calls.
 func dial(family int, config *Config) (*conn, error) {
-	fd, err := syscall.Socket(
-		syscall.AF_NETLINK,
-		syscall.SOCK_RAW,
+	fd, err := unix.Socket(
+		unix.AF_NETLINK,
+		unix.SOCK_RAW,
 		family,
 	)
 	if err != nil {
@@ -53,8 +55,8 @@ func bind(s socket, config *Config) (*conn, error) {
 		config = &Config{}
 	}
 
-	addr := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	addr := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 		Groups: config.Groups,
 	}
 
@@ -75,8 +77,8 @@ func (c *conn) Send(m Message) error {
 		return err
 	}
 
-	return c.s.Sendto(b, 0, &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
+	return c.s.Sendto(b, 0, &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
 	})
 }
 
@@ -85,7 +87,7 @@ func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
 	for {
 		// Peek at the buffer to see how many bytes are available
-		n, _, err := c.s.Recvfrom(b, syscall.MSG_PEEK)
+		n, _, err := c.s.Recvfrom(b, unix.MSG_PEEK)
 		if err != nil {
 			return nil, err
 		}
@@ -105,11 +107,11 @@ func (c *conn) Receive() ([]Message, error) {
 		return nil, err
 	}
 
-	addr, ok := from.(*syscall.SockaddrNetlink)
+	addr, ok := from.(*unix.SockaddrNetlink)
 	if !ok {
 		return nil, errInvalidSockaddr
 	}
-	if addr.Family != syscall.AF_NETLINK {
+	if addr.Family != unix.AF_NETLINK {
 		return nil, errInvalidFamily
 	}
 
@@ -145,7 +147,7 @@ const (
 func (c *conn) JoinGroup(group uint32) error {
 	return c.s.SetSockopt(
 		solNetlink,
-		syscall.NETLINK_ADD_MEMBERSHIP,
+		unix.NETLINK_ADD_MEMBERSHIP,
 		unsafe.Pointer(&group),
 		uint32(unsafe.Sizeof(group)),
 	)
@@ -155,7 +157,7 @@ func (c *conn) JoinGroup(group uint32) error {
 func (c *conn) LeaveGroup(group uint32) error {
 	return c.s.SetSockopt(
 		solNetlink,
-		syscall.NETLINK_DROP_MEMBERSHIP,
+		unix.NETLINK_DROP_MEMBERSHIP,
 		unsafe.Pointer(&group),
 		uint32(unsafe.Sizeof(group)),
 	)
@@ -181,13 +183,13 @@ type sysSocket struct {
 	fd int
 }
 
-func (s *sysSocket) Bind(sa syscall.Sockaddr) error { return syscall.Bind(s.fd, sa) }
-func (s *sysSocket) Close() error                   { return syscall.Close(s.fd) }
-func (s *sysSocket) Recvfrom(p []byte, flags int) (int, syscall.Sockaddr, error) {
-	return syscall.Recvfrom(s.fd, p, flags)
+func (s *sysSocket) Bind(sa unix.Sockaddr) error { return unix.Bind(s.fd, sa) }
+func (s *sysSocket) Close() error                { return unix.Close(s.fd) }
+func (s *sysSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error) {
+	return unix.Recvfrom(s.fd, p, flags)
 }
-func (s *sysSocket) Sendto(p []byte, flags int, to syscall.Sockaddr) error {
-	return syscall.Sendto(s.fd, p, flags, to)
+func (s *sysSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error {
+	return unix.Sendto(s.fd, p, flags, to)
 }
 func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
 	return setsockopt(s.fd, level, name, v, l)
