@@ -159,8 +159,8 @@ type Header struct {
 // A Message is a netlink message.  It contains a Header and an arbitrary
 // byte payload, which may be decoded using information from the Header.
 //
-// Data is encoded in the native endianness of the host system.  Use this
-// package's Uint* and PutUint* functions to encode and decode integers.
+// Data is encoded in the native endianness of the host system.  For easier
+// of encoding and decoding of integers, use package nlenc.
 type Message struct {
 	Header Header
 	Data   []byte
