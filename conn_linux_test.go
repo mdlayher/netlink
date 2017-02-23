@@ -55,18 +55,18 @@ func TestLinuxConnSend(t *testing.T) {
 		Family: unix.AF_NETLINK,
 	}
 
-	if want, got := 0, s.sendto.flags; want != got {
-		t.Fatalf("unexpected sendto flags:\n- want: %v\n-  got: %v",
+	if want, got := 0, s.sendmsg.flags; want != got {
+		t.Fatalf("unexpected sendmsg flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
-	if want, got := to, s.sendto.to; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected sendto address:\n- want: %#v\n-  got: %#v",
+	if want, got := to, s.sendmsg.to; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected sendmsg address:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
 
 	var out Message
-	if err := (&out).UnmarshalBinary(s.sendto.p); err != nil {
-		t.Fatalf("failed to unmarshal sendto buffer into message: %v", err)
+	if err := (&out).UnmarshalBinary(s.sendmsg.p); err != nil {
+		t.Fatalf("failed to unmarshal sendmsg buffer into message: %v", err)
 	}
 
 	if want, got := req, out; !reflect.DeepEqual(want, got) {
@@ -78,7 +78,7 @@ func TestLinuxConnSend(t *testing.T) {
 func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
-	s.recvfrom.from = &unix.SockaddrInet4{}
+	s.recvmsg.from = &unix.SockaddrInet4{}
 
 	_, got := c.Receive()
 	if want := errInvalidSockaddr; want != got {
@@ -89,7 +89,7 @@ func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
 func TestLinuxConnReceiveInvalidFamily(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
-	s.recvfrom.from = &unix.SockaddrNetlink{
+	s.recvmsg.from = &unix.SockaddrNetlink{
 		// Should always be AF_NETLINK
 		Family: unix.AF_NETLINK + 1,
 	}
@@ -141,30 +141,30 @@ func TestLinuxConnReceive(t *testing.T) {
 		Family: unix.AF_NETLINK,
 	}
 
-	s.recvfrom.p = resb
-	s.recvfrom.from = from
+	s.recvmsg.p = resb
+	s.recvmsg.from = from
 
 	msgs, err := c.Receive()
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
-	if want, got := from, s.recvfrom.from; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected recvfrom address:\n- want: %#v\n-  got: %#v",
+	if want, got := from, s.recvmsg.from; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected recvmsg address:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
 
 	// Expect a MSG_PEEK and then no flags on second call
-	if want, got := 2, len(s.recvfrom.flags); want != got {
-		t.Fatalf("unexpected number of calls to recvfrom:\n- want: %v\n-  got: %v",
+	if want, got := 2, len(s.recvmsg.flags); want != got {
+		t.Fatalf("unexpected number of calls to recvmsg:\n- want: %v\n-  got: %v",
 			want, got)
 	}
-	if want, got := unix.MSG_PEEK, s.recvfrom.flags[0]; want != got {
-		t.Fatalf("unexpected first recvfrom flags:\n- want: %v\n-  got: %v",
+	if want, got := unix.MSG_PEEK, s.recvmsg.flags[0]; want != got {
+		t.Fatalf("unexpected first recvmsg flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
-	if want, got := 0, s.recvfrom.flags[1]; want != got {
-		t.Fatalf("unexpected second recvfrom flags:\n- want: %v\n-  got: %v",
+	if want, got := 0, s.recvmsg.flags[1]; want != got {
+		t.Fatalf("unexpected second recvmsg flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
 
@@ -202,8 +202,8 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 		Family: unix.AF_NETLINK,
 	}
 
-	s.recvfrom.p = resb
-	s.recvfrom.from = from
+	s.recvmsg.p = resb
+	s.recvmsg.from = from
 
 	if _, err := c.Receive(); err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
@@ -218,8 +218,8 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 		0,
 	}
 
-	if got := s.recvfrom.flags; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected number recvfrom flags:\n- want: %v\n-  got: %v",
+	if got := s.recvmsg.flags; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected number recvmsg flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
 }
@@ -505,18 +505,21 @@ func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 }
 
 type testSocket struct {
-	bind   unix.Sockaddr
-	sendto struct {
+	bind    unix.Sockaddr
+	sendmsg struct {
 		p     []byte
-		flags int
+		oob   []byte
 		to    unix.Sockaddr
+		flags int
 	}
-	recvfrom struct {
+	recvmsg struct {
 		// Received from caller
 		flags []int
 		// Sent to caller
-		p    []byte
-		from unix.Sockaddr
+		p         []byte
+		oob       []byte
+		recvflags int
+		from      unix.Sockaddr
 	}
 	setSockopt []setSockopt
 
@@ -535,17 +538,19 @@ func (s *testSocket) Bind(sa unix.Sockaddr) error {
 	return nil
 }
 
-func (s *testSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error) {
-	s.recvfrom.flags = append(s.recvfrom.flags, flags)
-	n := copy(p, s.recvfrom.p)
+func (s *testSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+	s.recvmsg.flags = append(s.recvmsg.flags, flags)
+	n := copy(p, s.recvmsg.p)
+	oobn := copy(oob, s.recvmsg.oob)
 
-	return n, s.recvfrom.from, nil
+	return n, oobn, s.recvmsg.recvflags, s.recvmsg.from, nil
 }
 
-func (s *testSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error {
-	s.sendto.p = p
-	s.sendto.flags = flags
-	s.sendto.to = to
+func (s *testSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
+	s.sendmsg.p = p
+	s.sendmsg.oob = oob
+	s.sendmsg.to = to
+	s.sendmsg.flags = flags
 	return nil
 }
 
@@ -562,8 +567,10 @@ func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) err
 
 type noopSocket struct{}
 
-func (s *noopSocket) Bind(sa unix.Sockaddr) error                                  { return nil }
-func (s *noopSocket) Close() error                                                 { return nil }
-func (s *noopSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error)     { return 0, nil, nil }
-func (s *noopSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error           { return nil }
+func (s *noopSocket) Bind(sa unix.Sockaddr) error { return nil }
+func (s *noopSocket) Close() error                { return nil }
+func (s *noopSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+	return 0, 0, 0, nil, nil
+}
+func (s *noopSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error     { return nil }
 func (s *noopSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error { return nil }
