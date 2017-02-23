@@ -376,13 +376,13 @@ func TestLinuxConnJoinLeaveGroup(t *testing.T) {
 
 	want := []setSockopt{
 		{
-			level: solNetlink,
+			level: unix.SOL_NETLINK,
 			name:  unix.NETLINK_ADD_MEMBERSHIP,
 			v:     group,
 			l:     l,
 		},
 		{
-			level: solNetlink,
+			level: unix.SOL_NETLINK,
 			name:  unix.NETLINK_DROP_MEMBERSHIP,
 			v:     group,
 			l:     l,
