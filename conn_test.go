@@ -11,7 +11,8 @@ import (
 func TestConnExecute(t *testing.T) {
 	req := Message{
 		Header: Header{
-			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags:    HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Sequence: 1,
 		},
 	}
 
@@ -62,7 +63,7 @@ func TestConnSend(t *testing.T) {
 	m = Message{
 		Header: Header{
 			Length:   uint32(nlmsgAlign(nlmsgLength(0))),
-			Sequence: 1,
+			Sequence: *c.seq,
 		},
 	}
 
