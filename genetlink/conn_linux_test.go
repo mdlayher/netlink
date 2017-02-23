@@ -3,8 +3,10 @@
 package genetlink_test
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/mdlayher/netlink"
@@ -183,4 +185,45 @@ func TestLinuxConnFamilyListIntegration(t *testing.T) {
 	if !found {
 		t.Fatalf("family %q was not found", name)
 	}
+}
+
+func TestLinuxConnFamilyGetConcurrentIntegration(t *testing.T) {
+	dial := func() *genetlink.Conn {
+		c, err := genetlink.Dial(nil)
+		if err != nil {
+			panic(fmt.Sprintf("failed to dial generic netlink: %v", err))
+		}
+
+		return c
+	}
+
+	execN := func(c *genetlink.Conn, n int, wg *sync.WaitGroup) {
+		for i := 0; i < n; i++ {
+			if _, err := c.Family.Get("nlctrl"); err != nil {
+				panic(fmt.Sprintf("failed to get family: %v", err))
+			}
+		}
+
+		_ = c.Close()
+		wg.Done()
+	}
+
+	const (
+		workers    = 16
+		iterations = 10000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	conns := make([]*genetlink.Conn, 0, workers)
+	for i := 0; i < workers; i++ {
+		conns = append(conns, dial())
+	}
+
+	for _, c := range conns {
+		go execN(c, iterations, &wg)
+	}
+
+	wg.Wait()
 }
