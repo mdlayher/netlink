@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -160,6 +161,21 @@ func (c *conn) LeaveGroup(group uint32) error {
 		unix.NETLINK_DROP_MEMBERSHIP,
 		unsafe.Pointer(&group),
 		uint32(unsafe.Sizeof(group)),
+	)
+}
+
+// SetBPF attaches an assembled BPF program to a conn.
+func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
+	prog := unix.SockFprog{
+		Len:    uint16(len(filter)),
+		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),
+	}
+
+	return c.s.SetSockopt(
+		unix.SOL_SOCKET,
+		unix.SO_ATTACH_FILTER,
+		unsafe.Pointer(&prog),
+		uint32(unsafe.Sizeof(prog)),
 	)
 }
 

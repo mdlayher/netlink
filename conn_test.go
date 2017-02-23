@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"golang.org/x/net/bpf"
 )
 
 func TestConnExecute(t *testing.T) {
@@ -520,8 +522,9 @@ var _ osConn = &noopConn{}
 
 type noopConn struct{}
 
-func (c *noopConn) Close() error                  { return nil }
-func (c *noopConn) Send(m Message) error          { return nil }
-func (c *noopConn) Receive() ([]Message, error)   { return nil, nil }
-func (c *noopConn) JoinGroup(group uint32) error  { return nil }
-func (c *noopConn) LeaveGroup(group uint32) error { return nil }
+func (c *noopConn) Close() error                             { return nil }
+func (c *noopConn) Send(m Message) error                     { return nil }
+func (c *noopConn) Receive() ([]Message, error)              { return nil, nil }
+func (c *noopConn) JoinGroup(group uint32) error             { return nil }
+func (c *noopConn) LeaveGroup(group uint32) error            { return nil }
+func (c *noopConn) SetBPF(filter []bpf.RawInstruction) error { return nil }

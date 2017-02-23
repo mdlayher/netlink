@@ -8,7 +8,137 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"golang.org/x/net/bpf"
 )
+
+func TestLinuxNetlinkSetBPF(t *testing.T) {
+	const protocolGeneric = 16
+	c, err := Dial(protocolGeneric, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer c.Close()
+
+	// The sequence number which will be permitted by the BPF filter.
+	// Using max uint32 helps us avoid dealing with host (netlink) vs
+	// network (BPF) endianness during this test.
+	const sequence uint32 = 0xffffffff
+
+	prog, err := bpf.Assemble(testBPFProgram(sequence))
+	if err != nil {
+		t.Fatalf("failed to assemble BPF program: %v", err)
+	}
+
+	if err := c.SetBPF(prog); err != nil {
+		t.Fatalf("failed to attach BPF program to socket: %v", err)
+	}
+
+	req := Message{
+		Header: Header{
+			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+		},
+	}
+
+	sequences := []struct {
+		seq uint32
+		ok  bool
+	}{
+		// OK, bad, OK.  Expect two messages to be received.
+		{seq: sequence, ok: true},
+		{seq: 10, ok: false},
+		{seq: sequence, ok: true},
+	}
+
+	for _, s := range sequences {
+		req.Header.Sequence = s.seq
+		if _, err := c.Send(req); err != nil {
+			t.Fatalf("failed to send with sequence %d: %v", s, err)
+		}
+
+		if !s.ok {
+			continue
+		}
+
+		msgs, err := c.Receive()
+		if err != nil {
+			t.Fatalf("failed to receive with sequence %d: %v", s.seq, err)
+		}
+
+		// Make sure the received message has the expected sequence number.
+		if l := len(msgs); l != 1 {
+			t.Fatalf("unexpected number of messages: %d", l)
+		}
+
+		if want, got := s.seq, msgs[0].Header.Sequence; want != got {
+			t.Fatalf("unexpected reply sequence number:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+	}
+}
+
+func TestLinuxNetlinkSetBPFProgram(t *testing.T) {
+	vm, err := bpf.NewVM(testBPFProgram(0xffffffff))
+	if err != nil {
+		t.Fatalf("failed to create BPF VM: %v", err)
+	}
+
+	msg := []byte{
+		0x10, 0x00, 0x00, 0x00,
+		0x01, 0x00,
+		0x01, 0x00,
+		// Allowed sequence number.
+		0xff, 0xff, 0xff, 0xff,
+		0x01, 0x00, 0x00, 0x00,
+	}
+
+	out, err := vm.Run(msg)
+	if err != nil {
+		t.Fatalf("failed to execute OK input: %v", err)
+	}
+	if out == 0 {
+		t.Fatal("BPF filter dropped OK input")
+	}
+
+	msg = []byte{
+		0x10, 0x00, 0x00, 0x00,
+		0x01, 0x00,
+		0x01, 0x00,
+		// Bad sequence number.
+		0x00, 0x11, 0x22, 0x33,
+		0x01, 0x00, 0x00, 0x00,
+	}
+
+	out, err = vm.Run(msg)
+	if err != nil {
+		t.Fatalf("failed to execute bad input: %v", err)
+	}
+	if out != 0 {
+		t.Fatal("BPF filter did not drop bad input")
+	}
+}
+
+// testBPFProgram returns a BPF program which only allows frames with the
+// input sequence number.
+func testBPFProgram(allowSequence uint32) []bpf.Instruction {
+	return []bpf.Instruction{
+		bpf.LoadAbsolute{
+			Off:  8,
+			Size: 4,
+		},
+		bpf.JumpIf{
+			Cond:     bpf.JumpEqual,
+			Val:      allowSequence,
+			SkipTrue: 1,
+		},
+		bpf.RetConstant{
+			Val: 0,
+		},
+		bpf.RetConstant{
+			Val: 128,
+		},
+	}
+}
 
 func TestLinuxNetlinkMulticast(t *testing.T) {
 	cfg := &Config{
