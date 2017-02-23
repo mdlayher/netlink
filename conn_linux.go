@@ -29,8 +29,8 @@ type conn struct {
 type socket interface {
 	Bind(sa unix.Sockaddr) error
 	Close() error
-	Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error)
-	Sendto(p []byte, flags int, to unix.Sockaddr) error
+	Recvmsg(p, oob []byte, flags int) (n int, oobn int, recvflags int, from unix.Sockaddr, err error)
+	Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error
 	SetSockopt(level, name int, v unsafe.Pointer, l uint32) error
 }
 
@@ -78,9 +78,11 @@ func (c *conn) Send(m Message) error {
 		return err
 	}
 
-	return c.s.Sendto(b, 0, &unix.SockaddrNetlink{
+	addr := &unix.SockaddrNetlink{
 		Family: unix.AF_NETLINK,
-	})
+	}
+
+	return c.s.Sendmsg(b, nil, addr, 0)
 }
 
 // Receive receives one or more Messages from netlink.
@@ -88,7 +90,7 @@ func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
 	for {
 		// Peek at the buffer to see how many bytes are available
-		n, _, err := c.s.Recvfrom(b, unix.MSG_PEEK)
+		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +105,7 @@ func (c *conn) Receive() ([]Message, error) {
 	}
 
 	// Read out all available messages
-	n, from, err := c.s.Recvfrom(b, 0)
+	n, _, _, from, err := c.s.Recvmsg(b, nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -201,11 +203,11 @@ type sysSocket struct {
 
 func (s *sysSocket) Bind(sa unix.Sockaddr) error { return unix.Bind(s.fd, sa) }
 func (s *sysSocket) Close() error                { return unix.Close(s.fd) }
-func (s *sysSocket) Recvfrom(p []byte, flags int) (int, unix.Sockaddr, error) {
-	return unix.Recvfrom(s.fd, p, flags)
+func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+	return unix.Recvmsg(s.fd, p, oob, flags)
 }
-func (s *sysSocket) Sendto(p []byte, flags int, to unix.Sockaddr) error {
-	return unix.Sendto(s.fd, p, flags, to)
+func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
+	return unix.Sendmsg(s.fd, p, oob, to, flags)
 }
 func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
 	return setsockopt(s.fd, level, name, v, l)
