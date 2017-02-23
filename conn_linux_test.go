@@ -4,12 +4,10 @@ package netlink
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
@@ -332,6 +330,7 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 			}
 		}
 
+		_ = c.Close()
 		wg.Done()
 	}
 
@@ -345,18 +344,9 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(workers)
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	conns := make([]*Conn, 0, workers)
 	for i := 0; i < workers; i++ {
-		c := dial()
-
-		// Assign each worker a random starting sequence number, so that
-		// if any messages get crossed, tests will fail immediately
-		seq := uint32(r.Int31())
-		c.seq = &seq
-
-		conns = append(conns, c)
+		conns = append(conns, dial())
 	}
 
 	for _, c := range conns {
