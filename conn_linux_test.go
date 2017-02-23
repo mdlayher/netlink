@@ -312,13 +312,23 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 		}
 
 		for i := 0; i < n; i++ {
-			msgs, err := c.Execute(req)
+			vmsg, err := c.Send(req)
 			if err != nil {
-				panic(fmt.Sprintf("failed to execute request: %v", err))
+				panic(fmt.Sprintf("failed to send request: %v", err))
+			}
+
+			msgs, err := c.Receive()
+			if err != nil {
+				panic(fmt.Sprintf("failed to receive reply: %v", err))
 			}
 
 			if l := len(msgs); l != 1 {
 				panic(fmt.Sprintf("unexpected number of reply messages: %d", l))
+			}
+
+			if err := Validate(vmsg, msgs); err != nil {
+				panic(fmt.Sprintf("failed to validate request and reply: %v\n- req: %+v\n- rep: %+v",
+					err, vmsg, msgs))
 			}
 		}
 
@@ -326,7 +336,9 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 	}
 
 	const (
-		workers    = 16
+		// BUG(mdlayher): up concurrency again after doing more research on
+		// netlink sockets and concurrency.
+		workers    = 1
 		iterations = 10000
 	)
 
