@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 
@@ -59,9 +60,11 @@ func Dial(proto int, config *Config) (*Conn, error) {
 
 // newConn is the internal constructor for Conn, used in tests.
 func newConn(c osConn) *Conn {
+	seq := rand.Uint32()
+
 	return &Conn{
 		c:   c,
-		seq: new(uint32),
+		seq: &seq,
 		pid: new(uint32),
 	}
 }

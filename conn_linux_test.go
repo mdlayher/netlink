@@ -269,9 +269,9 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := 0, int(m.Header.Flags); want != got {
 		t.Fatalf("unexpected header flags:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := 1, int(m.Header.Sequence); want != got {
-		t.Fatalf("unexpected header sequence:\n- want: %v\n-  got: %v", want, got)
-	}
+
+	// Sequence number not checked because we assign one at random when
+	// a Conn is created.
 
 	// Skip error code and unmarshal the copy of request sent back by
 	// skipping the success code at bytes 0-4
