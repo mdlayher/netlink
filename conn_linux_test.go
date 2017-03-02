@@ -3,6 +3,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -15,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestLinuxConn_bind(t *testing.T) {
+func TestLinuxConn_bindOK(t *testing.T) {
 	s := &testSocket{}
 	if _, err := bind(s, &Config{}); err != nil {
 		t.Fatalf("failed to bind: %v", err)
@@ -27,6 +28,23 @@ func TestLinuxConn_bind(t *testing.T) {
 
 	if want, got := addr, s.bind; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected bind address:\n- want: %#v\n-  got: %#v",
+			want, got)
+	}
+}
+
+func TestLinuxConn_bindErrorCloseSocket(t *testing.T) {
+	// Trigger an error during bind, meaning that the socket should be
+	// closed to avoid leaking file descriptors.
+	s := &testSocket{
+		bindErr: errors.New("cannot bind"),
+	}
+
+	if _, err := bind(s, &Config{}); err == nil {
+		t.Fatal("no error occurred, but expected one")
+	}
+
+	if want, got := true, s.closed; want != got {
+		t.Fatalf("unexpected socket closed:\n- want: %v\n-  got: %v",
 			want, got)
 	}
 }
@@ -506,6 +524,8 @@ func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 
 type testSocket struct {
 	bind    unix.Sockaddr
+	bindErr error
+	closed  bool
 	sendmsg struct {
 		p     []byte
 		oob   []byte
@@ -522,8 +542,6 @@ type testSocket struct {
 		from      unix.Sockaddr
 	}
 	setSockopt []setSockopt
-
-	noopSocket
 }
 
 type setSockopt struct {
@@ -535,6 +553,11 @@ type setSockopt struct {
 
 func (s *testSocket) Bind(sa unix.Sockaddr) error {
 	s.bind = sa
+	return s.bindErr
+}
+
+func (s *testSocket) Close() error {
+	s.closed = true
 	return nil
 }
 
@@ -564,13 +587,3 @@ func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) err
 
 	return nil
 }
-
-type noopSocket struct{}
-
-func (s *noopSocket) Bind(sa unix.Sockaddr) error { return nil }
-func (s *noopSocket) Close() error                { return nil }
-func (s *noopSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
-	return 0, 0, 0, nil, nil
-}
-func (s *noopSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error     { return nil }
-func (s *noopSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error { return nil }
