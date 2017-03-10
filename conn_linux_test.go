@@ -18,7 +18,7 @@ import (
 
 func TestLinuxConn_bindOK(t *testing.T) {
 	s := &testSocket{}
-	if _, err := bind(s, &Config{}); err != nil {
+	if _, _, err := bind(s, &Config{}); err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
 
@@ -32,14 +32,31 @@ func TestLinuxConn_bindOK(t *testing.T) {
 	}
 }
 
-func TestLinuxConn_bindErrorCloseSocket(t *testing.T) {
-	// Trigger an error during bind, meaning that the socket should be
+func TestLinuxConn_bindBindErrorCloseSocket(t *testing.T) {
+	// Trigger an error during bind with Bind, meaning that the socket should be
 	// closed to avoid leaking file descriptors.
 	s := &testSocket{
 		bindErr: errors.New("cannot bind"),
 	}
 
-	if _, err := bind(s, &Config{}); err == nil {
+	if _, _, err := bind(s, &Config{}); err == nil {
+		t.Fatal("no error occurred, but expected one")
+	}
+
+	if want, got := true, s.closed; want != got {
+		t.Fatalf("unexpected socket closed:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+}
+
+func TestLinuxConn_bindGetsocknameErrorCloseSocket(t *testing.T) {
+	// Trigger an error during bind with Getsockname, meaning that the socket
+	// should be closed to avoid leaking file descriptors.
+	s := &testSocket{
+		getsocknameErr: errors.New("cannot get socket name"),
+	}
+
+	if _, _, err := bind(s, &Config{}); err == nil {
 		t.Fatal("no error occurred, but expected one")
 	}
 
@@ -301,7 +318,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := req.Header.Flags, reply.Header.Flags; want != got {
 		t.Fatalf("unexpected copy header flags:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := 0, int(reply.Header.PID); want != got {
+	if want, got := os.Getpid(), int(reply.Header.PID); want != got {
 		t.Fatalf("unexpected copy header PID:\n- want: %v\n-  got: %v", want, got)
 	}
 	if want, got := len(req.Data), len(reply.Data); want != got {
@@ -499,7 +516,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, tc := testConn(t)
+			c, tc := testConn(t, 0)
 			tc.receive = tt.rep
 
 			_, err := c.Receive()
@@ -514,7 +531,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 
 func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 	s := &testSocket{}
-	c, err := bind(s, config)
+	c, _, err := bind(s, config)
 	if err != nil {
 		t.Fatalf("failed to bind: %v", err)
 	}
@@ -523,10 +540,12 @@ func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 }
 
 type testSocket struct {
-	bind    unix.Sockaddr
-	bindErr error
-	closed  bool
-	sendmsg struct {
+	bind           unix.Sockaddr
+	bindErr        error
+	closed         bool
+	getsockname    unix.Sockaddr
+	getsocknameErr error
+	sendmsg        struct {
 		p     []byte
 		oob   []byte
 		to    unix.Sockaddr
@@ -559,6 +578,14 @@ func (s *testSocket) Bind(sa unix.Sockaddr) error {
 func (s *testSocket) Close() error {
 	s.closed = true
 	return nil
+}
+
+func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
+	if s.getsockname == nil {
+		return &unix.SockaddrNetlink{}, s.getsocknameErr
+	}
+
+	return s.getsockname, s.getsocknameErr
 }
 
 func (s *testSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
