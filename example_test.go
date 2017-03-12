@@ -10,9 +10,9 @@ import (
 // netlink.
 func ExampleConn_execute() {
 	// Speak to generic netlink using netlink
-	const protocolGeneric = 16
+	const familyGeneric = 16
 
-	c, err := netlink.Dial(protocolGeneric, nil)
+	c, err := netlink.Dial(familyGeneric, nil)
 	if err != nil {
 		log.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -53,14 +53,14 @@ func ExampleConn_execute() {
 func ExampleConn_listenMulticast() {
 	const (
 		// Speak to route netlink using netlink
-		protocolRoute = 0
+		familyRoute = 0
 
 		// Listen for events triggered by addition or deletion of
 		// network interfaces
 		rtmGroupLink = 0x1
 	)
 
-	c, err := netlink.Dial(protocolRoute, &netlink.Config{
+	c, err := netlink.Dial(familyRoute, &netlink.Config{
 		// Groups is a bitmask; more than one group can be specified
 		// by OR'ing multiple group values together
 		Groups: rtmGroupLink,

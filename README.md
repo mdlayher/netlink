@@ -18,4 +18,4 @@ I wanted in a netlink package:
 - Doesn't need root to work
 
 My goal for this package is to use it as a building block for the creation
-of other netlink protocol family packages.
+of other netlink family packages.

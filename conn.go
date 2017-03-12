@@ -41,12 +41,12 @@ type osConn interface {
 	SetBPF(filter []bpf.RawInstruction) error
 }
 
-// Dial dials a connection to netlink, using the specified protocol number.
+// Dial dials a connection to netlink, using the specified netlink family.
 // Config specifies optional configuration for Conn.  If config is nil, a default
 // configuration will be used.
-func Dial(proto int, config *Config) (*Conn, error) {
+func Dial(family int, config *Config) (*Conn, error) {
 	// Use OS-specific dial() to create osConn
-	c, pid, err := dial(proto, config)
+	c, pid, err := dial(family, config)
 	if err != nil {
 		return nil, err
 	}

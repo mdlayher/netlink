@@ -260,9 +260,9 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 }
 
 func TestLinuxConnIntegration(t *testing.T) {
-	const protocolGeneric = 16
+	const familyGeneric = 16
 
-	c, err := Dial(protocolGeneric, nil)
+	c, err := Dial(familyGeneric, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -335,9 +335,9 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 
-		const protocolGeneric = 16
+		const familyGeneric = 16
 
-		c, err := Dial(protocolGeneric, nil)
+		c, err := Dial(familyGeneric, nil)
 		if err != nil {
 			panic(fmt.Sprintf("failed to dial netlink: %v", err))
 		}

@@ -13,8 +13,8 @@ import (
 )
 
 func TestLinuxNetlinkSetBPF(t *testing.T) {
-	const protocolGeneric = 16
-	c, err := Dial(protocolGeneric, nil)
+	const familyGeneric = 16
+	c, err := Dial(familyGeneric, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
