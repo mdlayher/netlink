@@ -12,7 +12,7 @@ var (
 )
 
 // An Attribute is a netlink attribute.  Attributes are packed and unpacked
-// to and from the Data field of Message for some netlink protocol families.
+// to and from the Data field of Message for some netlink families.
 type Attribute struct {
 	// Length of an Attribute, including this field and Type.
 	Length uint16
