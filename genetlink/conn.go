@@ -1,6 +1,9 @@
 package genetlink
 
-import "github.com/mdlayher/netlink"
+import (
+	"github.com/mdlayher/netlink"
+	"golang.org/x/net/bpf"
+)
 
 // Controller is the generic netlink controller family ID, used to issue
 // requests to the controller.
@@ -27,6 +30,7 @@ type conn interface {
 	LeaveGroup(group uint32) error
 	Send(m netlink.Message) (netlink.Message, error)
 	Receive() ([]netlink.Message, error)
+	SetBPF(filter []bpf.RawInstruction) error
 }
 
 // Dial dials a generic netlink connection.  Config specifies optional
@@ -65,6 +69,11 @@ func (c *Conn) JoinGroup(group uint32) error {
 // LeaveGroup leaves a netlink multicast group by its ID.
 func (c *Conn) LeaveGroup(group uint32) error {
 	return c.c.LeaveGroup(group)
+}
+
+// SetBPF attaches an assembled BPF program to a Conn.
+func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
+	return c.c.SetBPF(filter)
 }
 
 // Send sends a single Message to netlink, wrapping it in a netlink.Message

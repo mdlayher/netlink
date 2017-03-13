@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mdlayher/netlink"
+	"golang.org/x/net/bpf"
 )
 
 func TestConnExecute(t *testing.T) {
@@ -189,6 +190,7 @@ func (c *noopConn) JoinGroup(group uint32) error                    { return nil
 func (c *noopConn) LeaveGroup(group uint32) error                   { return nil }
 func (c *noopConn) Send(m netlink.Message) (netlink.Message, error) { return netlink.Message{}, nil }
 func (c *noopConn) Receive() ([]netlink.Message, error)             { return nil, nil }
+func (c *noopConn) SetBPF(filter []bpf.RawInstruction) error        { return nil }
 
 func mustMarshal(m encoding.BinaryMarshaler) []byte {
 	b, err := m.MarshalBinary()
