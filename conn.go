@@ -15,6 +15,13 @@ var (
 	errShortErrorMessage  = errors.New("not enough data for netlink error code")
 )
 
+// Errors which can be returned by an osConn that does not implement
+// all exposed methods of Conn.
+var (
+	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
+	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
+)
+
 // A Conn is a connection to netlink.  A Conn can be used to send and
 // receives messages to and from netlink.
 type Conn struct {
@@ -36,9 +43,6 @@ type osConn interface {
 	Close() error
 	Send(m Message) error
 	Receive() ([]Message, error)
-	JoinGroup(group uint32) error
-	LeaveGroup(group uint32) error
-	SetBPF(filter []bpf.RawInstruction) error
 }
 
 // Dial dials a connection to netlink, using the specified netlink family.
@@ -190,19 +194,48 @@ func (c *Conn) receive() ([]Message, error) {
 	return append(msgs, mmsgs...), nil
 }
 
+// A groupJoinLeaver is an osConn that supports joining and leaving
+// netlink multicast groups.
+type groupJoinLeaver interface {
+	osConn
+	JoinGroup(group uint32) error
+	LeaveGroup(group uint32) error
+}
+
 // JoinGroup joins a netlink multicast group by its ID.
 func (c *Conn) JoinGroup(group uint32) error {
-	return c.c.JoinGroup(group)
+	gc, ok := c.c.(groupJoinLeaver)
+	if !ok {
+		return errMulticastGroupsNotSupported
+	}
+
+	return gc.JoinGroup(group)
 }
 
 // LeaveGroup leaves a netlink multicast group by its ID.
 func (c *Conn) LeaveGroup(group uint32) error {
-	return c.c.LeaveGroup(group)
+	gc, ok := c.c.(groupJoinLeaver)
+	if !ok {
+		return errMulticastGroupsNotSupported
+	}
+
+	return gc.LeaveGroup(group)
+}
+
+// A bpfSetter is an osConn that supports setting BPF filters.
+type bpfSetter interface {
+	osConn
+	SetBPF(filter []bpf.RawInstruction) error
 }
 
 // SetBPF attaches an assembled BPF program to a Conn.
 func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
-	return c.c.SetBPF(filter)
+	bc, ok := c.c.(bpfSetter)
+	if !ok {
+		return errBPFFiltersNotSupported
+	}
+
+	return bc.SetBPF(filter)
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
