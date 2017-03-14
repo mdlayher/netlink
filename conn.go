@@ -49,6 +49,11 @@ type osConn interface {
 // Config specifies optional configuration for Conn.  If config is nil, a default
 // configuration will be used.
 func Dial(family int, config *Config) (*Conn, error) {
+	// If configured, use the testing hook for osConn.
+	if config != nil && config.Testing != nil {
+		return newConn(config.Testing.(osConn), 1), nil
+	}
+
 	// Use OS-specific dial() to create osConn
 	c, pid, err := dial(family, config)
 	if err != nil {
@@ -273,4 +278,8 @@ type Config struct {
 	// Groups is a bitmask which specifies multicast groups. If set to 0,
 	// no multicast group subscriptions will be made.
 	Groups uint32
+
+	// Testing is a special hook used to configure a netlink.Conn for
+	// testing with nltest.  It should not be used by other applications.
+	Testing interface{}
 }
