@@ -302,49 +302,64 @@ func TestUint64(t *testing.T) {
 
 func TestInt32(t *testing.T) {
 	tests := []struct {
-		b []byte
 		v int32
+		b []byte
 	}{
 		{
-			b: []byte{0x01, 0x00, 0x00, 0x00},
 			v: 0x1,
+			b: []byte{0x01, 0x00, 0x00, 0x00},
 		},
 		{
-			b: []byte{0x02, 0x01, 0x00, 0x00},
 			v: 0x0102,
+			b: []byte{0x02, 0x01, 0x00, 0x00},
 		},
 		{
-			b: []byte{0x34, 0x12, 0x00, 0x00},
 			v: 0x1234,
+			b: []byte{0x34, 0x12, 0x00, 0x00},
 		},
 		{
-			b: []byte{0xff, 0xff, 0x00, 0x00},
 			v: 0xffff,
+			b: []byte{0xff, 0xff, 0x00, 0x00},
 		},
 		{
-			b: []byte{0x04, 0x03, 0x02, 0x01},
 			v: 0x01020304,
+			b: []byte{0x04, 0x03, 0x02, 0x01},
 		},
 		{
-			b: []byte{0x4a, 0x3a, 0x2a, 0x1a},
 			v: 0x1a2a3a4a,
+			b: []byte{0x4a, 0x3a, 0x2a, 0x1a},
 		},
 		{
-			b: []byte{0xff, 0xff, 0xff, 0xff},
 			v: -1,
+			b: []byte{0xff, 0xff, 0xff, 0xff},
 		},
 		{
-			b: []byte{0xfe, 0xff, 0xff, 0xff},
 			v: -2,
+			b: []byte{0xfe, 0xff, 0xff, 0xff},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("0x%08x", tt.v), func(t *testing.T) {
-			v := Int32(tt.b)
+			b := make([]byte, 4)
+			PutInt32(b, tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
+					want, got)
+			}
+
+			v := Int32(b)
 
 			if want, got := tt.v, v; want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
+					want, got)
+			}
+
+			b = Int32Bytes(tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 		})
