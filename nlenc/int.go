@@ -35,6 +35,16 @@ func PutUint64(b []byte, v uint64) {
 	*(*uint64)(unsafe.Pointer(&b[0])) = v
 }
 
+// PutInt32 encodes a int32 into b using the host machine's native endianness.
+// If b is not exactly 4 bytes in length, PutInt32 will panic.
+func PutInt32(b []byte, v int32) {
+	if l := len(b); l != 4 {
+		panic(fmt.Sprintf("PutInt32: unexpected byte slice length: %d", l))
+	}
+
+	*(*int32)(unsafe.Pointer(&b[0])) = v
+}
+
 // Uint16 decodes a uint16 from b using the host machine's native endianness.
 // If b is not exactly 2 bytes in length, Uint16 will panic.
 func Uint16(b []byte) uint16 {
@@ -99,5 +109,14 @@ func Uint32Bytes(v uint32) []byte {
 func Uint64Bytes(v uint64) []byte {
 	b := make([]byte, 8)
 	PutUint64(b, v)
+	return b
+}
+
+// Int32Bytes encodes a int32 into a newly-allocated byte slice using the
+// host machine's native endianness.  It is a shortcut for allocating a new
+// byte slice and filling it using PutInt32.
+func Int32Bytes(v int32) []byte {
+	b := make([]byte, 4)
+	PutInt32(b, v)
 	return b
 }
