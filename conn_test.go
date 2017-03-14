@@ -4,8 +4,6 @@ import (
 	"os"
 	"reflect"
 	"testing"
-
-	"golang.org/x/net/bpf"
 )
 
 func TestConnExecute(t *testing.T) {
@@ -194,6 +192,35 @@ func TestConnReceiveShortErrorMessage(t *testing.T) {
 	}
 }
 
+func TestConnJoinLeaveGroupUnsupported(t *testing.T) {
+	want := errMulticastGroupsNotSupported
+
+	c := newConn(&noopConn{}, 0)
+
+	ops := []func(group uint32) error{
+		c.JoinGroup,
+		c.LeaveGroup,
+	}
+
+	for _, op := range ops {
+		if got := op(0); want != got {
+			t.Fatalf("unexpected error:\n- want: %v\n-  got %v",
+				want, got)
+		}
+	}
+}
+
+func TestConnSetBPFUnsupported(t *testing.T) {
+	want := errBPFFiltersNotSupported
+
+	c := newConn(&noopConn{}, 0)
+
+	if got := c.SetBPF(nil); want != got {
+		t.Fatalf("unexpected error:\n- want: %v\n-  got %v",
+			want, got)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name string
@@ -356,9 +383,6 @@ var _ osConn = &noopConn{}
 
 type noopConn struct{}
 
-func (c *noopConn) Close() error                             { return nil }
-func (c *noopConn) Send(m Message) error                     { return nil }
-func (c *noopConn) Receive() ([]Message, error)              { return nil, nil }
-func (c *noopConn) JoinGroup(group uint32) error             { return nil }
-func (c *noopConn) LeaveGroup(group uint32) error            { return nil }
-func (c *noopConn) SetBPF(filter []bpf.RawInstruction) error { return nil }
+func (c *noopConn) Close() error                { return nil }
+func (c *noopConn) Send(m Message) error        { return nil }
+func (c *noopConn) Receive() ([]Message, error) { return nil, nil }
