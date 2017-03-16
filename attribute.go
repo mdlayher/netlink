@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/mdlayher/netlink/nlenc"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -22,6 +23,29 @@ type Attribute struct {
 
 	// An arbitrary payload which is specified by Type.
 	Data []byte
+}
+
+// Interprets the Type field of the Attribute to determine whether it's
+// a nested attribute or not. This facilitates recursive parsing of the attribute.
+// This is the leftmost bit in Type. Mutually exclusive with IsNetByteOrder().
+func (a Attribute) IsNested() bool {
+	return (a.Type & unix.NLA_F_NESTED) > 0
+}
+
+// Interprets the Type field of the Attribute to determine whether the attribute
+// is big endian (net byte order) or not.
+// This is the second bit from the left in Type. Mutually exclusive with IsNested().
+func (a Attribute) IsNetByteOrder() bool {
+	return (a.Type & unix.NLA_F_NET_BYTEORDER) > 0
+}
+
+const NLA_TYPE_MASK = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER)
+
+// Mask the Attribute's Type with the bits that are NOT
+// reserved for NLA_F_NESTED and NLA_F_NET_BYTEORDER.
+// Only the 14 rightmost bits will be used.
+func (a Attribute) GetType() uint16 {
+	return a.Type & NLA_TYPE_MASK
 }
 
 // MarshalBinary marshals an Attribute into a byte slice.
