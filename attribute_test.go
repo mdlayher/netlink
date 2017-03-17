@@ -367,3 +367,70 @@ func TestUnmarshalAttributes(t *testing.T) {
 		})
 	}
 }
+
+func TestAttribute_GetType(t *testing.T) {
+	// Small test bed of values that map to
+	// counterparts with the two leftmost bits zeroed out.
+	types := map[uint16]uint16{
+		0xAAAA: 0x2AAA,
+		0xFFFF: 0x3FFF,
+		0x2AAA: 0x2AAA,
+		0x0FFF: 0x0FFF,
+		0x0: 0x0,
+	}
+
+	for input, want := range types {
+		test := Attribute{
+			Type: input,
+		}
+
+		if got := test.GetType(); got != want {
+			t.Fatalf("unexpected result:\n- want: %.16b\n- got: %.16b",
+				want, got)
+		}
+	}
+}
+
+func TestAttribute_IsNested(t *testing.T) {
+	// These values map to 'true' when the leftmost bit is on
+	types := map[uint16]bool{
+		0xBFFF: true,
+		0xFFFF: true,
+		0x7FFF: false,
+		0x0123: false,
+		0x0: false,
+	}
+
+	for input, want := range types {
+		test := Attribute{
+			Type: input,
+		}
+
+		if got := test.IsNested(); got != want {
+			t.Fatalf("expected nested bit to be set to %v in input %.16b (got %v)",
+				want, input, got)
+		}
+	}
+}
+
+func TestAttribute_IsNetByteOrder(t *testing.T) {
+	// These values map to 'true' when the second-leftmost bit is on
+	types := map[uint16]bool{
+		0xBFFF: false,
+		0xFFFF: true,
+		0x7FFF: true,
+		0x0123: false,
+		0x0: false,
+	}
+
+	for input, want := range types {
+		test := Attribute{
+			Type: input,
+		}
+
+		if got := test.IsNetByteOrder(); got != want {
+			t.Fatalf("expected big-endian bit to be set to %v in input %.16b (got %v)",
+				want, input, got)
+		}
+	}
+}
