@@ -459,6 +459,37 @@ func TestUnmarshalAttributes(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "nested attributes, type 123",
+			b: []byte{
+				0xC, 0x0,
+				0x7B, 0x80, // type 123, Nested bit
+				0x8, 0x0,
+				0x0, 0x0,
+				0x1, 0x2, 0x3, 0x4,
+			},
+			attrs: []Attribute{
+				{
+					Length: 12,
+					Type: 123,
+					Nested: true,
+					Data: []byte{
+						0x8, 0x0,
+						0x0, 0x0,
+						0x1, 0x2, 0x3, 0x4,
+					},
+					Children: []Attribute{
+						{
+							Length: 8,
+							Type: 0,
+							Data: []byte{
+								0x1, 0x2, 0x3, 0x4,
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

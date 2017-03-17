@@ -31,6 +31,9 @@ type Attribute struct {
 
 	// Whether the attribute's data is in network (true) or native (false) byte order.
 	NetByteOrder bool
+
+	// A list of nested Attributes.
+	Children []Attribute
 }
 
 // #define NLA_F_NESTED
@@ -63,7 +66,22 @@ func (a Attribute) MarshalBinary() ([]byte, error) {
 		nlenc.PutUint16(b[2:4], a.Type)
 	}
 
-	copy(b[nlaHeaderLen:], a.Data)
+	if a.Nested {
+		idx := nlaHeaderLen
+		for _, na := range a.Children {
+			nb, err := na.MarshalBinary()
+			if err != nil {
+				return nil, err
+			}
+
+			copy(b[idx:], nb)
+
+			// Advance the slice index in aligned steps
+			idx += nlaAlign(int(na.Length))
+		}
+	} else {
+		copy(b[nlaHeaderLen:], a.Data)
+	}
 
 	return b, nil
 }
@@ -102,6 +120,16 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 	case int(a.Length) >= nlaHeaderLen:
 		a.Data = make([]byte, len(b[nlaHeaderLen:a.Length]))
 		copy(a.Data, b[nlaHeaderLen:a.Length])
+	}
+
+	if a.Nested {
+		// Let UnmarshalAttributes generate []Attributes for us
+		na, err := UnmarshalAttributes(a.Data)
+		if err != nil {
+			return err
+		}
+
+		a.Children = na
 	}
 
 	return nil
