@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/mdlayher/netlink/nlenc"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -25,25 +24,26 @@ type Attribute struct {
 	Data []byte
 }
 
-// IsNested interprets the Type field of the Attribute to determine whether it's
-// a nested attribute or not. This facilitates recursive parsing of the attribute.
-// This is the leftmost bit in Type. Mutually exclusive with IsNetByteOrder().
+// #define NLA_F_NESTED
+const nlaNested uint16 = 0x8000
+// #define NLA_F_NET_BYTE_ORDER
+const nlaNetByteOrder uint16 = 0x4000
+// Masks all bits except for Nested and NetByteOrder
+const nlaTypeMask = ^(nlaNested | nlaNetByteOrder)
+
+// IsNested determines if an Attribute's data contains additional nested attributes.
 func (a Attribute) IsNested() bool {
-	return (a.Type & unix.NLA_F_NESTED) > 0
+	return (a.Type & nlaNested) > 0
 }
 
 // IsNetByteOrder interprets the Type field of the Attribute to determine whether the attribute
 // is big endian (net byte order) or not.
-// This is the second bit from the left in Type. Mutually exclusive with IsNested().
 func (a Attribute) IsNetByteOrder() bool {
-	return (a.Type & unix.NLA_F_NET_BYTEORDER) > 0
+	return (a.Type & nlaNetByteOrder) > 0
 }
 
-var nlaTypeMask = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER)
-
 // GetType masks the Attribute's Type with the bits that are NOT
-// reserved for NLA_F_NESTED and NLA_F_NET_BYTEORDER.
-// Only the 14 rightmost bits will be used.
+// reserved for nlaNested and nlaNetByteOrder.
 func (a Attribute) GetType() uint16 {
 	return a.Type & nlaTypeMask
 }
