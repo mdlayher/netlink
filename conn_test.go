@@ -1,33 +1,37 @@
-package netlink
+package netlink_test
 
 import (
-	"os"
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nltest"
 )
 
 func TestConnExecute(t *testing.T) {
-	req := Message{
-		Header: Header{
-			Flags:    HeaderFlagsRequest | HeaderFlagsAcknowledge,
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsAcknowledge,
 			Sequence: 1,
 		},
 	}
 
-	pid := uint32(os.Getpid())
-
-	replies := []Message{{
-		Header: Header{
-			Type:     HeaderTypeError,
+	replies := []netlink.Message{{
+		Header: netlink.Header{
+			Type:     netlink.HeaderTypeError,
 			Sequence: 1,
-			PID:      pid,
+			PID:      1,
 		},
 		// Error code "success", no need to echo request back in this test
 		Data: make([]byte, 4),
 	}}
 
-	c, tc := testConn(t, pid)
-	tc.receive = [][]Message{replies}
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return replies, nil
+	})
+	defer c.Close()
 
 	msgs, err := c.Execute(req)
 	if err != nil {
@@ -35,14 +39,8 @@ func TestConnExecute(t *testing.T) {
 	}
 
 	// Fill in fields for comparison
-	req.Header.Length = uint32(nlmsgAlign(nlmsgLength(0)))
-	req.Header.Sequence = 1
-	req.Header.PID = pid
+	req.Header.Length = 16
 
-	if want, got := req, tc.send; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected request:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
 	if want, got := replies, msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected replies:\n- want: %#v\n-  got: %#v",
 			want, got)
@@ -50,10 +48,13 @@ func TestConnExecute(t *testing.T) {
 }
 
 func TestConnSend(t *testing.T) {
-	c, tc := testConn(t, 0)
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, errors.New("should not be received")
+	})
+	defer c.Close()
 
 	// Let Conn.Send populate length, sequence, PID
-	m := Message{}
+	m := netlink.Message{}
 
 	out, err := c.Send(m)
 	if err != nil {
@@ -61,26 +62,23 @@ func TestConnSend(t *testing.T) {
 	}
 
 	// Make the same changes that Conn.Send should
-	m = Message{
-		Header: Header{
-			Length:   uint32(nlmsgAlign(nlmsgLength(0))),
-			Sequence: *c.seq,
+	m = netlink.Message{
+		Header: netlink.Header{
+			Length:   16,
+			Sequence: out.Header.Sequence,
+			PID:      1,
 		},
 	}
 
-	if want, got := tc.send, out; !reflect.DeepEqual(want, got) {
+	if want, got := m, out; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output message from Conn.Send:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
-	if want, got := tc.send, m; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected modified message:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
 
 	// Keep sending to verify sequence number increment
 	seq := m.Header.Sequence
 	for i := 0; i < 100; i++ {
-		out, err := c.Send(Message{})
+		out, err := c.Send(netlink.Message{})
 		if err != nil {
 			t.Fatalf("failed to send message: %v", err)
 		}
@@ -93,109 +91,57 @@ func TestConnSend(t *testing.T) {
 	}
 }
 
-func TestConnReceiveMultiPartOnce(t *testing.T) {
-	c, tc := testConn(t, 0)
-
-	tc.receive = [][]Message{
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-				},
-			},
+func TestConnExecuteMultipart(t *testing.T) {
+	msg := netlink.Message{
+		Header: netlink.Header{
+			Sequence: 1,
 		},
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-					Type:  HeaderTypeDone,
-				},
-			},
-		},
+		Data: []byte{0xff, 0xff, 0xff, 0xff},
 	}
 
-	msgs, err := c.Receive()
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nltest.Multipart([]netlink.Message{
+			msg,
+			// Will be filled with multipart done information.
+			netlink.Message{},
+		})
+	})
+	defer c.Close()
+
+	msgs, err := c.Execute(msg)
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
-	if want, got := tc.receive[0], msgs; !reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
-			want, got)
-	}
-}
+	msg.Header.Flags |= netlink.HeaderFlagsMulti
 
-func TestConnReceiveMultiPartRecursive(t *testing.T) {
-	c, tc := testConn(t, 0)
-
-	tc.receive = [][]Message{
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-				},
-			},
-		},
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-				},
-			},
-		},
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-				},
-			},
-		},
-		{
-			{
-				Header: Header{
-					Flags: HeaderFlagsMulti,
-					Type:  HeaderTypeDone,
-				},
-			},
-		},
-	}
-
-	msgs, err := c.Receive()
-	if err != nil {
-		t.Fatalf("failed to receive messages: %v", err)
-	}
-
-	want := append(tc.receive[0], append(tc.receive[1], tc.receive[2]...)...)
-	if got := msgs; !reflect.DeepEqual(want, got) {
+	if want, got := []netlink.Message{msg}, msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
 			want, got)
 	}
 }
 
 func TestConnReceiveShortErrorMessage(t *testing.T) {
-	c, tc := testConn(t, 0)
-	tc.receive = [][]Message{{
-		{
-			Header: Header{
-				Length: uint32(nlmsgAlign(nlmsgLength(4))),
-				Type:   HeaderTypeError,
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return []netlink.Message{{
+			Header: netlink.Header{
+				Length: 20,
+				Type:   netlink.HeaderTypeError,
 			},
 			Data: []byte{0x01},
-		},
-	}}
+		}}, nil
+	})
+	defer c.Close()
 
-	_, got := c.Receive()
-
-	if want := errShortErrorMessage; want != got {
-		t.Fatalf("unexpected error:\n- want: %#v\n-  got: %#v",
-			want, got)
+	_, err := c.Receive()
+	if !strings.Contains(err.Error(), "not enough data") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestConnJoinLeaveGroupUnsupported(t *testing.T) {
-	want := errMulticastGroupsNotSupported
-
-	c := newConn(&noopConn{}, 0)
+	c := nltest.Dial(nil)
+	defer c.Close()
 
 	ops := []func(group uint32) error{
 		c.JoinGroup,
@@ -203,186 +149,19 @@ func TestConnJoinLeaveGroupUnsupported(t *testing.T) {
 	}
 
 	for _, op := range ops {
-		if got := op(0); want != got {
-			t.Fatalf("unexpected error:\n- want: %v\n-  got %v",
-				want, got)
+		err := op(0)
+		if !strings.Contains(err.Error(), "not supported") {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 }
 
 func TestConnSetBPFUnsupported(t *testing.T) {
-	want := errBPFFiltersNotSupported
+	c := nltest.Dial(nil)
+	defer c.Close()
 
-	c := newConn(&noopConn{}, 0)
-
-	if got := c.SetBPF(nil); want != got {
-		t.Fatalf("unexpected error:\n- want: %v\n-  got %v",
-			want, got)
+	err := c.SetBPF(nil)
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
-func TestValidate(t *testing.T) {
-	tests := []struct {
-		name string
-		req  Message
-		rep  []Message
-		err  error
-	}{
-		{
-			name: "mismatched sequence",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					Sequence: 2,
-				},
-			}},
-			err: errMismatchedSequence,
-		},
-		{
-			name: "mismatched sequence second message",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-				},
-			},
-			rep: []Message{
-				{
-					Header: Header{
-						Sequence: 1,
-					},
-				},
-				{
-					Header: Header{
-						Sequence: 2,
-					},
-				},
-			},
-			err: errMismatchedSequence,
-		},
-		{
-			name: "mismatched PID",
-			req: Message{
-				Header: Header{
-					PID: 1,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					PID: 2,
-				},
-			}},
-			err: errMismatchedPID,
-		},
-		{
-			name: "mismatched PID second message",
-			req: Message{
-				Header: Header{
-					PID: 1,
-				},
-			},
-			rep: []Message{
-				{
-					Header: Header{
-						PID: 1,
-					},
-				},
-				{
-					Header: Header{
-						PID: 2,
-					},
-				},
-			},
-			err: errMismatchedPID,
-		},
-		{
-			name: "OK matching sequence and PID",
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-					PID:      1,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					Sequence: 1,
-					PID:      1,
-				},
-			}},
-		},
-		{
-			name: "OK multicast messages",
-			// No request
-			req: Message{},
-			rep: []Message{{
-				Header: Header{
-					Sequence: 1,
-					PID:      0,
-				},
-			}},
-		},
-		{
-			name: "OK no PID assigned yet",
-			// No request
-			req: Message{
-				Header: Header{
-					Sequence: 1,
-					PID:      0,
-				},
-			},
-			rep: []Message{{
-				Header: Header{
-					Sequence: 1,
-					PID:      9999,
-				},
-			}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := Validate(tt.req, tt.rep)
-
-			if want, got := tt.err, err; want != got {
-				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
-					want, got)
-			}
-		})
-	}
-}
-
-func testConn(t *testing.T, pid uint32) (*Conn, *testOSConn) {
-	c := &testOSConn{}
-	return newConn(c, pid), c
-}
-
-type testOSConn struct {
-	send    Message
-	receive [][]Message
-
-	calls int
-
-	noopConn
-}
-
-func (c *testOSConn) Send(m Message) error {
-	c.send = m
-	return nil
-}
-
-func (c *testOSConn) Receive() ([]Message, error) {
-	defer func() { c.calls++ }()
-
-	return c.receive[c.calls], nil
-}
-
-var _ osConn = &noopConn{}
-
-type noopConn struct{}
-
-func (c *noopConn) Close() error                { return nil }
-func (c *noopConn) Send(m Message) error        { return nil }
-func (c *noopConn) Receive() ([]Message, error) { return nil, nil }

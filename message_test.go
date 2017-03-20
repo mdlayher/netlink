@@ -306,3 +306,136 @@ func TestMessageUnmarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name string
+		req  Message
+		rep  []Message
+		err  error
+	}{
+		{
+			name: "mismatched sequence",
+			req: Message{
+				Header: Header{
+					Sequence: 1,
+				},
+			},
+			rep: []Message{{
+				Header: Header{
+					Sequence: 2,
+				},
+			}},
+			err: errMismatchedSequence,
+		},
+		{
+			name: "mismatched sequence second message",
+			req: Message{
+				Header: Header{
+					Sequence: 1,
+				},
+			},
+			rep: []Message{
+				{
+					Header: Header{
+						Sequence: 1,
+					},
+				},
+				{
+					Header: Header{
+						Sequence: 2,
+					},
+				},
+			},
+			err: errMismatchedSequence,
+		},
+		{
+			name: "mismatched PID",
+			req: Message{
+				Header: Header{
+					PID: 1,
+				},
+			},
+			rep: []Message{{
+				Header: Header{
+					PID: 2,
+				},
+			}},
+			err: errMismatchedPID,
+		},
+		{
+			name: "mismatched PID second message",
+			req: Message{
+				Header: Header{
+					PID: 1,
+				},
+			},
+			rep: []Message{
+				{
+					Header: Header{
+						PID: 1,
+					},
+				},
+				{
+					Header: Header{
+						PID: 2,
+					},
+				},
+			},
+			err: errMismatchedPID,
+		},
+		{
+			name: "OK matching sequence and PID",
+			req: Message{
+				Header: Header{
+					Sequence: 1,
+					PID:      1,
+				},
+			},
+			rep: []Message{{
+				Header: Header{
+					Sequence: 1,
+					PID:      1,
+				},
+			}},
+		},
+		{
+			name: "OK multicast messages",
+			// No request
+			req: Message{},
+			rep: []Message{{
+				Header: Header{
+					Sequence: 1,
+					PID:      0,
+				},
+			}},
+		},
+		{
+			name: "OK no PID assigned yet",
+			// No request
+			req: Message{
+				Header: Header{
+					Sequence: 1,
+					PID:      0,
+				},
+			},
+			rep: []Message{{
+				Header: Header{
+					Sequence: 1,
+					PID:      9999,
+				},
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Validate(tt.req, tt.rep)
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+		})
+	}
+}
