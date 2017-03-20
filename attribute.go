@@ -22,6 +22,12 @@ type Attribute struct {
 
 	// An arbitrary payload which is specified by Type.
 	Data []byte
+
+	// Whether the attribute contains nested attributes
+	Nested bool
+
+	// Endianness of the payload
+	NetByteOrder bool
 }
 
 // #define NLA_F_NESTED
@@ -30,23 +36,6 @@ const nlaNested uint16 = 0x8000
 const nlaNetByteOrder uint16 = 0x4000
 // Masks all bits except for Nested and NetByteOrder
 const nlaTypeMask = ^(nlaNested | nlaNetByteOrder)
-
-// IsNested determines if an Attribute's data contains additional nested attributes.
-func (a Attribute) IsNested() bool {
-	return (a.Type & nlaNested) > 0
-}
-
-// IsNetByteOrder interprets the Type field of the Attribute to determine whether the attribute
-// is big endian (net byte order) or not.
-func (a Attribute) IsNetByteOrder() bool {
-	return (a.Type & nlaNetByteOrder) > 0
-}
-
-// GetType masks the Attribute's Type with the bits that are NOT
-// reserved for nlaNested and nlaNetByteOrder.
-func (a Attribute) GetType() uint16 {
-	return a.Type & nlaTypeMask
-}
 
 // MarshalBinary marshals an Attribute into a byte slice.
 func (a Attribute) MarshalBinary() ([]byte, error) {
@@ -57,7 +46,16 @@ func (a Attribute) MarshalBinary() ([]byte, error) {
 	b := make([]byte, nlaAlign(int(a.Length)))
 
 	nlenc.PutUint16(b[0:2], a.Length)
-	nlenc.PutUint16(b[2:4], a.Type)
+
+	switch {
+	case a.Nested:
+		nlenc.PutUint16(b[2:4], a.Type | nlaNested)
+	case a.NetByteOrder:
+		nlenc.PutUint16(b[2:4], a.Type | nlaNetByteOrder)
+	default:
+		nlenc.PutUint16(b[2:4], a.Type)
+	}
+
 	copy(b[4:], a.Data)
 
 	return b, nil
@@ -70,7 +68,13 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 	}
 
 	a.Length = nlenc.Uint16(b[0:2])
-	a.Type = nlenc.Uint16(b[2:4])
+
+	// Only hold the rightmost 14 bits in Type
+	a.Type = nlenc.Uint16(b[2:4]) & nlaTypeMask
+
+	// Boolean flags extracted from the two leftmost bits of Type
+	a.Nested = (nlenc.Uint16(b[2:4]) & nlaNested) > 0
+	a.NetByteOrder = (nlenc.Uint16(b[2:4]) & nlaNetByteOrder) > 0
 
 	if nlaAlign(int(a.Length)) > len(b) {
 		return errInvalidAttribute
