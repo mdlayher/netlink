@@ -186,6 +186,65 @@ func TestMarshalAttributes(t *testing.T) {
 				0x33, 0x33, 0x33, 0x33,
 			},
 		},
+		{
+			name: "nested and endianness bits",
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 0,
+					Nested: true,
+					NetByteOrder: true,
+					Data: make([]byte, 0),
+				},
+			},
+			err: errInvalidAttributeFlags,
+		},
+		{
+			name: "nested bit, type 1, length 0",
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 1,
+					Nested: true,
+					Data: make([]byte, 0),
+				},
+			},
+			b: []byte{
+				0x04, 0x00,
+				0x01, 0x80, // Nested bit
+			},
+		},
+		{
+			name: "endianness bit, type 1, length 0",
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 1,
+					NetByteOrder: true,
+					Data: make([]byte, 0),
+				},
+			},
+			b: []byte{
+				0x04, 0x00,
+				0x01, 0x40, // NetByteOrder bit
+			},
+		},
+		{
+			name: "max type space, length 0",
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 16383,
+					Nested: false,
+					NetByteOrder: false,
+					Data: make([]byte, 0),
+				},
+			},
+			b: []byte{
+				0x04, 0x00,
+				0xFF, 0x3F, // 14 lowest type bits up
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -343,6 +402,60 @@ func TestUnmarshalAttributes(t *testing.T) {
 						0x22, 0x22, 0x22, 0x22,
 						0x33, 0x33, 0x33, 0x33,
 					},
+				},
+			},
+		},
+		{
+			name: "nested and endianness bits",
+			b: []byte{
+				0x04, 0x00,
+				0x00, 0xC0, // both bits set
+			},
+			err: errInvalidAttributeFlags,
+		},
+		{
+			name: "nested bit, type 1, length 0",
+			b: []byte{
+				0x04, 0x00,
+				0x01, 0x80, // Nested bit
+			},
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 1,
+					Nested: true,
+					Data: make([]byte, 0),
+				},
+			},
+		},
+		{
+			name: "endianness bit, type 1, length 0",
+			b: []byte{
+				0x04, 0x00,
+				0x01, 0x40, // NetByteOrder bit
+			},
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 1,
+					NetByteOrder: true,
+					Data: make([]byte, 0),
+				},
+			},
+		},
+		{
+			name: "max type space, length 0",
+			b: []byte{
+				0x04, 0x00,
+				0xFF, 0x3F, // 14 lowest type bits up
+			},
+			attrs: []Attribute{
+				{
+					Length: 4,
+					Type: 16383,
+					Nested: false,
+					NetByteOrder: false,
+					Data: make([]byte, 0),
 				},
 			},
 		},
