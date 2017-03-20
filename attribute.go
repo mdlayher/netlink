@@ -9,6 +9,9 @@ import (
 var (
 	// errInvalidAttribute specifies if an Attribute's length is incorrect.
 	errInvalidAttribute = errors.New("invalid attribute; length too short or too large")
+	// errInvalidAttributeFlags specifies if an Attribute's flag configuration is invalid.
+	// From a comment in Linux/include/uapi/linux/netlink.h, Nested and NetByteOrder are mutually exclusive.
+	errInvalidAttributeFlags = errors.New("invalid attribute; type cannot have both nested and net byte order flags")
 )
 
 // An Attribute is a netlink attribute.  Attributes are packed and unpacked
@@ -23,10 +26,10 @@ type Attribute struct {
 	// An arbitrary payload which is specified by Type.
 	Data []byte
 
-	// Whether the attribute contains nested attributes
+	// Whether the attribute contains nested attributes.
 	Nested bool
 
-	// Endianness of the payload
+	// Whether the attribute is in network (true) or native (false) byte order.
 	NetByteOrder bool
 }
 
@@ -41,6 +44,10 @@ const nlaTypeMask = ^(nlaNested | nlaNetByteOrder)
 func (a Attribute) MarshalBinary() ([]byte, error) {
 	if int(a.Length) < nlaHeaderLen {
 		return nil, errInvalidAttribute
+	}
+
+	if a.NetByteOrder && a.Nested {
+		return nil, errInvalidAttributeFlags
 	}
 
 	b := make([]byte, nlaAlign(int(a.Length)))
@@ -78,6 +85,10 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 
 	if nlaAlign(int(a.Length)) > len(b) {
 		return errInvalidAttribute
+	}
+
+	if a.NetByteOrder && a.Nested {
+		return errInvalidAttributeFlags
 	}
 
 	switch {
