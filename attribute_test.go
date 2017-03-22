@@ -190,11 +190,11 @@ func TestMarshalAttributes(t *testing.T) {
 			name: "nested and endianness bits",
 			attrs: []Attribute{
 				{
-					Length: 4,
-					Type: 0,
-					Nested: true,
+					Length:       4,
+					Type:         0,
+					Nested:       true,
 					NetByteOrder: true,
-					Data: make([]byte, 0),
+					Data:         make([]byte, 0),
 				},
 			},
 			err: errInvalidAttributeFlags,
@@ -204,9 +204,9 @@ func TestMarshalAttributes(t *testing.T) {
 			attrs: []Attribute{
 				{
 					Length: 4,
-					Type: 1,
+					Type:   1,
 					Nested: true,
-					Data: make([]byte, 0),
+					Data:   make([]byte, 0),
 				},
 			},
 			b: []byte{
@@ -218,10 +218,10 @@ func TestMarshalAttributes(t *testing.T) {
 			name: "endianness bit, type 1, length 0",
 			attrs: []Attribute{
 				{
-					Length: 4,
-					Type: 1,
+					Length:       4,
+					Type:         1,
 					NetByteOrder: true,
-					Data: make([]byte, 0),
+					Data:         make([]byte, 0),
 				},
 			},
 			b: []byte{
@@ -233,11 +233,11 @@ func TestMarshalAttributes(t *testing.T) {
 			name: "max type space, length 0",
 			attrs: []Attribute{
 				{
-					Length: 4,
-					Type: 16383,
-					Nested: false,
+					Length:       4,
+					Type:         16383,
+					Nested:       false,
 					NetByteOrder: false,
-					Data: make([]byte, 0),
+					Data:         make([]byte, 0),
 				},
 			},
 			b: []byte{
@@ -422,9 +422,9 @@ func TestUnmarshalAttributes(t *testing.T) {
 			attrs: []Attribute{
 				{
 					Length: 4,
-					Type: 1,
+					Type:   1,
 					Nested: true,
-					Data: make([]byte, 0),
+					Data:   make([]byte, 0),
 				},
 			},
 		},
@@ -436,10 +436,10 @@ func TestUnmarshalAttributes(t *testing.T) {
 			},
 			attrs: []Attribute{
 				{
-					Length: 4,
-					Type: 1,
+					Length:       4,
+					Type:         1,
 					NetByteOrder: true,
-					Data: make([]byte, 0),
+					Data:         make([]byte, 0),
 				},
 			},
 		},
@@ -451,11 +451,11 @@ func TestUnmarshalAttributes(t *testing.T) {
 			},
 			attrs: []Attribute{
 				{
-					Length: 4,
-					Type: 16383,
-					Nested: false,
+					Length:       4,
+					Type:         16383,
+					Nested:       false,
 					NetByteOrder: false,
-					Data: make([]byte, 0),
+					Data:         make([]byte, 0),
 				},
 			},
 		},

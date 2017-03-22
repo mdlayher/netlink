@@ -26,7 +26,10 @@ type Attribute struct {
 	// An arbitrary payload which is specified by Type.
 	Data []byte
 
-	// Whether the attribute's data contains nested attributes.
+	// Whether the attribute's data contains nested attributes.  Note that not
+	// all netlink families set this value.  The programmer should consult
+	// documentation and inspect an attribute's data to determine if nested
+	// attributes are present.
 	Nested bool
 
 	// Whether the attribute's data is in network (true) or native (false) byte order.
@@ -35,8 +38,10 @@ type Attribute struct {
 
 // #define NLA_F_NESTED
 const nlaNested uint16 = 0x8000
+
 // #define NLA_F_NET_BYTE_ORDER
 const nlaNetByteOrder uint16 = 0x4000
+
 // Masks all bits except for Nested and NetByteOrder.
 const nlaTypeMask = ^(nlaNested | nlaNetByteOrder)
 
@@ -56,9 +61,9 @@ func (a Attribute) MarshalBinary() ([]byte, error) {
 
 	switch {
 	case a.Nested:
-		nlenc.PutUint16(b[2:4], a.Type | nlaNested)
+		nlenc.PutUint16(b[2:4], a.Type|nlaNested)
 	case a.NetByteOrder:
-		nlenc.PutUint16(b[2:4], a.Type | nlaNetByteOrder)
+		nlenc.PutUint16(b[2:4], a.Type|nlaNetByteOrder)
 	default:
 		nlenc.PutUint16(b[2:4], a.Type)
 	}
