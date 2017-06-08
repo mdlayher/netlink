@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
+	"syscall"
 	"testing"
 	"unsafe"
 
@@ -257,6 +258,49 @@ func TestLinuxConnReceiveLargeMessage(t *testing.T) {
 		t.Fatalf("unexpected number recvmsg flags:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+}
+
+func TestLinuxConnReceiveMultipleMessagesLastUnaligned(t *testing.T) {
+	// This test checks if syscall.ParseNetlinkMessage allows the final
+	// message in a sequence to be unaligned.  Apparently, nfnetlink can
+	// do this at times.
+	//
+	// Reference: https://golang.org/cl/35531/.
+
+	c, s := testLinuxConn(t, nil)
+
+	s.recvmsg.p = []byte{
+		// First message, aligned
+		0x10, 0x00, 0x00, 0x00,
+		0x00, 0x00,
+		0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		// Final message, unaligned
+		0x11, 0x00, 0x00, 0x00,
+		0x00, 0x00,
+		0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0xff,
+	}
+
+	s.recvmsg.from = &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
+	}
+
+	msgs, err := c.Receive()
+	if err != nil {
+		// TODO(mdlayher): remove once CL 35531 is merged and released.
+		if err == syscall.EINVAL {
+			t.Skip("skipping, see: https://golang.org/cl/35531/")
+		}
+
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	// TODO(mdlayher): check received messages.
+	_ = msgs
 }
 
 func TestLinuxConnIntegration(t *testing.T) {
