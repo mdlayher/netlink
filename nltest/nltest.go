@@ -2,8 +2,6 @@
 package nltest
 
 import (
-	"fmt"
-
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -55,38 +53,36 @@ type Func func(req netlink.Message) ([]netlink.Message, error)
 // sent from the connection will be passed to the Func.  The connection should be
 // closed as usual when it is no longer needed.
 func Dial(fn Func) *netlink.Conn {
-	cfg := &netlink.Config{
-		// TODO(mdlayher): consider exposing a proper API in netlink for allowing
-		// arbitrary netlink.osConn implementations over any transport, removing
-		// the need for this "hack".
-		Testing: &conn{fn: fn},
-	}
-
-	c, err := netlink.Dial(0, cfg)
-	if err != nil {
-		panic(fmt.Sprintf("nltest setup error: %v", err))
-	}
-
-	return c
+	return netlink.NewConn(NewSocket(fn), 1)
 }
 
-// A conn is a netlink.osConn used for testing.  Its methods must match those of
-// netlink.osConn or Dial will panic.
-type conn struct {
+// NewSocket creates a netlink.Socket which passes requests to Func.  NewSocket
+// is primarily useful for building higher-level netlink testing packages on
+// top of nltest.
+func NewSocket(fn Func) netlink.Socket {
+	return &socket{
+		fn: fn,
+	}
+}
+
+var _ netlink.Socket = &socket{}
+
+// A socket is a netlink.Socket used for testing.
+type socket struct {
 	fn Func
 
 	msgs []netlink.Message
 	err  error
 }
 
-func (c *conn) Close() error { return nil }
+func (c *socket) Close() error { return nil }
 
-func (c *conn) Send(m netlink.Message) error {
+func (c *socket) Send(m netlink.Message) error {
 	c.msgs, c.err = c.fn(m)
 	return nil
 }
 
-func (c *conn) Receive() ([]netlink.Message, error) {
+func (c *socket) Receive() ([]netlink.Message, error) {
 	// No messages set by Send means that we are emulating a
 	// multicast response.
 	if len(c.msgs) == 0 {
