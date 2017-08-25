@@ -15,7 +15,7 @@ var (
 	errShortErrorMessage  = errors.New("not enough data for netlink error code")
 )
 
-// Errors which can be returned by an osConn that does not implement
+// Errors which can be returned by a Socket that does not implement
 // all exposed methods of Conn.
 var (
 	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
@@ -25,9 +25,9 @@ var (
 // A Conn is a connection to netlink.  A Conn can be used to send and
 // receives messages to and from netlink.
 type Conn struct {
-	// osConn is the operating system-specific implementation of
+	// sock is the operating system-specific implementation of
 	// a netlink sockets connection.
-	c osConn
+	sock Socket
 
 	// seq is an atomically incremented integer used to provide sequence
 	// numbers when Conn.Send is called.
@@ -37,9 +37,9 @@ type Conn struct {
 	pid uint32
 }
 
-// An osConn is an operating-system specific implementation of netlink
+// A Socket is an operating-system specific implementation of netlink
 // sockets used by Conn.
-type osConn interface {
+type Socket interface {
 	Close() error
 	Send(m Message) error
 	Receive() ([]Message, error)
@@ -49,34 +49,33 @@ type osConn interface {
 // Config specifies optional configuration for Conn.  If config is nil, a default
 // configuration will be used.
 func Dial(family int, config *Config) (*Conn, error) {
-	// If configured, use the testing hook for osConn.
-	if config != nil && config.Testing != nil {
-		return newConn(config.Testing.(osConn), 1), nil
-	}
-
-	// Use OS-specific dial() to create osConn
+	// Use OS-specific dial() to create Socket
 	c, pid, err := dial(family, config)
 	if err != nil {
 		return nil, err
 	}
 
-	return newConn(c, pid), nil
+	return NewConn(c, pid), nil
 }
 
-// newConn is the internal constructor for Conn, used in tests.
-func newConn(c osConn, pid uint32) *Conn {
+// NewConn creates a Conn using the specified Socket and PID for netlink
+// communications.
+//
+// NewConn is primarily useful for tests. Most applications should use
+// Dial instead.
+func NewConn(c Socket, pid uint32) *Conn {
 	seq := rand.Uint32()
 
 	return &Conn{
-		c:   c,
-		seq: &seq,
-		pid: pid,
+		sock: c,
+		seq:  &seq,
+		pid:  pid,
 	}
 }
 
 // Close closes the connection.
 func (c *Conn) Close() error {
-	return c.c.Close()
+	return c.sock.Close()
 }
 
 // Execute sends a single Message to netlink using Conn.Send, receives one or more
@@ -136,7 +135,7 @@ func (c *Conn) Send(m Message) (Message, error) {
 		m.Header.PID = c.pid
 	}
 
-	if err := c.c.Send(m); err != nil {
+	if err := c.sock.Send(m); err != nil {
 		return Message{}, err
 	}
 
@@ -166,7 +165,7 @@ func (c *Conn) Receive() ([]Message, error) {
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
 func (c *Conn) receive() ([]Message, error) {
-	msgs, err := c.c.Receive()
+	msgs, err := c.sock.Receive()
 	if err != nil {
 		return nil, err
 	}
@@ -199,17 +198,17 @@ func (c *Conn) receive() ([]Message, error) {
 	return append(msgs, mmsgs...), nil
 }
 
-// A groupJoinLeaver is an osConn that supports joining and leaving
+// A groupJoinLeaver is a Socket that supports joining and leaving
 // netlink multicast groups.
 type groupJoinLeaver interface {
-	osConn
+	Socket
 	JoinGroup(group uint32) error
 	LeaveGroup(group uint32) error
 }
 
 // JoinGroup joins a netlink multicast group by its ID.
 func (c *Conn) JoinGroup(group uint32) error {
-	gc, ok := c.c.(groupJoinLeaver)
+	gc, ok := c.sock.(groupJoinLeaver)
 	if !ok {
 		return errMulticastGroupsNotSupported
 	}
@@ -219,7 +218,7 @@ func (c *Conn) JoinGroup(group uint32) error {
 
 // LeaveGroup leaves a netlink multicast group by its ID.
 func (c *Conn) LeaveGroup(group uint32) error {
-	gc, ok := c.c.(groupJoinLeaver)
+	gc, ok := c.sock.(groupJoinLeaver)
 	if !ok {
 		return errMulticastGroupsNotSupported
 	}
@@ -227,15 +226,15 @@ func (c *Conn) LeaveGroup(group uint32) error {
 	return gc.LeaveGroup(group)
 }
 
-// A bpfSetter is an osConn that supports setting BPF filters.
+// A bpfSetter is a Socket that supports setting BPF filters.
 type bpfSetter interface {
-	osConn
-	SetBPF(filter []bpf.RawInstruction) error
+	Socket
+	bpf.Setter
 }
 
 // SetBPF attaches an assembled BPF program to a Conn.
 func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
-	bc, ok := c.c.(bpfSetter)
+	bc, ok := c.sock.(bpfSetter)
 	if !ok {
 		return errBPFFiltersNotSupported
 	}
@@ -278,8 +277,4 @@ type Config struct {
 	// Groups is a bitmask which specifies multicast groups. If set to 0,
 	// no multicast group subscriptions will be made.
 	Groups uint32
-
-	// Testing is a special hook used to configure a netlink.Conn for
-	// testing with nltest.  It should not be used by other applications.
-	Testing interface{}
 }
