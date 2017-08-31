@@ -3,227 +3,162 @@
 package genetlink_test
 
 import (
+	"encoding"
 	"fmt"
-	"net"
-	"os"
-	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/genetlink"
-	"github.com/mdlayher/netlink/nlenc"
+	"github.com/mdlayher/netlink/genetlink/genltest"
+	"github.com/mdlayher/netlink/nltest"
+	"golang.org/x/sys/unix"
 )
 
-func TestLinuxConnFamilyGetIsNotExistIntegration(t *testing.T) {
-	// Test that the documented behavior of returning an error that is compatible
-	// with os.IsNotExist is correct
-	const name = "NOTEXISTS"
-
-	c, err := genetlink.Dial(nil)
-	if err != nil {
-		t.Fatalf("failed to dial generic netlink: %v", err)
-	}
-
-	if _, err := c.Family.Get(name); !os.IsNotExist(err) {
-		t.Fatalf("expected not exists error, got: %v", err)
-	}
-
-	if err := c.Close(); err != nil {
-		t.Fatalf("error closing netlink connection: %v", err)
-	}
-}
-
-func TestLinuxConnFamilyGetIntegration(t *testing.T) {
-	c, err := genetlink.Dial(nil)
-	if err != nil {
-		t.Fatalf("failed to dial generic netlink: %v", err)
-	}
-
-	const name = "nlctrl"
-	family, err := c.Family.Get(name)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("skipping because %q family not available", name)
-		}
-
-		t.Fatalf("failed to query for family: %v", err)
-	}
-
-	if err := c.Close(); err != nil {
-		t.Fatalf("error closing netlink connection: %v", err)
-	}
-
-	if want, got := name, family.Name; want != got {
-		t.Fatalf("unexpected family name:\n- want: %q\n-  got: %q", want, got)
-	}
-}
-
-func TestLinuxConnNL80211Integration(t *testing.T) {
-	c, err := genetlink.Dial(nil)
-	if err != nil {
-		t.Fatalf("failed to dial generic netlink: %v", err)
-	}
-
-	const (
-		name = "nl80211"
-
-		nl80211CommandGetInterface = 5
-
-		nl80211AttributeInterfaceIndex = 3
-		nl80211AttributeInterfaceName  = 4
-		nl80211AttributeAttributeMAC   = 6
-	)
-
-	family, err := c.Family.Get(name)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("skipping because %q family not available", name)
-		}
-
-		t.Fatalf("failed to query for family: %v", err)
-	}
-
+func TestConnExecute(t *testing.T) {
 	req := genetlink.Message{
 		Header: genetlink.Header{
-			Command: nl80211CommandGetInterface,
-			Version: family.Version,
+			Command: 1,
+			Version: 1,
 		},
 	}
 
-	flags := netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump
-	msgs, err := c.Execute(req, family.ID, flags)
+	wantnl := netlink.Message{
+		Header: netlink.Header{
+			Length: 20,
+			Type:   unix.GENL_ID_CTRL,
+			Flags:  netlink.HeaderFlagsRequest,
+			PID:    nltest.PID,
+		},
+		Data: mustMarshal(req),
+	}
+
+	wantgenl := []genetlink.Message{{
+		Header: genetlink.Header{
+			Command: 1,
+			Version: 1,
+		},
+		Data: []byte{0x01, 0x02, 0x03, 0x04},
+	}}
+
+	c := genltest.Dial(func(_ genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+		if diff := diffNetlinkMessages(wantnl, nreq); diff != "" {
+			t.Fatalf("unexpected sent netlink message (-want +got):\n%s", diff)
+		}
+
+		return wantgenl, nil
+	})
+
+	msgs, err := c.Execute(req, unix.GENL_ID_CTRL, netlink.HeaderFlagsRequest)
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}
 
-	if err := c.Close(); err != nil {
-		t.Fatalf("error closing netlink connection: %v", err)
-	}
-
-	type ifInfo struct {
-		Index int
-		Name  string
-		MAC   net.HardwareAddr
-	}
-
-	var infos []ifInfo
-	for _, m := range msgs {
-		attrs, err := netlink.UnmarshalAttributes(m.Data)
-		if err != nil {
-			t.Fatalf("failed to unmarshal attributes: %v", err)
-		}
-
-		var info ifInfo
-		for _, a := range attrs {
-			switch a.Type {
-			case nl80211AttributeInterfaceIndex:
-				info.Index = int(nlenc.Uint32(a.Data))
-			case nl80211AttributeInterfaceName:
-				info.Name = nlenc.String(a.Data)
-			case nl80211AttributeAttributeMAC:
-				info.MAC = net.HardwareAddr(a.Data)
-			}
-		}
-
-		infos = append(infos, info)
-	}
-
-	// Verify that nl80211 reported the same information as package net
-	for _, info := range infos {
-		// TODO(mdlayher): figure out why nl80211 returns a subdevice with
-		// an empty name on newer kernel
-		if info.Name == "" {
-			continue
-		}
-
-		ifi, err := net.InterfaceByName(info.Name)
-		if err != nil {
-			t.Fatalf("error retrieving interface %q: %v", info.Name, err)
-		}
-
-		if want, got := ifi.Index, info.Index; want != got {
-			t.Fatalf("unexpected interface index for %q:\n- want: %v\n-  got: %v",
-				ifi.Name, want, got)
-		}
-
-		if want, got := ifi.Name, info.Name; want != got {
-			t.Fatalf("unexpected interface name:\n- want: %q\n-  got: %q",
-				want, got)
-		}
-
-		if want, got := ifi.HardwareAddr.String(), info.MAC.String(); want != got {
-			t.Fatalf("unexpected interface MAC for %q:\n- want: %q\n-  got: %q",
-				ifi.Name, want, got)
-		}
+	if diff := cmp.Diff(wantgenl, msgs); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
 	}
 }
 
-func TestLinuxConnFamilyListIntegration(t *testing.T) {
-	c, err := genetlink.Dial(nil)
-	if err != nil {
-		t.Fatalf("failed to dial generic netlink: %v", err)
-	}
-
-	families, err := c.Family.List()
-	if err != nil {
-		t.Fatalf("failed to query for families: %v", err)
-	}
-
-	if err := c.Close(); err != nil {
-		t.Fatalf("error closing netlink connection: %v", err)
-	}
-
-	// Should be at least nlctrl present
-	var found bool
-	const name = "nlctrl"
-	for _, f := range families {
-		if f.Name == name {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Fatalf("family %q was not found", name)
-	}
-}
-
-func TestLinuxConnFamilyGetConcurrentIntegration(t *testing.T) {
-	dial := func() *genetlink.Conn {
-		c, err := genetlink.Dial(nil)
-		if err != nil {
-			panic(fmt.Sprintf("failed to dial generic netlink: %v", err))
-		}
-
-		return c
-	}
-
-	execN := func(c *genetlink.Conn, n int, wg *sync.WaitGroup) {
-		for i := 0; i < n; i++ {
-			if _, err := c.Family.Get("nlctrl"); err != nil {
-				panic(fmt.Sprintf("failed to get family: %v", err))
-			}
-		}
-
-		_ = c.Close()
-		wg.Done()
-	}
-
+func TestConnSend(t *testing.T) {
 	const (
-		workers    = 16
-		iterations = 10000
+		length = 24
+		family = unix.GENL_ID_CTRL
+		flags  = netlink.HeaderFlagsRequest
 	)
 
-	var wg sync.WaitGroup
-	wg.Add(workers)
-
-	conns := make([]*genetlink.Conn, 0, workers)
-	for i := 0; i < workers; i++ {
-		conns = append(conns, dial())
+	req := genetlink.Message{
+		Header: genetlink.Header{
+			Command: 1,
+			Version: 1,
+		},
+		Data: []byte{0x00, 0x01, 0x02, 0x03},
 	}
 
-	for _, c := range conns {
-		go execN(c, iterations, &wg)
+	want := netlink.Message{
+		Header: netlink.Header{
+			Length: length,
+			Type:   family,
+			Flags:  flags,
+			PID:    nltest.PID,
+		},
+		Data: mustMarshal(req),
 	}
 
-	wg.Wait()
+	c := genltest.Dial(func(_ genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+		if diff := diffNetlinkMessages(want, nreq); diff != "" {
+			t.Fatalf("unexpected sent netlink message (-want +got):\n%s", diff)
+		}
+
+		return nil, nil
+	})
+
+	nlreq, err := c.Send(req, family, flags)
+	if err != nil {
+		t.Fatalf("failed to send: %v", err)
+	}
+
+	if diff := diffNetlinkMessages(want, nlreq); diff != "" {
+		t.Fatalf("unexpected returned netlink message (-want +got):\n%s", diff)
+	}
+}
+
+func TestConnReceive(t *testing.T) {
+	gmsgs := []genetlink.Message{
+		{
+			Header: genetlink.Header{
+				Command: 1,
+				Version: 1,
+			},
+			Data: make([]byte, 0),
+		},
+		{
+			Header: genetlink.Header{
+				Command: 2,
+				Version: 1,
+			},
+			Data: []byte{
+				0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	c := genltest.Dial(func(_ genetlink.Message, _ netlink.Message) ([]genetlink.Message, error) {
+		return gmsgs, nil
+	})
+
+	msgs, _, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	if diff := cmp.Diff(gmsgs, msgs); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
+	}
+}
+
+func mustMarshal(m encoding.BinaryMarshaler) []byte {
+	b, err := m.MarshalBinary()
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal binary: %v", err))
+	}
+
+	return b
+}
+
+func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
+	b, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal attributes: %v", err))
+	}
+
+	return b
+}
+
+// diffNetlinkMessages compares two netlink.Messages after zeroing their
+// sequence number fields that make equality checks in testing difficult.
+func diffNetlinkMessages(want, got netlink.Message) string {
+	want.Header.Sequence = 0
+	got.Header.Sequence = 0
+
+	return cmp.Diff(want, got)
 }

@@ -22,7 +22,7 @@ func ExampleConn_getFamily() {
 	// Ask generic netlink about the generic netlink controller (nlctrl)'s
 	// family information
 	const name = "nlctrl"
-	family, err := c.Family.Get(name)
+	family, err := c.GetFamily(name)
 	if err != nil {
 		// If family doesn't exist, error can be checked using os.IsNotExist
 		if os.IsNotExist(err) {
@@ -46,7 +46,7 @@ func ExampleConn_listFamilies() {
 	defer c.Close()
 
 	// Ask generic netlink about all families registered with it
-	families, err := c.Family.List()
+	families, err := c.ListFamilies()
 	if err != nil {
 		log.Fatalf("failed to query for families: %v", err)
 	}
@@ -79,7 +79,7 @@ func ExampleConn_nl80211WiFi() {
 	)
 
 	// Ask generic netlink if nl80211 is available
-	family, err := c.Family.Get(name)
+	family, err := c.GetFamily(name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Printf("%q family not available", name)

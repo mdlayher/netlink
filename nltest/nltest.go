@@ -6,6 +6,9 @@ import (
 	"github.com/mdlayher/netlink/nlenc"
 )
 
+// PID is the netlink header PID value assigned by nltest.
+const PID = 1
+
 // Multipart sends a slice of netlink.Messages to the caller as a
 // netlink multi-part message. If less than two messages are present,
 // the messages are not altered.
@@ -53,7 +56,7 @@ type Func func(req netlink.Message) ([]netlink.Message, error)
 // sent from the connection will be passed to the Func.  The connection should be
 // closed as usual when it is no longer needed.
 func Dial(fn Func) *netlink.Conn {
-	return netlink.NewConn(NewSocket(fn), 1)
+	return netlink.NewConn(NewSocket(fn), PID)
 }
 
 // NewSocket creates a netlink.Socket which passes requests to Func.  NewSocket
