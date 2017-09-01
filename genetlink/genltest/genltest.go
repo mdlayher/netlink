@@ -43,11 +43,19 @@ type Func func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Messag
 // sent from the connection will be passed to the Func.  The connection should be
 // closed as usual when it is no longer needed.
 func Dial(fn Func) *genetlink.Conn {
-	const pid = 1
+	return genetlink.NewConn(nltest.Dial(adapt(fn)))
+}
 
-	sock := nltest.NewSocket(adapt(fn))
-
-	return genetlink.NewConn(netlink.NewConn(sock, pid))
+// ServeFamily returns a Func that intercepts "get family" commands to the
+// generic netlink controller, verifies that the requested family name matches
+// the provided one, and then returns family information specified by f.
+//
+// Requests which are not related to requesting a family are passed through to fn.
+//
+// ServeFamily is primarily useful in tests for packages which interact with
+// a specific generic netlink family.
+func ServeFamily(f genetlink.Family, fn Func) Func {
+	return serveFamily(f, fn)
 }
 
 var _ nltest.Func = adapt(nil)

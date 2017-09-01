@@ -62,16 +62,11 @@ type Func func(req netlink.Message) ([]netlink.Message, error)
 // sent from the connection will be passed to the Func.  The connection should be
 // closed as usual when it is no longer needed.
 func Dial(fn Func) *netlink.Conn {
-	return netlink.NewConn(NewSocket(fn), PID)
-}
-
-// NewSocket creates a netlink.Socket which passes requests to Func.  NewSocket
-// is primarily useful for building higher-level netlink testing packages on
-// top of nltest.
-func NewSocket(fn Func) netlink.Socket {
-	return &socket{
+	sock := &socket{
 		fn: fn,
 	}
+
+	return netlink.NewConn(sock, PID)
 }
 
 var _ netlink.Socket = &socket{}
