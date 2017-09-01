@@ -33,6 +33,10 @@ func (err *errnoError) Error() string {
 //
 // For multicast interactions, both greq and nreq are empty when passed to the function
 // when genetlink.Conn.Receive is called.
+//
+// If a Func returns an error, the error will be returned as-is to the caller.
+// If no messages and io.EOF are returned, no messages and no error will be
+// returned to the caller, simulating a multi-part message with no data.
 type Func func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error)
 
 // Dial sets up a genetlink.Conn for testing using the specified Func. All requests
