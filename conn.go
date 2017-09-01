@@ -153,8 +153,13 @@ func (c *Conn) Receive() ([]Message, error) {
 		return nil, err
 	}
 
+	// When using nltest, it's possible for zero messages to be returned by receive.
+	if len(msgs) == 0 {
+		return msgs, nil
+	}
+
 	// Trim the final message with multi-part done indicator if
-	// present
+	// present.
 	if m := msgs[len(msgs)-1]; m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type == HeaderTypeDone {
 		return msgs[:len(msgs)-1], nil
 	}

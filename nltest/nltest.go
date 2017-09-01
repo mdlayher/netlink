@@ -2,6 +2,8 @@
 package nltest
 
 import (
+	"io"
+
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -50,6 +52,10 @@ func Error(number int, req netlink.Message) ([]netlink.Message, error) {
 //
 // For multicast interactions, an empty request req is passed to the function
 // when netlink.Conn.Receive is called.
+//
+// If a Func returns an error, the error will be returned as-is to the caller.
+// If no messages and io.EOF are returned, no messages and no error will be
+// returned to the caller, simulating a multi-part message with no data.
 type Func func(req netlink.Message) ([]netlink.Message, error)
 
 // Dial sets up a netlink.Conn for testing using the specified Func. All requests
@@ -87,9 +93,25 @@ func (c *socket) Send(m netlink.Message) error {
 
 func (c *socket) Receive() ([]netlink.Message, error) {
 	// No messages set by Send means that we are emulating a
-	// multicast response.
+	// multicast response or an error occurred.
 	if len(c.msgs) == 0 {
-		return c.fn(netlink.Message{})
+		switch c.err {
+		case nil:
+			// No error, simulate multicast, but also return EOF to simulate
+			// no replies if needed.
+			msgs, err := c.fn(netlink.Message{})
+			if err == io.EOF {
+				err = nil
+			}
+
+			return msgs, err
+		case io.EOF:
+			// EOF, simulate no replies in multi-part message.
+			return nil, nil
+		default:
+			// Some error occurred and should be passed to the caller.
+			return nil, c.err
+		}
 	}
 
 	// Detect multi-part messages.
