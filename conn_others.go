@@ -16,7 +16,7 @@ var (
 		runtime.GOOS, runtime.GOARCH)
 )
 
-var _ osConn = &conn{}
+var _ Socket = &conn{}
 
 // A conn is the no-op implementation of a netlink sockets connection.
 type conn struct{}

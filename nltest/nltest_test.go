@@ -3,6 +3,7 @@ package nltest_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"reflect"
 	"testing"
 
@@ -53,6 +54,36 @@ func TestConnReceiveMulticast(t *testing.T) {
 	if want := msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected multicast messages:\n- want: %v\n-  got: %v",
 			want, got)
+	}
+}
+
+func TestConnReceiveNoMessages(t *testing.T) {
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, io.EOF
+	})
+	defer c.Close()
+
+	msgs, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if l := len(msgs); l > 0 {
+		t.Fatalf("expected no messages, but got: %d", l)
+	}
+}
+
+func TestConnReceiveError(t *testing.T) {
+	errFoo := errors.New("foo")
+
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, errFoo
+	})
+	defer c.Close()
+
+	_, err := c.Receive()
+	if err != errFoo {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -126,6 +157,22 @@ func TestConnExecuteError(t *testing.T) {
 	if want := err; want != got {
 		t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 			want, got)
+	}
+}
+
+func TestConnExecuteNoMessages(t *testing.T) {
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, io.EOF
+	})
+	defer c.Close()
+
+	msgs, err := c.Execute(netlink.Message{})
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if l := len(msgs); l > 0 {
+		t.Fatalf("expected no messages, but got: %d", l)
 	}
 }
 

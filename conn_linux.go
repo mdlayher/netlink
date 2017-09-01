@@ -17,7 +17,7 @@ var (
 	errInvalidFamily   = errors.New("received invalid netlink family")
 )
 
-var _ osConn = &conn{}
+var _ Socket = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {

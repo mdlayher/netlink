@@ -2,6 +2,7 @@ package netlink_test
 
 import (
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -118,6 +119,38 @@ func TestConnExecuteMultipart(t *testing.T) {
 	if want, got := []netlink.Message{msg}, msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
 			want, got)
+	}
+}
+
+func TestConnExecuteNoMessages(t *testing.T) {
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, io.EOF
+	})
+	defer c.Close()
+
+	msgs, err := c.Execute(netlink.Message{})
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if l := len(msgs); l > 0 {
+		t.Fatalf("expected no messages, but got: %d", l)
+	}
+}
+
+func TestConnReceiveNoMessages(t *testing.T) {
+	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+		return nil, io.EOF
+	})
+	defer c.Close()
+
+	msgs, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if l := len(msgs); l > 0 {
+		t.Fatalf("expected no messages, but got: %d", l)
 	}
 }
 

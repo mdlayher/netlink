@@ -2,11 +2,14 @@
 package nltest
 
 import (
-	"fmt"
+	"io"
 
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 )
+
+// PID is the netlink header PID value assigned by nltest.
+const PID = 1
 
 // Multipart sends a slice of netlink.Messages to the caller as a
 // netlink multi-part message. If less than two messages are present,
@@ -49,48 +52,61 @@ func Error(number int, req netlink.Message) ([]netlink.Message, error) {
 //
 // For multicast interactions, an empty request req is passed to the function
 // when netlink.Conn.Receive is called.
+//
+// If a Func returns an error, the error will be returned as-is to the caller.
+// If no messages and io.EOF are returned, no messages and no error will be
+// returned to the caller, simulating a multi-part message with no data.
 type Func func(req netlink.Message) ([]netlink.Message, error)
 
 // Dial sets up a netlink.Conn for testing using the specified Func. All requests
 // sent from the connection will be passed to the Func.  The connection should be
 // closed as usual when it is no longer needed.
 func Dial(fn Func) *netlink.Conn {
-	cfg := &netlink.Config{
-		// TODO(mdlayher): consider exposing a proper API in netlink for allowing
-		// arbitrary netlink.osConn implementations over any transport, removing
-		// the need for this "hack".
-		Testing: &conn{fn: fn},
+	sock := &socket{
+		fn: fn,
 	}
 
-	c, err := netlink.Dial(0, cfg)
-	if err != nil {
-		panic(fmt.Sprintf("nltest setup error: %v", err))
-	}
-
-	return c
+	return netlink.NewConn(sock, PID)
 }
 
-// A conn is a netlink.osConn used for testing.  Its methods must match those of
-// netlink.osConn or Dial will panic.
-type conn struct {
+var _ netlink.Socket = &socket{}
+
+// A socket is a netlink.Socket used for testing.
+type socket struct {
 	fn Func
 
 	msgs []netlink.Message
 	err  error
 }
 
-func (c *conn) Close() error { return nil }
+func (c *socket) Close() error { return nil }
 
-func (c *conn) Send(m netlink.Message) error {
+func (c *socket) Send(m netlink.Message) error {
 	c.msgs, c.err = c.fn(m)
 	return nil
 }
 
-func (c *conn) Receive() ([]netlink.Message, error) {
+func (c *socket) Receive() ([]netlink.Message, error) {
 	// No messages set by Send means that we are emulating a
-	// multicast response.
+	// multicast response or an error occurred.
 	if len(c.msgs) == 0 {
-		return c.fn(netlink.Message{})
+		switch c.err {
+		case nil:
+			// No error, simulate multicast, but also return EOF to simulate
+			// no replies if needed.
+			msgs, err := c.fn(netlink.Message{})
+			if err == io.EOF {
+				err = nil
+			}
+
+			return msgs, err
+		case io.EOF:
+			// EOF, simulate no replies in multi-part message.
+			return nil, nil
+		default:
+			// Some error occurred and should be passed to the caller.
+			return nil, c.err
+		}
 	}
 
 	// Detect multi-part messages.
