@@ -140,6 +140,8 @@ func (t HeaderType) String() string {
 // Message to indicate metadata regarding a Message.
 type Header struct {
 	// Length of a Message, including this Header.
+	// If Length is 0, it will be automatically populated using the
+	// correct length for the Message, including its payload.
 	Length uint32
 
 	// Contents of a Message.
@@ -149,9 +151,13 @@ type Header struct {
 	Flags HeaderFlags
 
 	// The sequence number of a Message.
+	// If Sequence is 0, it will be automatically populated using the
+	// next sequence number for this connection.
 	Sequence uint32
 
 	// The process ID of the sending process.
+	// If PID is 0, it will be automatically populated using a PID
+	// assigned by netlink.
 	PID uint32
 }
 

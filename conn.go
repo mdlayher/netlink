@@ -106,15 +106,6 @@ func (c *Conn) Execute(m Message) ([]Message, error) {
 // Sequence, and PID fields should be set to 0, so they can be populated
 // automatically before the Message is sent.  On success, Send returns a copy
 // of the Message with all parameters populated, for later validation.
-//
-// If m.Header.Length is 0, it will be automatically populated using the
-// correct length for the Message, including its payload.
-//
-// If m.Header.Sequence is 0, it will be automatically populated using the
-// next sequence number for this connection.
-//
-// If m.Header.PID is 0, it will be automatically populated using a PID
-// assigned by netlink.
 func (c *Conn) Send(m Message) (Message, error) {
 	ml := nlmsgLength(len(m.Data))
 
