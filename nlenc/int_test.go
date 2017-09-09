@@ -13,6 +13,34 @@ func TestUintPanic(t *testing.T) {
 		fn   func(b []byte)
 	}{
 		{
+			name: "short put 8",
+			b:    make([]byte, 0),
+			fn: func(b []byte) {
+				PutUint8(b, 0)
+			},
+		},
+		{
+			name: "long put 8",
+			b:    make([]byte, 2),
+			fn: func(b []byte) {
+				PutUint8(b, 0)
+			},
+		},
+		{
+			name: "short get 8",
+			b:    make([]byte, 0),
+			fn: func(b []byte) {
+				Uint8(b)
+			},
+		},
+		{
+			name: "long get 8",
+			b:    make([]byte, 2),
+			fn: func(b []byte) {
+				Uint8(b)
+			},
+		},
+		{
 			name: "short put 16",
 			b:    make([]byte, 1),
 			fn: func(b []byte) {
@@ -126,6 +154,47 @@ func TestUintPanic(t *testing.T) {
 	}
 }
 
+func TestUint8(t *testing.T) {
+	tests := []struct {
+		v uint8
+		b []byte
+	}{
+		{
+			v: 0x01,
+			b: []byte{0x01},
+		},
+		{
+			v: 0xff,
+			b: []byte{0xff},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("0x%03x", tt.v), func(t *testing.T) {
+			b := make([]byte, 1)
+			PutUint8(b, tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
+					want, got)
+			}
+
+			v := Uint8(b)
+
+			if want, got := tt.v, v; want != got {
+				t.Fatalf("unexpected integer:\n- want: 0x%03x\n-  got: 0x%03x",
+					want, got)
+			}
+
+			b = Uint8Bytes(tt.v)
+
+			if want, got := tt.b, b; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
+					want, got)
+			}
+		})
+	}
+}
 func TestUint16(t *testing.T) {
 	tests := []struct {
 		v uint16
