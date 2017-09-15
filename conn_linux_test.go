@@ -560,6 +560,8 @@ func (s *testSocket) Close() error {
 	return nil
 }
 
+func (s *testSocket) FD() int { return 0 }
+
 func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
 	if s.getsockname == nil {
 		return &unix.SockaddrNetlink{}, s.getsocknameErr

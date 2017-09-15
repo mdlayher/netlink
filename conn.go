@@ -2,7 +2,9 @@ package netlink
 
 import (
 	"errors"
+	"io"
 	"math/rand"
+	"os"
 	"sync/atomic"
 
 	"golang.org/x/net/bpf"
@@ -18,6 +20,7 @@ var (
 // Errors which can be returned by a Socket that does not implement
 // all exposed methods of Conn.
 var (
+	errReadWriterNotSupported      = errors.New("raw read/writer not supported")
 	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
 	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
 )
@@ -201,6 +204,49 @@ func (c *Conn) receive() ([]Message, error) {
 	}
 
 	return append(msgs, mmsgs...), nil
+}
+
+// An fder is a Socket that supports retrieving its raw file descriptor.
+type fder interface {
+	Socket
+	FD() int
+}
+
+var _ io.ReadWriter = &fileReadWriter{}
+
+// A fileReadWriter is a limited *os.File which only allows access to its
+// Read and Write methods.
+type fileReadWriter struct {
+	f *os.File
+}
+
+// Read implements io.ReadWriter.
+func (rw *fileReadWriter) Read(b []byte) (int, error) { return rw.f.Read(b) }
+
+// Write implements io.ReadWriter.
+func (rw *fileReadWriter) Write(b []byte) (int, error) { return rw.f.Write(b) }
+
+// ReadWriter returns a raw io.ReadWriter backed by the connection of the Conn.
+// Conn.Close must still be used to free resources when the io.ReadWriter is no
+// longer needed.
+//
+// ReadWriter is intended to be used for advanced use cases, such as those that
+// do not involve standard netlink message passing.
+//
+// Once invoked, it is the caller's responsibility to ensure that operations
+// performed using Conn and the raw io.ReadWriter do not conflict with each
+// other.  In almost all scenarios, only one of the two should be used.
+func (c *Conn) ReadWriter() (io.ReadWriter, error) {
+	fc, ok := c.sock.(fder)
+	if !ok {
+		return nil, errReadWriterNotSupported
+	}
+
+	return &fileReadWriter{
+		// Backing the io.ReadWriter with an *os.File enables easy reading and
+		// writing without more system call boilerplate.
+		f: os.NewFile(uintptr(fc.FD()), "netlink"),
+	}, nil
 }
 
 // A groupJoinLeaver is a Socket that supports joining and leaving
