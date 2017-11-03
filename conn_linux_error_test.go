@@ -15,10 +15,9 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 	// error handling logic in *Conn.Receive
 
 	tests := []struct {
-		name  string
-		multi bool
-		msgs  []netlink.Message
-		err   error
+		name string
+		msgs []netlink.Message
+		err  error
 	}{
 		{
 			name: "ENOENT",
@@ -35,7 +34,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 			err: unix.ENOENT,
 		},
 		{
-			name: "EINTR multipart",
+			name: "multipart done without error attached",
 			msgs: []netlink.Message{
 				{
 					Header: netlink.Header{
@@ -44,7 +43,23 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				},
 				{
 					Header: netlink.Header{
-						Type:  netlink.HeaderTypeError,
+						Type:  netlink.HeaderTypeDone,
+						Flags: netlink.HeaderFlagsMulti,
+					},
+				},
+			},
+		},
+		{
+			name: "multipart done with error attached",
+			msgs: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Flags: netlink.HeaderFlagsMulti,
+					},
+				},
+				{
+					Header: netlink.Header{
+						Type:  netlink.HeaderTypeDone,
 						Flags: netlink.HeaderFlagsMulti,
 					},
 					Data: []byte{0xfc, 0xff, 0xff, 0xff},
@@ -58,13 +73,13 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
-				if tt.multi {
-					return nltest.Multipart(tt.msgs)
-				}
-
 				return tt.msgs, nil
 			})
 			defer c.Close()
+
+			// Need to prepopulate nltest's internal buffers by invoking the
+			// function once.
+			_, _ = c.Send(netlink.Message{})
 
 			_, err := c.Receive()
 
