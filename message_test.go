@@ -38,32 +38,44 @@ func TestHeaderFlagsString(t *testing.T) {
 			s: "dumpfiltered",
 		},
 		{
-			f: 1 << 6,
-			s: "1<<6",
-		},
-		{
-			f: 1 << 7,
-			s: "1<<7",
-		},
-		{
 			f: HeaderFlagsRoot,
-			s: "root",
+			s: "0x100",
+		},
+		{
+			f: HeaderFlagsReplace,
+			s: "0x100",
 		},
 		{
 			f: HeaderFlagsMatch,
-			s: "match",
+			s: "0x200",
+		},
+		{
+			f: HeaderFlagsExcl,
+			s: "0x200",
 		},
 		{
 			f: HeaderFlagsAtomic,
-			s: "atomic",
+			s: "0x400",
+		},
+		{
+			f: HeaderFlagsCreate,
+			s: "0x400",
+		},
+		{
+			f: HeaderFlagsAppend,
+			s: "0x800",
 		},
 		{
 			f: HeaderFlagsDump,
-			s: "root|match",
+			s: "0x300",
 		},
 		{
 			f: HeaderFlagsRequest | HeaderFlagsDump,
-			s: "request|root|match",
+			s: "request|0x300",
+		},
+		{
+			f: HeaderFlagsRequest | HeaderFlagsAcknowledge | HeaderFlagsCreate | HeaderFlagsReplace,
+			s: "request|acknowledge|0x500",
 		},
 	}
 
