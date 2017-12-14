@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"runtime"
 	"sync"
 	"syscall"
 	"testing"
@@ -372,13 +371,6 @@ func TestLinuxConnIntegration(t *testing.T) {
 
 func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 	execN := func(n int, wg *sync.WaitGroup) {
-		// It is important to lock this goroutine to its OS thread for the duration
-		// of the netlink socket being used, or else the kernel may end up routing
-		// messages to the wrong places.
-		// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
 		const familyGeneric = 16
 
 		c, err := Dial(familyGeneric, nil)
@@ -395,13 +387,6 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 		for i := 0; i < n; i++ {
 			vmsg, err := c.Send(req)
 			if err != nil {
-				if err == unix.EINVAL {
-					// BUG(mdlayher): for reasons as of yet unknown, this Send will
-					// occasionally return EINVAL.  For the time being, ignore this
-					// error and keep the test itself running.  Needs more investigation.
-					continue
-				}
-
 				panic(fmt.Sprintf("failed to send request: %v", err))
 			}
 
