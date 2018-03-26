@@ -177,37 +177,37 @@ func (c *Conn) Receive() ([]Message, error) {
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
 func (c *Conn) receive() ([]Message, error) {
-	msgs, err := c.sock.Receive()
-	if err != nil {
-		return nil, err
-	}
-
-	// If this message is multi-part, we will need to perform an recursive call
-	// to continue draining the socket
-	var multi bool
-
-	for _, m := range msgs {
-		// Is this a multi-part message and is it not done yet?
-		if m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type != HeaderTypeDone {
-			multi = true
-		}
-
-		if err := checkMessage(m); err != nil {
+	var res []Message
+	for {
+		msgs, err := c.sock.Receive()
+		if err != nil {
 			return nil, err
 		}
-	}
 
-	if !multi {
-		return msgs, nil
-	}
+		// If this message is multi-part, we will need to perform an recursive call
+		// to continue draining the socket
+		var multi bool
 
-	// More messages waiting
-	mmsgs, err := c.receive()
-	if err != nil {
-		return nil, err
-	}
+		for _, m := range msgs {
+			// Is this a multi-part message and is it not done yet?
+			if m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type != HeaderTypeDone {
+				multi = true
+			}
 
-	return append(msgs, mmsgs...), nil
+			if err := checkMessage(m); err != nil {
+				return nil, err
+			}
+		}
+
+		if !multi {
+			// More messages waiting
+			res = append(res, msgs...)
+			break
+		}
+
+		res = append(res, msgs...)
+	}
+	return res, nil
 }
 
 // An fder is a Socket that supports retrieving its raw file descriptor.
