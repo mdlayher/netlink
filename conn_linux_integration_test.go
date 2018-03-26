@@ -53,7 +53,7 @@ func TestLinuxNetlinkSetBPF(t *testing.T) {
 	for _, s := range sequences {
 		req.Header.Sequence = s.seq
 		if _, err := c.Send(req); err != nil {
-			t.Fatalf("failed to send with sequence %d: %v", s, err)
+			t.Fatalf("failed to send with sequence %d: %v", s.seq, err)
 		}
 
 		if !s.ok {
