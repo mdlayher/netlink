@@ -344,8 +344,9 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := HeaderTypeError, m.Header.Type; want != got {
 		t.Fatalf("unexpected header type:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := 0, int(m.Header.Flags); want != got {
-		t.Fatalf("unexpected header flags:\n- want: %v\n-  got: %v", want, got)
+	// Recent kernel versions (> 4.14) return a 256 here instead of a 0
+	if want, wantAlt, got := 0, 256, int(m.Header.Flags); want != got && wantAlt != got {
+		t.Fatalf("unexpected header flags:\n- want: %v or %v\n-  got: %v", want, wantAlt, got)
 	}
 
 	// Sequence number not checked because we assign one at random when
