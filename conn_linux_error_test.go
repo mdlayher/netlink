@@ -3,14 +3,18 @@
 package netlink_test
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nlenc"
 	"github.com/mdlayher/netlink/nltest"
 	"golang.org/x/sys/unix"
 )
 
 func TestConnReceiveErrorLinux(t *testing.T) {
+	skipBigEndian(t)
+
 	// Note: using *Conn instead of Linux-only *conn, to test
 	// error handling logic in *Conn.Receive
 
@@ -88,5 +92,11 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 					want, got)
 			}
 		})
+	}
+}
+
+func skipBigEndian(t *testing.T) {
+	if nlenc.NativeEndian() == binary.BigEndian {
+		t.Skip("skipping test on big-endian system")
 	}
 }

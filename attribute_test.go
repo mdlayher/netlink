@@ -7,6 +7,8 @@ import (
 )
 
 func TestMarshalAttributes(t *testing.T) {
+	skipBigEndian(t)
+
 	tests := []struct {
 		name  string
 		attrs []Attribute
@@ -268,6 +270,8 @@ func TestMarshalAttributes(t *testing.T) {
 }
 
 func TestUnmarshalAttributes(t *testing.T) {
+	skipBigEndian(t)
+
 	tests := []struct {
 		name  string
 		b     []byte
