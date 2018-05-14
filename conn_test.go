@@ -104,7 +104,7 @@ func TestConnExecuteMultipart(t *testing.T) {
 		return nltest.Multipart([]netlink.Message{
 			msg,
 			// Will be filled with multipart done information.
-			netlink.Message{},
+			{},
 		})
 	})
 	defer c.Close()
