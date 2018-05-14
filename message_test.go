@@ -2,11 +2,12 @@ package netlink
 
 import (
 	"bytes"
+	"encoding/binary"
 	"reflect"
 	"testing"
-)
 
-// TODO(mdlayher): tests all assume little endian host machine
+	"github.com/mdlayher/netlink/nlenc"
+)
 
 func TestHeaderFlagsString(t *testing.T) {
 	tests := []struct {
@@ -127,6 +128,8 @@ func TestHeaderTypeString(t *testing.T) {
 }
 
 func TestMessageMarshal(t *testing.T) {
+	skipBigEndian(t)
+
 	tests := []struct {
 		name string
 		m    Message
@@ -232,6 +235,8 @@ func TestMessageMarshal(t *testing.T) {
 }
 
 func TestMessageUnmarshal(t *testing.T) {
+	skipBigEndian(t)
+
 	tests := []struct {
 		name string
 		b    []byte
@@ -449,5 +454,11 @@ func TestValidate(t *testing.T) {
 					want, got)
 			}
 		})
+	}
+}
+
+func skipBigEndian(t *testing.T) {
+	if nlenc.NativeEndian() == binary.BigEndian {
+		t.Skip("skipping test on big-endian system")
 	}
 }
