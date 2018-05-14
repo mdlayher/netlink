@@ -2,6 +2,7 @@ package nlenc
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"testing"
 )
@@ -196,6 +197,7 @@ func TestUint8(t *testing.T) {
 	}
 }
 func TestUint16(t *testing.T) {
+	skipBigEndian(t)
 	tests := []struct {
 		v uint16
 		b []byte
@@ -246,6 +248,7 @@ func TestUint16(t *testing.T) {
 }
 
 func TestUint32(t *testing.T) {
+	skipBigEndian(t)
 	tests := []struct {
 		v uint32
 		b []byte
@@ -304,6 +307,7 @@ func TestUint32(t *testing.T) {
 }
 
 func TestUint64(t *testing.T) {
+	skipBigEndian(t)
 	tests := []struct {
 		v uint64
 		b []byte
@@ -370,6 +374,7 @@ func TestUint64(t *testing.T) {
 }
 
 func TestInt32(t *testing.T) {
+	skipBigEndian(t)
 	tests := []struct {
 		v int32
 		b []byte
@@ -432,5 +437,11 @@ func TestInt32(t *testing.T) {
 					want, got)
 			}
 		})
+	}
+}
+
+func skipBigEndian(t *testing.T) {
+	if NativeEndian() == binary.BigEndian {
+		t.Skip("skipping test on big-endian system")
 	}
 }
