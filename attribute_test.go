@@ -189,62 +189,17 @@ func TestMarshalAttributes(t *testing.T) {
 			},
 		},
 		{
-			name: "nested and endianness bits",
-			attrs: []Attribute{
-				{
-					Length:       4,
-					Type:         0,
-					Nested:       true,
-					NetByteOrder: true,
-					Data:         make([]byte, 0),
-				},
-			},
-			err: errInvalidAttributeFlags,
-		},
-		{
-			name: "nested bit, type 1, length 0",
+			name: "max type space, length 0",
 			attrs: []Attribute{
 				{
 					Length: 4,
-					Type:   1,
-					Nested: true,
+					Type:   0xffff,
 					Data:   make([]byte, 0),
 				},
 			},
 			b: []byte{
 				0x04, 0x00,
-				0x01, 0x80, // Nested bit
-			},
-		},
-		{
-			name: "endianness bit, type 1, length 0",
-			attrs: []Attribute{
-				{
-					Length:       4,
-					Type:         1,
-					NetByteOrder: true,
-					Data:         make([]byte, 0),
-				},
-			},
-			b: []byte{
-				0x04, 0x00,
-				0x01, 0x40, // NetByteOrder bit
-			},
-		},
-		{
-			name: "max type space, length 0",
-			attrs: []Attribute{
-				{
-					Length:       4,
-					Type:         16383,
-					Nested:       false,
-					NetByteOrder: false,
-					Data:         make([]byte, 0),
-				},
-			},
-			b: []byte{
-				0x04, 0x00,
-				0xFF, 0x3F, // 14 lowest type bits up
+				0xff, 0xff,
 			},
 		},
 	}
@@ -410,56 +365,16 @@ func TestUnmarshalAttributes(t *testing.T) {
 			},
 		},
 		{
-			name: "nested and endianness bits",
+			name: "max type space, length 0",
 			b: []byte{
 				0x04, 0x00,
-				0x00, 0xC0, // both bits set
-			},
-			err: errInvalidAttributeFlags,
-		},
-		{
-			name: "nested bit, type 1, length 0",
-			b: []byte{
-				0x04, 0x00,
-				0x01, 0x80, // Nested bit
+				0xff, 0xff,
 			},
 			attrs: []Attribute{
 				{
 					Length: 4,
-					Type:   1,
-					Nested: true,
+					Type:   0xffff,
 					Data:   make([]byte, 0),
-				},
-			},
-		},
-		{
-			name: "endianness bit, type 1, length 0",
-			b: []byte{
-				0x04, 0x00,
-				0x01, 0x40, // NetByteOrder bit
-			},
-			attrs: []Attribute{
-				{
-					Length:       4,
-					Type:         1,
-					NetByteOrder: true,
-					Data:         make([]byte, 0),
-				},
-			},
-		},
-		{
-			name: "max type space, length 0",
-			b: []byte{
-				0x04, 0x00,
-				0xFF, 0x3F, // 14 lowest type bits up
-			},
-			attrs: []Attribute{
-				{
-					Length:       4,
-					Type:         16383,
-					Nested:       false,
-					NetByteOrder: false,
-					Data:         make([]byte, 0),
 				},
 			},
 		},
