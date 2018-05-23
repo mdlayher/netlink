@@ -49,6 +49,7 @@ type Conn struct {
 type Socket interface {
 	Close() error
 	Send(m Message) error
+	SendMessages(m []Message) error
 	Receive() ([]Message, error)
 }
 
@@ -109,6 +110,41 @@ func (c *Conn) Execute(m Message) ([]Message, error) {
 	return replies, nil
 }
 
+func (c *Conn) fixMsg(m *Message, ml int) {
+	if m.Header.Length == 0 {
+		m.Header.Length = uint32(nlmsgAlign(ml))
+	}
+
+	if m.Header.Sequence == 0 {
+		m.Header.Sequence = c.nextSequence()
+	}
+
+	if m.Header.PID == 0 {
+		m.Header.PID = c.pid
+	}
+}
+
+// SendMessages sends multiple Messages to netlink. The handling of
+// m.Header.Length, Sequence and PID is the same as when calling Send.
+func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
+	for idx, m := range messages {
+		ml := nlmsgLength(len(m.Data))
+
+		// TODO(mdlayher): fine-tune this limit.
+		if ml > (1024 * 32) {
+			return nil, errors.New("netlink message data too large")
+		}
+
+		c.fixMsg(&messages[idx], ml)
+	}
+
+	if err := c.sock.SendMessages(messages); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
 // Send sends a single Message to netlink.  In most cases, m.Header's Length,
 // Sequence, and PID fields should be set to 0, so they can be populated
 // automatically before the Message is sent.  On success, Send returns a copy
@@ -130,17 +166,7 @@ func (c *Conn) Send(m Message) (Message, error) {
 		return Message{}, errors.New("netlink message data too large")
 	}
 
-	if m.Header.Length == 0 {
-		m.Header.Length = uint32(nlmsgAlign(ml))
-	}
-
-	if m.Header.Sequence == 0 {
-		m.Header.Sequence = c.nextSequence()
-	}
-
-	if m.Header.PID == 0 {
-		m.Header.PID = c.pid
-	}
+	c.fixMsg(&m, ml)
 
 	if err := c.sock.Send(m); err != nil {
 		return Message{}, err

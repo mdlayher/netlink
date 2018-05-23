@@ -16,8 +16,11 @@ func TestConnSend(t *testing.T) {
 		Data: []byte{0xff, 0xff, 0xff, 0xff},
 	}
 
-	c := nltest.Dial(func(creq netlink.Message) ([]netlink.Message, error) {
-		if want, got := req.Data, creq.Data; !bytes.Equal(want, got) {
+	c := nltest.Dial(func(creq []netlink.Message) ([]netlink.Message, error) {
+		if got, want := len(creq), 1; got != want {
+			t.Fatalf("unexpected number of messages: got %d, want %d", got, want)
+		}
+		if want, got := req.Data, creq[0].Data; !bytes.Equal(want, got) {
 			t.Fatalf("unexpected request data:\n- want: %v\n-  got: %v",
 				want, got)
 		}
@@ -36,7 +39,11 @@ func TestConnReceiveMulticast(t *testing.T) {
 		Data: []byte{0xff, 0xff, 0xff, 0xff},
 	}}
 
-	c := nltest.Dial(func(zero netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(zero []netlink.Message) ([]netlink.Message, error) {
+		if zero == nil {
+			return msgs, nil
+		}
+
 		if want, got := (netlink.Message{}), zero; !reflect.DeepEqual(want, got) {
 			t.Fatalf("unexpected zero message:\n- want: %v\n-  got: %v",
 				want, got)
@@ -58,7 +65,7 @@ func TestConnReceiveMulticast(t *testing.T) {
 }
 
 func TestConnReceiveNoMessages(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
 	})
 	defer c.Close()
@@ -76,7 +83,7 @@ func TestConnReceiveNoMessages(t *testing.T) {
 func TestConnReceiveError(t *testing.T) {
 	errFoo := errors.New("foo")
 
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, errFoo
 	})
 	defer c.Close()
@@ -97,9 +104,9 @@ func TestConnExecuteOK(t *testing.T) {
 		},
 	}
 
-	c := nltest.Dial(func(creq netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(creq []netlink.Message) ([]netlink.Message, error) {
 		// Turn the request back around to the client.
-		return []netlink.Message{creq}, nil
+		return creq, nil
 	})
 	defer c.Close()
 
@@ -124,11 +131,13 @@ func TestConnExecuteMultipartOK(t *testing.T) {
 		},
 	}
 
-	c := nltest.Dial(func(creq netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(creq []netlink.Message) ([]netlink.Message, error) {
 		// Client should only receive one message with multipart flag set.
-		return nltest.Multipart([]netlink.Message{
-			creq, creq,
-		})
+		// TODO: append(creq, creq)?
+		creqs := make([]netlink.Message, 2*len(creq))
+		copy(creqs, creq)
+		copy(creqs[len(creq):], creq)
+		return nltest.Multipart(creqs)
 	})
 	defer c.Close()
 
@@ -147,7 +156,7 @@ func TestConnExecuteMultipartOK(t *testing.T) {
 func TestConnExecuteError(t *testing.T) {
 	err := errors.New("foo")
 
-	c := nltest.Dial(func(creq netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(creq []netlink.Message) ([]netlink.Message, error) {
 		// Error should be surfaced by Execute's call to Receive.
 		return nil, err
 	})
@@ -161,7 +170,7 @@ func TestConnExecuteError(t *testing.T) {
 }
 
 func TestConnExecuteNoMessages(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
 	})
 	defer c.Close()
@@ -185,20 +194,22 @@ func TestError(t *testing.T) {
 	tests := []struct {
 		name   string
 		number int
-		in     netlink.Message
+		in     []netlink.Message
 		out    []netlink.Message
 	}{
 		{
 			name:   "EPERM",
 			number: eperm,
-			in: netlink.Message{
-				Header: netlink.Header{
-					Length:   24,
-					Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump,
-					Sequence: 10,
-					PID:      1000,
+			in: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Length:   24,
+						Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump,
+						Sequence: 10,
+						PID:      1000,
+					},
+					Data: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88},
 				},
-				Data: []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88},
 			},
 			out: []netlink.Message{{
 				Header: netlink.Header{
@@ -217,14 +228,16 @@ func TestError(t *testing.T) {
 		{
 			name:   "ENOENT",
 			number: enoent,
-			in: netlink.Message{
-				Header: netlink.Header{
-					Length:   20,
-					Flags:    netlink.HeaderFlagsRequest,
-					Sequence: 1,
-					PID:      100,
+			in: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Length:   20,
+						Flags:    netlink.HeaderFlagsRequest,
+						Sequence: 1,
+						PID:      100,
+					},
+					Data: []byte{0x11, 0x22, 0x33, 0x44},
 				},
-				Data: []byte{0x11, 0x22, 0x33, 0x44},
 			},
 			out: []netlink.Message{{
 				Header: netlink.Header{

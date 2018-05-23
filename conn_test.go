@@ -29,7 +29,7 @@ func TestConnExecute(t *testing.T) {
 		Data: make([]byte, 4),
 	}}
 
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return replies, nil
 	})
 	defer c.Close()
@@ -49,7 +49,7 @@ func TestConnExecute(t *testing.T) {
 }
 
 func TestConnSend(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, errors.New("should not be received")
 	})
 	defer c.Close()
@@ -100,7 +100,7 @@ func TestConnExecuteMultipart(t *testing.T) {
 		Data: []byte{0xff, 0xff, 0xff, 0xff},
 	}
 
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nltest.Multipart([]netlink.Message{
 			msg,
 			// Will be filled with multipart done information.
@@ -123,7 +123,7 @@ func TestConnExecuteMultipart(t *testing.T) {
 }
 
 func TestConnExecuteNoMessages(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
 	})
 	defer c.Close()
@@ -139,7 +139,7 @@ func TestConnExecuteNoMessages(t *testing.T) {
 }
 
 func TestConnReceiveNoMessages(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
 	})
 	defer c.Close()
@@ -155,7 +155,7 @@ func TestConnReceiveNoMessages(t *testing.T) {
 }
 
 func TestConnReceiveShortErrorMessage(t *testing.T) {
-	c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return []netlink.Message{{
 			Header: netlink.Header{
 				Length: 20,

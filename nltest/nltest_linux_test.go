@@ -10,7 +10,7 @@ import (
 )
 
 func TestLinuxDialError(t *testing.T) {
-	c := nltest.Dial(func(req netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(req []netlink.Message) ([]netlink.Message, error) {
 		return nltest.Error(int(syscall.ENOENT), req)
 	})
 

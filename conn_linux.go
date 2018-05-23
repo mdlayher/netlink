@@ -94,6 +94,25 @@ func bind(s socket, config *Config) (*conn, uint32, error) {
 	}, pid, nil
 }
 
+// SendMessages serializes multiple Messages and sends them to netlink.
+func (c *conn) SendMessages(messages []Message) error {
+	var buf []byte
+	for _, m := range messages {
+		b, err := m.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		buf = append(buf, b...)
+	}
+
+	addr := &unix.SockaddrNetlink{
+		Family: unix.AF_NETLINK,
+	}
+
+	return c.s.Sendmsg(buf, nil, addr, 0)
+}
+
 // Send sends a single Message to netlink.
 func (c *conn) Send(m Message) error {
 	b, err := m.MarshalBinary()
