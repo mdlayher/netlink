@@ -76,7 +76,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := nltest.Dial(func(_ netlink.Message) ([]netlink.Message, error) {
+			c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 				return tt.msgs, nil
 			})
 			defer c.Close()

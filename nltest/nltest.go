@@ -33,7 +33,8 @@ func Multipart(msgs []netlink.Message) ([]netlink.Message, error) {
 
 // Error returns a netlink error to the caller with the specified error
 // number, in the body of the specified request message.
-func Error(number int, req netlink.Message) ([]netlink.Message, error) {
+func Error(number int, reqs []netlink.Message) ([]netlink.Message, error) {
+	req := reqs[0]
 	req.Header.Length += 4
 	req.Header.Type = netlink.HeaderTypeError
 
@@ -56,7 +57,7 @@ func Error(number int, req netlink.Message) ([]netlink.Message, error) {
 // If a Func returns an error, the error will be returned as-is to the caller.
 // If no messages and io.EOF are returned, no messages and no error will be
 // returned to the caller, simulating a multi-part message with no data.
-type Func func(req netlink.Message) ([]netlink.Message, error)
+type Func func(req []netlink.Message) ([]netlink.Message, error)
 
 // Dial sets up a netlink.Conn for testing using the specified Func. All requests
 // sent from the connection will be passed to the Func.  The connection should be
@@ -81,8 +82,15 @@ type socket struct {
 
 func (c *socket) Close() error { return nil }
 
+func (c *socket) SendMessages(messages []netlink.Message) error {
+	msgs, err := c.fn(messages)
+	c.msgs = append(c.msgs, msgs...)
+	c.err = err
+	return nil
+}
+
 func (c *socket) Send(m netlink.Message) error {
-	c.msgs, c.err = c.fn(m)
+	c.msgs, c.err = c.fn([]netlink.Message{m})
 	return nil
 }
 
@@ -94,7 +102,7 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 		case nil:
 			// No error, simulate multicast, but also return EOF to simulate
 			// no replies if needed.
-			msgs, err := c.fn(netlink.Message{})
+			msgs, err := c.fn(nil)
 			if err == io.EOF {
 				err = nil
 			}
