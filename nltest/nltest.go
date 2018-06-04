@@ -2,6 +2,7 @@
 package nltest
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/mdlayher/netlink"
@@ -10,6 +11,17 @@ import (
 
 // PID is the netlink header PID value assigned by nltest.
 const PID = 1
+
+// MustMarshalAttributes marshals a slice of netlink.Attributes to their binary
+// format, but panics if any errors occur.
+func MustMarshalAttributes(attrs []netlink.Attribute) []byte {
+	b, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal attributes to binary: %v", err))
+	}
+
+	return b
+}
 
 // Multipart sends a slice of netlink.Messages to the caller as a
 // netlink multi-part message. If less than two messages are present,
