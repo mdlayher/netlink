@@ -131,7 +131,10 @@ func (c *conn) Send(m Message) error {
 func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
 	for {
-		// Peek at the buffer to see how many bytes are available
+		// Peek at the buffer to see how many bytes are available.
+		//
+		// TODO(mdlayher): deal with OOB message data if available, such as
+		// when PacketInfo ConnOption is true.
 		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
 		if err != nil {
 			return nil, err
@@ -221,6 +224,45 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 		unsafe.Pointer(&prog),
 		uint32(unsafe.Sizeof(prog)),
 	)
+}
+
+// SetOption enables or disables a netlink socket option for the Conn.
+func (c *conn) SetOption(option ConnOption, enable bool) error {
+	o, ok := linuxOption(option)
+	if !ok {
+		// Return the typical Linux error for an unknown ConnOption.
+		return unix.ENOPROTOOPT
+	}
+
+	var v uint32
+	if enable {
+		v = 1
+	}
+
+	return c.s.SetSockopt(
+		unix.SOL_NETLINK,
+		o,
+		unsafe.Pointer(&v),
+		uint32(unsafe.Sizeof(v)),
+	)
+}
+
+// linuxOption converts a ConnOption to its Linux value.
+func linuxOption(o ConnOption) (int, bool) {
+	switch o {
+	case PacketInfo:
+		return unix.NETLINK_PKTINFO, true
+	case BroadcastError:
+		return unix.NETLINK_BROADCAST_ERROR, true
+	case NoENOBUFS:
+		return unix.NETLINK_NO_ENOBUFS, true
+	case ListenAllNSID:
+		return unix.NETLINK_LISTEN_ALL_NSID, true
+	case CapAcknowledge:
+		return unix.NETLINK_CAP_ACK, true
+	default:
+		return 0, false
+	}
 }
 
 // sysToHeader converts a syscall.NlMsghdr to a Header.

@@ -49,4 +49,9 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.SetBPF:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+
+	if got := c.SetOption(0, false); want != got {
+		t.Fatalf("unexpected error during c.SetOption:\n- want: %v\n-  got: %v",
+			want, got)
+	}
 }
