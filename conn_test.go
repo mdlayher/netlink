@@ -208,3 +208,13 @@ func TestConnSetBPFUnsupported(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestConnSetOptionUnsupported(t *testing.T) {
+	c := nltest.Dial(nil)
+	defer c.Close()
+
+	err := c.SetOption(0, false)
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

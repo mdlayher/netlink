@@ -56,6 +56,11 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	return errUnimplemented
 }
 
+// SetOption always returns an error.
+func (c *conn) SetOption(option ConnOption, enable bool) error {
+	return errUnimplemented
+}
+
 // newError always returns an error.
 func newError(errno int) error {
 	return errUnimplemented

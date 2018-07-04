@@ -23,6 +23,7 @@ var (
 	errReadWriteCloserNotSupported = errors.New("raw read/write/closer not supported")
 	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
 	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
+	errOptionsNotSupported         = errors.New("options not supported")
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -323,6 +324,35 @@ func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
 	}
 
 	return bc.SetBPF(filter)
+}
+
+// A ConnOption is a boolean option that may be set for a Conn.
+type ConnOption int
+
+// Possible ConnOption values.  These constants are equivalent to the Linux
+// setsockopt boolean options for netlink sockets.
+const (
+	PacketInfo ConnOption = iota
+	BroadcastError
+	NoENOBUFS
+	ListenAllNSID
+	CapAcknowledge
+)
+
+// An optionSetter is a Socket that supports setting netlink options.
+type optionSetter interface {
+	Socket
+	SetOption(option ConnOption, enable bool) error
+}
+
+// SetOption enables or disables a netlink socket option for the Conn.
+func (c *Conn) SetOption(option ConnOption, enable bool) error {
+	fc, ok := c.sock.(optionSetter)
+	if !ok {
+		return errOptionsNotSupported
+	}
+
+	return fc.SetOption(option, enable)
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
