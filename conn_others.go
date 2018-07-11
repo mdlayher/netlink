@@ -31,6 +31,11 @@ func (c *conn) Send(m Message) error {
 	return errUnimplemented
 }
 
+// SendMessages always returns an error.
+func (c *conn) SendMessages(m []Message) error {
+	return errUnimplemented
+}
+
 // Receive always returns an error.
 func (c *conn) Receive() ([]Message, error) {
 	return nil, errUnimplemented
