@@ -226,6 +226,16 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	)
 }
 
+// DetachBFP removes a BPF filter from a conn.
+func (c *conn) DetachBPF() error {
+	var dummy int
+	return c.s.SetSockopt(
+		unix.SOL_SOCKET,
+		unix.SO_DETACH_FILTER,
+		unsafe.Pointer(&dummy),
+		uint32(unsafe.Sizeof(dummy)))
+}
+
 // SetOption enables or disables a netlink socket option for the Conn.
 func (c *conn) SetOption(option ConnOption, enable bool) error {
 	o, ok := linuxOption(option)
