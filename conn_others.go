@@ -61,6 +61,11 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	return errUnimplemented
 }
 
+// DetachBPF always returns an error.
+func (c *conn) DetachBPF() error {
+	return errUnimplemented
+}
+
 // SetOption always returns an error.
 func (c *conn) SetOption(option ConnOption, enable bool) error {
 	return errUnimplemented

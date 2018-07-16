@@ -314,6 +314,7 @@ func (c *Conn) LeaveGroup(group uint32) error {
 type bpfSetter interface {
 	Socket
 	bpf.Setter
+	DetachBFP() error
 }
 
 // SetBPF attaches an assembled BPF program to a Conn.
@@ -324,6 +325,16 @@ func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
 	}
 
 	return bc.SetBPF(filter)
+}
+
+// DetachBPF removes a BPF filter from a Conn.
+func (c *Conn) DetachBPF() error {
+	s, ok := c.sock.(bpfSetter)
+	if !ok {
+		return errBPFFiltersNotSupported
+	}
+
+	return s.DetachBFP()
 }
 
 // A ConnOption is a boolean option that may be set for a Conn.
