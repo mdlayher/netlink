@@ -683,3 +683,14 @@ func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) err
 
 	return nil
 }
+
+func (s *testSocket) DetachBPF() error {
+	s.setSockopt = append(s.setSockopt, setSockopt{
+		level: unix.SOL_SOCKET,
+		name:  unix.SO_DETACH_FILTER,
+		v:     *(*uint32)(unsafe.Pointer(nil)),
+		l:     1,
+	})
+
+	return nil
+}

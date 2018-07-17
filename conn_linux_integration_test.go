@@ -75,6 +75,9 @@ func TestLinuxNetlinkSetBPF(t *testing.T) {
 				want, got)
 		}
 	}
+	if err := c.DetachBPF(); err != nil {
+		t.Fatalf("failed to detach BPF filter: %v", err)
+	}
 }
 
 func TestLinuxNetlinkSetBPFProgram(t *testing.T) {

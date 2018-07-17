@@ -226,7 +226,7 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	)
 }
 
-// DetachBFP removes a BPF filter from a conn.
+// DetachBPF removes a BPF filter from a conn.
 func (c *conn) DetachBPF() error {
 	var dummy int
 	return c.s.SetSockopt(
@@ -430,6 +430,15 @@ func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) erro
 	var err error
 	s.do(func() {
 		err = setsockopt(s.fd, level, name, v, l)
+	})
+
+	return err
+}
+
+func (s *sysSocket) DetachBFP() error {
+	var err error
+	s.do(func() {
+		err = setsockopt(s.fd, unix.SOL_SOCKET, unix.SO_DETACH_FILTER, unsafe.Pointer(nil), 1)
 	})
 
 	return err
