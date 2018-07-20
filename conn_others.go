@@ -61,8 +61,8 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	return errUnimplemented
 }
 
-// DetachBPF always returns an error.
-func (c *conn) DetachBPF() error {
+// RemoveBPF always returns an error.
+func (c *conn) RemoveBPF() error {
 	return errUnimplemented
 }
 

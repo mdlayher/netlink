@@ -310,11 +310,11 @@ func (c *Conn) LeaveGroup(group uint32) error {
 	return gc.LeaveGroup(group)
 }
 
-// A bpfSetter is a Socket that supports setting BPF filters.
+// A bpfSetter is a Socket that supports setting and removing BPF filters.
 type bpfSetter interface {
 	Socket
 	bpf.Setter
-	DetachBPF() error
+	RemoveBPF() error
 }
 
 // SetBPF attaches an assembled BPF program to a Conn.
@@ -327,14 +327,14 @@ func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
 	return bc.SetBPF(filter)
 }
 
-// DetachBPF removes a BPF filter from a Conn.
-func (c *Conn) DetachBPF() error {
+// RemoveBPF removes a BPF filter from a Conn.
+func (c *Conn) RemoveBPF() error {
 	s, ok := c.sock.(bpfSetter)
 	if !ok {
 		return errBPFFiltersNotSupported
 	}
 
-	return s.DetachBPF()
+	return s.RemoveBPF()
 }
 
 // A ConnOption is a boolean option that may be set for a Conn.
