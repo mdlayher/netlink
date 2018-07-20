@@ -230,7 +230,7 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 func (c *conn) RemoveBPF() error {
 	// dummy is ignored as argument to SO_DETACH_FILTER
 	// but SetSockopt requires it as an argument
-	var dummy int
+	var dummy uint32
 	return c.s.SetSockopt(
 		unix.SOL_SOCKET,
 		unix.SO_DETACH_FILTER,
