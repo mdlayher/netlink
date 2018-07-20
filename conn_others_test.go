@@ -55,6 +55,11 @@ func TestOthersConnUnimplemented(t *testing.T) {
 			want, got)
 	}
 
+	if got := c.RemoveBPF(); want != got {
+		t.Fatalf("unexpected error during c.RemoveBPF:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+
 	if got := c.SetOption(0, false); want != got {
 		t.Fatalf("unexpected error during c.SetOption:\n- want: %v\n-  got: %v",
 			want, got)
