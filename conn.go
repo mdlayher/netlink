@@ -216,25 +216,28 @@ func (c *Conn) receive() ([]Message, error) {
 		var multi bool
 
 		for _, m := range msgs {
-			// Is this a multi-part message and is it not done yet?
-			if m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type != HeaderTypeDone {
-				multi = true
-			}
-
 			if err := checkMessage(m); err != nil {
 				return nil, err
 			}
-		}
 
-		if !multi {
-			// More messages waiting
-			res = append(res, msgs...)
-			break
+			// Does this message indicate a multi-part message?
+			if m.Header.Flags&HeaderFlagsMulti == 0 {
+				// No, check the next messages.
+				continue
+			}
+
+			// Does this message indicate the last message in a series of
+			// multi-part messages from a single read?
+			multi = m.Header.Type != HeaderTypeDone
 		}
 
 		res = append(res, msgs...)
+
+		if !multi {
+			// No more messages coming.
+			return res, nil
+		}
 	}
-	return res, nil
 }
 
 // An fder is a Socket that supports retrieving its raw file descriptor.
