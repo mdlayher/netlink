@@ -226,6 +226,19 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 	)
 }
 
+// RemoveBPF removes a BPF filter from a conn.
+func (c *conn) RemoveBPF() error {
+	// dummy is ignored as argument to SO_DETACH_FILTER
+	// but SetSockopt requires it as an argument
+	var dummy uint32
+	return c.s.SetSockopt(
+		unix.SOL_SOCKET,
+		unix.SO_DETACH_FILTER,
+		unsafe.Pointer(&dummy),
+		uint32(unsafe.Sizeof(dummy)),
+	)
+}
+
 // SetOption enables or disables a netlink socket option for the Conn.
 func (c *conn) SetOption(option ConnOption, enable bool) error {
 	o, ok := linuxOption(option)
