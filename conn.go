@@ -43,6 +43,9 @@ type Conn struct {
 
 	// pid is the PID assigned by netlink.
 	pid uint32
+
+	// d provides debugging capabilities for a Conn if not nil.
+	d *debugger
 }
 
 // A Socket is an operating-system specific implementation of netlink
@@ -75,11 +78,27 @@ func Dial(family int, config *Config) (*Conn, error) {
 func NewConn(c Socket, pid uint32) *Conn {
 	seq := rand.Uint32()
 
+	// Configure a debugger if arguments are set.
+	var d *debugger
+	if len(debugArgs) > 0 {
+		d = newDebugger(debugArgs)
+	}
+
 	return &Conn{
 		sock: c,
 		seq:  &seq,
 		pid:  pid,
+		d:    d,
 	}
+}
+
+// debug executes fn with the debugger if the debugger is not nil.
+func (c *Conn) debug(fn func(d *debugger)) {
+	if c.d == nil {
+		return
+	}
+
+	fn(c.d)
 }
 
 // Close closes the connection.
@@ -139,7 +158,17 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 		c.fixMsg(&messages[idx], ml)
 	}
 
+	c.debug(func(d *debugger) {
+		for _, m := range messages {
+			d.debugf(1, "send msgs: %+v", m)
+		}
+	})
+
 	if err := c.sock.SendMessages(messages); err != nil {
+		c.debug(func(d *debugger) {
+			d.debugf(1, "send msgs: err: %v", err)
+		})
+
 		return nil, err
 	}
 
@@ -169,7 +198,15 @@ func (c *Conn) Send(m Message) (Message, error) {
 
 	c.fixMsg(&m, ml)
 
+	c.debug(func(d *debugger) {
+		d.debugf(1, "send: %+v", m)
+	})
+
 	if err := c.sock.Send(m); err != nil {
+		c.debug(func(d *debugger) {
+			d.debugf(1, "send: err: %v", err)
+		})
+
 		return Message{}, err
 	}
 
@@ -184,8 +221,18 @@ func (c *Conn) Send(m Message) (Message, error) {
 func (c *Conn) Receive() ([]Message, error) {
 	msgs, err := c.receive()
 	if err != nil {
+		c.debug(func(d *debugger) {
+			d.debugf(1, "recv: err: %v", err)
+		})
+
 		return nil, err
 	}
+
+	c.debug(func(d *debugger) {
+		for _, m := range msgs {
+			d.debugf(1, "recv: %+v", m)
+		}
+	})
 
 	// When using nltest, it's possible for zero messages to be returned by receive.
 	if len(msgs) == 0 {
