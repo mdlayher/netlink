@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -120,4 +121,164 @@ func UnmarshalAttributes(b []byte) ([]Attribute, error) {
 	}
 
 	return attrs, nil
+}
+
+// An AttributeDecoder provides a safe, iterator-like, API around attribute
+// decoding.
+//
+// It is recommend to use an AttributeDecoder where possible instead of calling
+// UnmarshalAttributes and using package nlenc functions directly.
+//
+// The Err method must be called after the Next method returns false to determine
+// if any errors occurred during iteration.
+type AttributeDecoder struct {
+	// The attributes being worked on, and the iterator index into the slice of
+	// attributes.
+	attrs []Attribute
+	i     int
+
+	// Any error encountered while decoding attributes.
+	err error
+}
+
+// NewAttributeDecoder creates an AttributeDecoder that unpacks Attributes
+// from b and prepares the decoder for iteration.
+func NewAttributeDecoder(b []byte) (*AttributeDecoder, error) {
+	attrs, err := UnmarshalAttributes(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AttributeDecoder{
+		attrs: attrs,
+	}, nil
+}
+
+// Next advances the decoder to the next netlink attribute.  It returns false
+// when no more attributes are present, or an error was encountered.
+func (ad *AttributeDecoder) Next() bool {
+	if ad.err != nil {
+		// Hit an error, stop iteration.
+		return false
+	}
+
+	ad.i++
+
+	if len(ad.attrs) < ad.i {
+		// No more attributes, stop iteration.
+		return false
+	}
+
+	return true
+}
+
+// Type returns the Attribute.Type field of the current netlink attribute
+// pointed to by the decoder.
+func (ad *AttributeDecoder) Type() uint16 {
+	return ad.attr().Type
+}
+
+// attr returns the current Attribute pointed to by the decoder.
+func (ad *AttributeDecoder) attr() Attribute {
+	return ad.attrs[ad.i-1]
+}
+
+// data returns the Data field of the current Attribute pointed to by the decoder.
+func (ad *AttributeDecoder) data() []byte {
+	return ad.attr().Data
+}
+
+// Err returns the first error encountered by the decoder.
+func (ad *AttributeDecoder) Err() error {
+	return ad.err
+}
+
+// String returns the string representation of the current Attribute's data.
+func (ad *AttributeDecoder) String() string {
+	if ad.err != nil {
+		return ""
+	}
+
+	return nlenc.String(ad.data())
+}
+
+// Uint8 returns the uint8 representation of the current Attribute's data.
+func (ad *AttributeDecoder) Uint8() uint8 {
+	if ad.err != nil {
+		return 0
+	}
+
+	b := ad.data()
+	if len(b) != 1 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a uint8; length: %d", ad.Type(), len(b))
+		return 0
+	}
+
+	return nlenc.Uint8(b)
+}
+
+// Uint16 returns the uint16 representation of the current Attribute's data.
+func (ad *AttributeDecoder) Uint16() uint16 {
+	if ad.err != nil {
+		return 0
+	}
+
+	b := ad.data()
+	if len(b) != 2 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a uint16; length: %d", ad.Type(), len(b))
+		return 0
+	}
+
+	return nlenc.Uint16(b)
+}
+
+// Uint32 returns the uint32 representation of the current Attribute's data.
+func (ad *AttributeDecoder) Uint32() uint32 {
+	if ad.err != nil {
+		return 0
+	}
+
+	b := ad.data()
+	if len(b) != 4 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a uint32; length: %d", ad.Type(), len(b))
+		return 0
+	}
+
+	return nlenc.Uint32(b)
+}
+
+// Uint64 returns the uint64 representation of the current Attribute's data.
+func (ad *AttributeDecoder) Uint64() uint64 {
+	if ad.err != nil {
+		return 0
+	}
+
+	b := ad.data()
+	if len(b) != 8 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a uint64; length: %d", ad.Type(), len(b))
+		return 0
+	}
+
+	return nlenc.Uint64(b)
+}
+
+// Do is a general purpose function which allows access to the current data
+// pointed to by the AttributeDecoder.
+//
+// Do can be used to allow parsing arbitrary data within the context of the
+// decoder.  Do is most useful when dealing with nested attributes, attribute
+// arrays, or decoding arbitrary types (such as C structures) which don't fit
+// cleanly into a typical unsigned integer value.
+//
+// The function fn should not retain any reference to the data b outside of the
+// scope of the function.
+func (ad *AttributeDecoder) Do(fn func(b []byte) error) {
+	if ad.err != nil {
+		return
+	}
+
+	b := ad.data()
+	if err := fn(b); err != nil {
+		ad.err = err
+	}
 }

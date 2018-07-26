@@ -2,8 +2,13 @@ package netlink
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
+	"unsafe"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/mdlayher/netlink/nlenc"
 )
 
 func TestMarshalAttributes(t *testing.T) {
@@ -395,6 +400,277 @@ func TestUnmarshalAttributes(t *testing.T) {
 			if want, got := tt.attrs, attrs; !reflect.DeepEqual(want, got) {
 				t.Fatalf("unexpected attributes:\n- want: %v\n-  got: %v",
 					want, got)
+			}
+		})
+	}
+}
+
+func TestAttributeDecoderError(t *testing.T) {
+	bad := []Attribute{{
+		Type: 1,
+		// Doesn't fit any integer types.
+		Data: []byte{0xe, 0xad, 0xbe},
+	}}
+
+	skipBigEndian(t)
+
+	tests := []struct {
+		name  string
+		attrs []Attribute
+		fn    func(ad *AttributeDecoder)
+	}{
+		{
+			name:  "uint8",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Uint8()
+				ad.Next()
+				ad.Uint8()
+			},
+		},
+		{
+			name:  "uint16",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Uint16()
+				ad.Next()
+				ad.Uint16()
+			},
+		},
+		{
+			name:  "uint32",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Uint32()
+				ad.Next()
+				ad.Uint32()
+			},
+		},
+		{
+			name:  "uint64",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Uint64()
+				ad.Next()
+				ad.Uint64()
+			},
+		},
+		{
+			name:  "do",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Do(func(_ []byte) error {
+					return errors.New("some error")
+				})
+				ad.Do(func(_ []byte) error {
+					panic("shouldn't be called")
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := MarshalAttributes(tt.attrs)
+			if err != nil {
+				t.Fatalf("failed to marshal attributes: %v", err)
+			}
+
+			ad, err := NewAttributeDecoder(b)
+			if err != nil {
+				t.Fatalf("failed to create attribute decoder: %v", err)
+			}
+
+			for ad.Next() {
+				tt.fn(ad)
+			}
+
+			if err := ad.Err(); err == nil {
+				t.Fatal("expected an error, but none occurred")
+			}
+		})
+	}
+}
+
+func TestAttributeDecoderOK(t *testing.T) {
+	skipBigEndian(t)
+
+	tests := []struct {
+		name  string
+		attrs []Attribute
+		fn    func(ad *AttributeDecoder)
+	}{
+		{
+			name:  "empty",
+			attrs: nil,
+			fn: func(_ *AttributeDecoder) {
+				panic("should not be called")
+			},
+		},
+		{
+			name: "uint",
+			attrs: []Attribute{
+				{
+					Type: 1,
+					Data: nlenc.Uint8Bytes(1),
+				},
+				{
+					Type: 2,
+					Data: nlenc.Uint16Bytes(2),
+				},
+				{
+					Type: 3,
+					Data: nlenc.Uint32Bytes(3),
+				},
+				{
+					Type: 4,
+					Data: nlenc.Uint64Bytes(4),
+				},
+			},
+			fn: func(ad *AttributeDecoder) {
+				var (
+					t uint16
+					v int
+				)
+
+				switch t = ad.Type(); t {
+				case 1:
+					v = int(ad.Uint8())
+				case 2:
+					v = int(ad.Uint16())
+				case 3:
+					v = int(ad.Uint32())
+				case 4:
+					v = int(ad.Uint64())
+				default:
+					panicf("unhandled attribute type: %d", t)
+				}
+
+				if diff := cmp.Diff(int(t), v); diff != "" {
+					panicf("unexpected attribute value (-want +got):\n%s", diff)
+				}
+			},
+		},
+		{
+			name: "string",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: nlenc.Bytes("hello world"),
+			}},
+			fn: func(ad *AttributeDecoder) {
+				var s string
+				switch t := ad.Type(); t {
+				case 1:
+					s = ad.String()
+				default:
+					panicf("unhandled attribute type: %d", t)
+				}
+
+				if diff := cmp.Diff("hello world", s); diff != "" {
+					panicf("unexpected attribute value (-want +got):\n%s", diff)
+				}
+			},
+		},
+		{
+			name: "do",
+			attrs: []Attribute{
+				// Arbitrary C-like structure.
+				{
+					Type: 1,
+					Data: []byte{0xde, 0xad, 0xbe},
+				},
+				// Nested attributes.
+				{
+					Type: 2,
+					Data: func() []byte {
+						b, err := MarshalAttributes([]Attribute{{
+							Type: 2,
+							Data: nlenc.Uint16Bytes(2),
+						}})
+						if err != nil {
+							panicf("failed to marshal test attributes: %v", err)
+						}
+
+						return b
+					}(),
+				},
+			},
+			fn: func(ad *AttributeDecoder) {
+				switch t := ad.Type(); t {
+				case 1:
+					type cstruct struct {
+						A uint16
+						B uint8
+					}
+
+					want := cstruct{
+						// Little-endian is the worst.
+						A: 0xadde,
+						B: 0xbe,
+					}
+
+					ad.Do(func(b []byte) error {
+						got := *(*cstruct)(unsafe.Pointer(&b[0]))
+
+						if diff := cmp.Diff(want, got); diff != "" {
+							panicf("unexpected struct (-want +got):\n%s", diff)
+						}
+
+						return nil
+					})
+				case 2:
+					ad.Do(func(b []byte) error {
+						adi, err := NewAttributeDecoder(b)
+						if err != nil {
+							return err
+						}
+
+						var got int
+						first := true
+						for adi.Next() {
+							if !first {
+								panic("loop iterated too many times")
+							}
+							first = false
+
+							if adi.Type() != 2 {
+								panicf("unhandled attribute type: %d", t)
+							}
+
+							got = int(adi.Uint16())
+						}
+
+						if diff := cmp.Diff(2, got); diff != "" {
+							panicf("unexpected nested attribute value (-want +got):\n%s", diff)
+						}
+
+						return adi.Err()
+					})
+				default:
+					panicf("unhandled attribute type: %d", t)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := MarshalAttributes(tt.attrs)
+			if err != nil {
+				t.Fatalf("failed to marshal attributes: %v", err)
+			}
+
+			ad, err := NewAttributeDecoder(b)
+			if err != nil {
+				t.Fatalf("failed to create attribute decoder: %v", err)
+			}
+
+			for ad.Next() {
+				tt.fn(ad)
+			}
+
+			if err := ad.Err(); err != nil {
+				t.Fatalf("failed to decode attributes: %v", err)
 			}
 		})
 	}
