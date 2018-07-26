@@ -387,3 +387,138 @@ func TestMultipart(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckRequestPanic(t *testing.T) {
+	tests := []struct {
+		name  string
+		types []netlink.HeaderType
+		flags []netlink.HeaderFlags
+		reqs  []netlink.Message
+	}{
+		{
+			name:  "types",
+			types: []netlink.HeaderType{0},
+		},
+		{
+			name:  "flags",
+			flags: []netlink.HeaderFlags{0},
+		},
+		{
+			name:  "requests",
+			types: []netlink.HeaderType{0},
+			flags: []netlink.HeaderFlags{0},
+			reqs:  []netlink.Message{{}, {}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatal("expected a panic, but none occurred")
+				}
+			}()
+
+			fn := nltest.CheckRequest(tt.types, tt.flags, noop)
+			fn(tt.reqs)
+		})
+	}
+}
+
+func TestCheckRequest(t *testing.T) {
+	tests := []struct {
+		name  string
+		types []netlink.HeaderType
+		flags []netlink.HeaderFlags
+		reqs  []netlink.Message
+		ok    bool
+	}{
+		{
+			name:  "no checking",
+			types: []netlink.HeaderType{0},
+			flags: []netlink.HeaderFlags{0},
+			reqs:  []netlink.Message{{}},
+			ok:    true,
+		},
+		{
+			name:  "type only",
+			types: []netlink.HeaderType{10},
+			flags: []netlink.HeaderFlags{0},
+			reqs: []netlink.Message{{
+				Header: netlink.Header{
+					Type:  10,
+					Flags: netlink.HeaderFlagsRequest,
+				},
+			}},
+			ok: true,
+		},
+		{
+			name:  "flags only",
+			types: []netlink.HeaderType{0},
+			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest},
+			reqs: []netlink.Message{{
+				Header: netlink.Header{
+					Type:  10,
+					Flags: netlink.HeaderFlagsRequest,
+				},
+			}},
+			ok: true,
+		},
+		{
+			name:  "bad type",
+			types: []netlink.HeaderType{10, 20},
+			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest, netlink.HeaderFlagsReplace},
+			reqs: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Type:  10,
+						Flags: netlink.HeaderFlagsRequest,
+					},
+				},
+				{
+					Header: netlink.Header{
+						Type:  99,
+						Flags: netlink.HeaderFlagsReplace,
+					},
+				},
+			},
+		},
+		{
+			name:  "bad flags",
+			types: []netlink.HeaderType{10, 20},
+			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest, netlink.HeaderFlagsReplace},
+			reqs: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Type:  10,
+						Flags: netlink.HeaderFlagsRequest,
+					},
+				},
+				{
+					Header: netlink.Header{
+						Type:  20,
+						Flags: netlink.HeaderFlagsRequest,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fn := nltest.CheckRequest(tt.types, tt.flags, noop)
+			_, err := fn(tt.reqs)
+
+			if err != nil && tt.ok {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if err == nil && !tt.ok {
+				t.Fatal("expected an error, but none occurred")
+			}
+		})
+	}
+}
+
+var noop = func(req []netlink.Message) ([]netlink.Message, error) {
+	return nil, nil
+}

@@ -82,6 +82,49 @@ func Dial(fn Func) *netlink.Conn {
 	return netlink.NewConn(sock, PID)
 }
 
+// CheckRequest returns a Func that verifies that each message in an incoming
+// request has the specified netlink header type and flags in the same slice
+// position index, and then passes the request through to fn.
+//
+// The length of the types and flags slices must match the number of requests
+// passed to the returned Func, or CheckRequest will panic.
+//
+// As an example:
+//   - types[0] and flags[0] will be checked against reqs[0]
+//   - types[1] and flags[1] will be checked against reqs[1]
+//   - ... and so on
+//
+// If an element of types or flags is set to the zero value, that check will
+// be skipped for the request message that occurs at the same index.
+//
+// As an example, if types[0] is 0 and reqs[0].Header.Type is 1, the check will
+// succeed because types[0] was not specified.
+func CheckRequest(types []netlink.HeaderType, flags []netlink.HeaderFlags, fn Func) Func {
+	if len(types) != len(flags) {
+		panicf("nltest: CheckRequest called with mismatched types and flags slice lengths: %d != %d",
+			len(types), len(flags))
+	}
+
+	return func(req []netlink.Message) ([]netlink.Message, error) {
+		if len(types) != len(req) {
+			panicf("nltest: CheckRequest function invoked types/flags and request message slice lengths: %d != %d",
+				len(types), len(req))
+		}
+
+		for i := range req {
+			if want, got := types[i], req[i].Header.Type; types[i] != 0 && want != got {
+				return nil, fmt.Errorf("nltest: unexpected netlink header type: %s, want: %s", got, want)
+			}
+
+			if want, got := flags[i], req[i].Header.Flags; flags[i] != 0 && want != got {
+				return nil, fmt.Errorf("nltest: unexpected netlink header flags: %s, want: %s", got, want)
+			}
+		}
+
+		return fn(req)
+	}
+}
+
 var _ netlink.Socket = &socket{}
 
 // A socket is a netlink.Socket used for testing.
@@ -152,4 +195,8 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	c.msgs, c.err = nil, nil
 
 	return msgs, err
+}
+
+func panicf(format string, a ...interface{}) {
+	panic(fmt.Sprintf(format, a...))
 }
