@@ -39,29 +39,4 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.Close:\n- want: %v\n-  got: %v",
 			want, got)
 	}
-
-	if got := c.JoinGroup(0); want != got {
-		t.Fatalf("unexpected error during c.JoinGroup:\n- want: %v\n-  got: %v",
-			want, got)
-	}
-
-	if got := c.LeaveGroup(0); want != got {
-		t.Fatalf("unexpected error during c.LeaveGroup:\n- want: %v\n-  got: %v",
-			want, got)
-	}
-
-	if got := c.SetBPF(nil); want != got {
-		t.Fatalf("unexpected error during c.SetBPF:\n- want: %v\n-  got: %v",
-			want, got)
-	}
-
-	if got := c.RemoveBPF(); want != got {
-		t.Fatalf("unexpected error during c.RemoveBPF:\n- want: %v\n-  got: %v",
-			want, got)
-	}
-
-	if got := c.SetOption(0, false); want != got {
-		t.Fatalf("unexpected error during c.SetOption:\n- want: %v\n-  got: %v",
-			want, got)
-	}
 }
