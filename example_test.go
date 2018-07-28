@@ -1,7 +1,11 @@
 package netlink_test
 
 import (
+	"fmt"
 	"log"
+
+	"github.com/mdlayher/netlink/nlenc"
+	"github.com/mdlayher/netlink/nltest"
 
 	"github.com/mdlayher/netlink"
 )
@@ -79,4 +83,125 @@ func ExampleConn_listenMulticast() {
 
 		log.Printf("msgs: %+v", msgs)
 	}
+}
+
+// This example demonstrates using a netlink.AttributeDecoder to decode packed
+// netlink attributes in a message payload.
+func ExampleAttributeDecoder_decode() {
+	// Create a netlink.AttributeDecoder using some example attribute bytes
+	// that are prepared for this example.
+	ad, err := netlink.NewAttributeDecoder(exampleAttributes())
+	if err != nil {
+		log.Fatalf("failed to create attribute decoder: %v", err)
+	}
+
+	// nested is a nested structure within out.
+	type nested struct {
+		A, B uint32
+	}
+
+	// out is an example structure we will use to unpack netlink attributes.
+	var out struct {
+		Number uint16
+		String string
+		Nested nested
+	}
+
+	// parseNested is an example function used to adapt the ad.Do method to
+	// parse an arbitrary structure.
+	//
+	// It is recommended to create functions such as this one at the package
+	// level, but for this example, it is necessary to create a closure to
+	// fully show usage of the netlink.AttributeDecoder.
+	parseNested := func(n *nested) func(b []byte) error {
+		return func(b []byte) error {
+			// Create an internal netlink.AttributeDecoder that operates on a
+			// nested set of attributes passed by the external decoder.
+			ad, err := netlink.NewAttributeDecoder(b)
+			if err != nil {
+				log.Fatalf("failed to create nested attribute decoder: %v", err)
+			}
+
+			// Iterate attributes until completion, checking the type of each
+			// and decoding them as appropriate.
+			for ad.Next() {
+				switch ad.Type() {
+				// A and B are both uint32 values, so decode them as such.
+				case 1:
+					n.A = ad.Uint32()
+				case 2:
+					n.B = ad.Uint32()
+				}
+			}
+
+			// Return any error encountered while decoding.
+			return ad.Err()
+		}
+	}
+
+	// Iterate attributes until completion, checking the type of each and
+	// decoding them as appropriate.
+	for ad.Next() {
+		// Check the type of the current attribute with ad.Type.  Typically you
+		// will find netlink attribute types and data values in C headers as
+		// constants.
+		switch ad.Type() {
+		case 1:
+			// Number is a uint16, so decode it as such.
+			out.Number = ad.Uint16()
+		case 2:
+			// String is a string, so decode it as such.
+			out.String = ad.String()
+		case 3:
+			// Nested is a nested structure, so we will use our parseNested
+			// function along with ad.Do to decoded it in a concise way.
+			ad.Do(parseNested(&out.Nested))
+		}
+	}
+
+	// Any errors encountered during decoding (including any errors from decoding
+	// the nested attributes) will be returned here.
+	if err := ad.Err(); err != nil {
+		log.Fatalf("failed to decode attributes: %v", err)
+	}
+
+	fmt.Printf(`Number: %d
+String: %q
+Nested:
+   - A: %d
+   - B: %d`,
+		out.Number, out.String, out.Nested.A, out.Nested.B,
+	)
+	// Output:
+	// Number: 1
+	// String: "hello world"
+	// Nested:
+	//    - A: 2
+	//    - B: 3
+}
+
+func exampleAttributes() []byte {
+	return nltest.MustMarshalAttributes([]netlink.Attribute{
+		{
+			Type: 1,
+			Data: nlenc.Uint16Bytes(1),
+		},
+		{
+			Type: 2,
+			Data: nlenc.Bytes("hello world"),
+		},
+		{
+			Type: 3,
+			Data: nltest.MustMarshalAttributes([]netlink.Attribute{
+				{
+					Type: 1,
+					Data: nlenc.Uint32Bytes(2),
+				},
+				{
+					Type: 2,
+					Data: nlenc.Uint32Bytes(3),
+				},
+			}),
+		},
+	})
 }
