@@ -97,6 +97,9 @@ func MarshalAttributes(attrs []Attribute) ([]byte, error) {
 }
 
 // UnmarshalAttributes unpacks a slice of Attributes from a single byte slice.
+//
+// It is recommend to use the AttributeDecoder type where possible instead of calling
+// UnmarshalAttributes and using package nlenc functions directly.
 func UnmarshalAttributes(b []byte) ([]Attribute, error) {
 	var attrs []Attribute
 	var i int
