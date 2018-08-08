@@ -321,10 +321,20 @@ func newSysSocket(lockThread bool) *sysSocket {
 		// But since this is very experimental, we'll leave it as a configurable at
 		// this point.
 		if lockThread {
-			// Never unlock the OS thread, so that the thread will terminate when
-			// the goroutine exits starting in Go 1.10:
+			// The intent is to never unlock the OS thread, so that the thread
+			// will terminate when the goroutine exits starting in Go 1.10:
 			// https://go-review.googlesource.com/c/go/+/46038.
+			//
+			// However, due to recent instability and a potential bad interaction
+			// with the Go runtime for threads which are not unlocked, we have
+			// elected to temporarily unlock the thread:
+			// https://github.com/golang/go/issues/25128#issuecomment-410764489.
+			//
+			// If we ever allow a Conn to set its own network namespace, we must
+			// either ensure that the namespace is restored on exit here or that
+			// the thread is properly terminated at some point in the future.
 			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
 		}
 
 		defer wg.Done()
