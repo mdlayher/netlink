@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/net/bpf"
 )
@@ -76,7 +77,9 @@ func Dial(family int, config *Config) (*Conn, error) {
 // NewConn is primarily useful for tests. Most applications should use
 // Dial instead.
 func NewConn(c Socket, pid uint32) *Conn {
-	seq := rand.Uint32()
+	// Seed the sequence number using a random number generator.
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	seq := r.Uint32()
 
 	// Configure a debugger if arguments are set.
 	var d *debugger
