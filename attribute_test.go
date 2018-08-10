@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"reflect"
 	"testing"
@@ -496,9 +497,10 @@ func TestAttributeDecoderOK(t *testing.T) {
 	skipBigEndian(t)
 
 	tests := []struct {
-		name  string
-		attrs []Attribute
-		fn    func(ad *AttributeDecoder)
+		name   string
+		attrs  []Attribute
+		endian binary.ByteOrder
+		fn     func(ad *AttributeDecoder)
 	}{
 		{
 			name:  "empty",
@@ -508,48 +510,19 @@ func TestAttributeDecoderOK(t *testing.T) {
 			},
 		},
 		{
-			name: "uint",
-			attrs: []Attribute{
-				{
-					Type: 1,
-					Data: nlenc.Uint8Bytes(1),
-				},
-				{
-					Type: 2,
-					Data: nlenc.Uint16Bytes(2),
-				},
-				{
-					Type: 3,
-					Data: nlenc.Uint32Bytes(3),
-				},
-				{
-					Type: 4,
-					Data: nlenc.Uint64Bytes(4),
-				},
-			},
-			fn: func(ad *AttributeDecoder) {
-				var (
-					t uint16
-					v int
-				)
-
-				switch t = ad.Type(); t {
-				case 1:
-					v = int(ad.Uint8())
-				case 2:
-					v = int(ad.Uint16())
-				case 3:
-					v = int(ad.Uint32())
-				case 4:
-					v = int(ad.Uint64())
-				default:
-					panicf("unhandled attribute type: %d", t)
-				}
-
-				if diff := cmp.Diff(int(t), v); diff != "" {
-					panicf("unexpected attribute value (-want +got):\n%s", diff)
-				}
-			},
+			name:  "uint native endian",
+			attrs: adEndianAttrs(nlenc.NativeEndian()),
+			fn:    adEndianTest(nlenc.NativeEndian()),
+		},
+		{
+			name:  "uint little endian",
+			attrs: adEndianAttrs(binary.LittleEndian),
+			fn:    adEndianTest(binary.LittleEndian),
+		},
+		{
+			name:  "uint big endian",
+			attrs: adEndianAttrs(binary.BigEndian),
+			fn:    adEndianTest(binary.BigEndian),
 		},
 		{
 			name: "string",
@@ -673,5 +646,68 @@ func TestAttributeDecoderOK(t *testing.T) {
 				t.Fatalf("failed to decode attributes: %v", err)
 			}
 		})
+	}
+}
+
+func adEndianAttrs(order binary.ByteOrder) []Attribute {
+	return []Attribute{
+		{
+			Type: 1,
+			Data: func() []byte {
+				return []byte{1}
+			}(),
+		},
+		{
+			Type: 2,
+			Data: func() []byte {
+				b := make([]byte, 2)
+				order.PutUint16(b, 2)
+				return b
+			}(),
+		},
+		{
+			Type: 3,
+			Data: func() []byte {
+				b := make([]byte, 4)
+				order.PutUint32(b, 3)
+				return b
+			}(),
+		},
+		{
+			Type: 4,
+			Data: func() []byte {
+				b := make([]byte, 8)
+				order.PutUint64(b, 4)
+				return b
+			}(),
+		},
+	}
+}
+
+func adEndianTest(order binary.ByteOrder) func(ad *AttributeDecoder) {
+	return func(ad *AttributeDecoder) {
+		ad.ByteOrder = order
+
+		var (
+			t uint16
+			v int
+		)
+
+		switch t = ad.Type(); t {
+		case 1:
+			v = int(ad.Uint8())
+		case 2:
+			v = int(ad.Uint16())
+		case 3:
+			v = int(ad.Uint32())
+		case 4:
+			v = int(ad.Uint64())
+		default:
+			panicf("unhandled attribute type: %d", t)
+		}
+
+		if diff := cmp.Diff(int(t), v); diff != "" {
+			panicf("unexpected attribute value (-want +got):\n%s", diff)
+		}
 	}
 }

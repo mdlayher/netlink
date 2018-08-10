@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -135,6 +136,13 @@ func UnmarshalAttributes(b []byte) ([]Attribute, error) {
 // The Err method must be called after the Next method returns false to determine
 // if any errors occurred during iteration.
 type AttributeDecoder struct {
+	// ByteOrder defines a specific byte order to use when processing integer
+	// attributes.  ByteOrder should be set immediately after creating the
+	// AttributeDecoder: before any attributes are parsed.
+	//
+	// If not set, the native byte order will be used.
+	ByteOrder binary.ByteOrder
+
 	// The attributes being worked on, and the iterator index into the slice of
 	// attributes.
 	attrs []Attribute
@@ -153,6 +161,9 @@ func NewAttributeDecoder(b []byte) (*AttributeDecoder, error) {
 	}
 
 	return &AttributeDecoder{
+		// By default, use native byte order.
+		ByteOrder: nlenc.NativeEndian(),
+
 		attrs: attrs,
 	}, nil
 }
@@ -217,7 +228,7 @@ func (ad *AttributeDecoder) Uint8() uint8 {
 		return 0
 	}
 
-	return nlenc.Uint8(b)
+	return uint8(b[0])
 }
 
 // Uint16 returns the uint16 representation of the current Attribute's data.
@@ -232,7 +243,7 @@ func (ad *AttributeDecoder) Uint16() uint16 {
 		return 0
 	}
 
-	return nlenc.Uint16(b)
+	return ad.ByteOrder.Uint16(b)
 }
 
 // Uint32 returns the uint32 representation of the current Attribute's data.
@@ -247,7 +258,7 @@ func (ad *AttributeDecoder) Uint32() uint32 {
 		return 0
 	}
 
-	return nlenc.Uint32(b)
+	return ad.ByteOrder.Uint32(b)
 }
 
 // Uint64 returns the uint64 representation of the current Attribute's data.
@@ -262,7 +273,7 @@ func (ad *AttributeDecoder) Uint64() uint64 {
 		return 0
 	}
 
-	return nlenc.Uint64(b)
+	return ad.ByteOrder.Uint64(b)
 }
 
 // Do is a general purpose function which allows access to the current data
