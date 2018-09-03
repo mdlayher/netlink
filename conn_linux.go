@@ -295,7 +295,8 @@ var _ socket = &sysSocket{}
 
 // A sysSocket is a socket which uses system calls for socket operations.
 type sysSocket struct {
-	fd int
+	fd   int
+	done bool
 
 	wg    *sync.WaitGroup
 	funcC chan<- func()
@@ -352,6 +353,9 @@ func newSysSocket(lockThread bool) *sysSocket {
 
 // do runs f in a worker goroutine which can be locked to one thread.
 func (s *sysSocket) do(f func()) {
+	if s.done {
+		return
+	}
 	done := make(chan bool, 1)
 	s.funcC <- func() {
 		f()
@@ -393,6 +397,7 @@ func (s *sysSocket) Bind(sa unix.Sockaddr) error {
 func (s *sysSocket) Close() error {
 	var err error
 	s.do(func() {
+		s.done = true
 		err = unix.Close(s.fd)
 	})
 
