@@ -12,6 +12,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/sys/unix"
 )
@@ -422,6 +423,25 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestLinuxConnIntegrationClosedConn(t *testing.T) {
+	const familyGeneric = 16
+
+	c, err := Dial(familyGeneric, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Close the connection immediately and ensure that future calls get EBADF.
+	if err := c.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
+
+	_, err = c.Receive()
+	if diff := cmp.Diff(syscall.EBADF, err); diff != "" {
+		t.Fatalf("unexpected error  (-want +got):\n%s", diff)
+	}
 }
 
 func TestLinuxConnJoinLeaveGroup(t *testing.T) {

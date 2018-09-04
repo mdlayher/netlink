@@ -299,6 +299,9 @@ type sysSocket struct {
 
 	wg    *sync.WaitGroup
 	funcC chan<- func()
+
+	mu   sync.RWMutex
+	done bool
 }
 
 // newSysSocket creates a sysSocket that optionally locks its internal goroutine
@@ -361,6 +364,12 @@ func (s *sysSocket) do(f func()) {
 }
 
 func (s *sysSocket) Socket(family int) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return syscall.EBADF
+	}
+
 	var (
 		fd  int
 		err error
@@ -382,6 +391,12 @@ func (s *sysSocket) Socket(family int) error {
 }
 
 func (s *sysSocket) Bind(sa unix.Sockaddr) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return syscall.EBADF
+	}
+
 	var err error
 	s.do(func() {
 		err = unix.Bind(s.fd, sa)
@@ -391,11 +406,23 @@ func (s *sysSocket) Bind(sa unix.Sockaddr) error {
 }
 
 func (s *sysSocket) Close() error {
+	// Be sure to acquire a write lock because we need to stop any other
+	// goroutines from sending system call requests after close.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done {
+		return syscall.EBADF
+	}
+
 	var err error
 	s.do(func() {
 		err = unix.Close(s.fd)
 	})
 
+	// No more requests should be processed.  Terminate the system call
+	// handling goroutine by closing the channel it is listening on,
+	// and lock out any future requests to avoid send on closed channel panics.
+	s.done = true
 	close(s.funcC)
 	s.wg.Wait()
 
@@ -405,6 +432,12 @@ func (s *sysSocket) Close() error {
 func (s *sysSocket) FD() int { return s.fd }
 
 func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return nil, syscall.EBADF
+	}
+
 	var (
 		sa  unix.Sockaddr
 		err error
@@ -416,7 +449,14 @@ func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
 
 	return sa, err
 }
+
 func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return 0, 0, 0, nil, syscall.EBADF
+	}
+
 	var (
 		n, oobn, recvflags int
 		from               unix.Sockaddr
@@ -431,6 +471,12 @@ func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Socka
 }
 
 func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return syscall.EBADF
+	}
+
 	var err error
 	s.do(func() {
 		err = unix.Sendmsg(s.fd, p, oob, to, flags)
@@ -440,6 +486,12 @@ func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 }
 
 func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return syscall.EBADF
+	}
+
 	var err error
 	s.do(func() {
 		err = setsockopt(s.fd, level, name, v, l)
