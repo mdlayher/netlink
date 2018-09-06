@@ -304,9 +304,7 @@ func TestLinuxConnReceiveMultipleMessagesLastUnaligned(t *testing.T) {
 }
 
 func TestLinuxConnIntegration(t *testing.T) {
-	const familyGeneric = 16
-
-	c, err := Dial(familyGeneric, nil)
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -373,9 +371,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 
 func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 	execN := func(n int, wg *sync.WaitGroup) {
-		const familyGeneric = 16
-
-		c, err := Dial(familyGeneric, nil)
+		c, err := Dial(unix.NETLINK_GENERIC, nil)
 		if err != nil {
 			panic(fmt.Sprintf("failed to dial netlink: %v", err))
 		}
@@ -426,9 +422,7 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 }
 
 func TestLinuxConnIntegrationClosedConn(t *testing.T) {
-	const familyGeneric = 16
-
-	c, err := Dial(familyGeneric, nil)
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -441,6 +435,22 @@ func TestLinuxConnIntegrationClosedConn(t *testing.T) {
 	_, err = c.Receive()
 	if diff := cmp.Diff(syscall.EBADF, err); diff != "" {
 		t.Fatalf("unexpected error  (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinuxConnIntegrationSetBuffers(t *testing.T) {
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.SetReadBuffer(8192); err != nil {
+		t.Fatalf("failed to set read buffer size: %v", err)
+	}
+
+	if err := c.SetWriteBuffer(8192); err != nil {
+		t.Fatalf("failed to set read buffer size: %v", err)
 	}
 }
 
@@ -578,6 +588,42 @@ func TestLinuxConnSetOption(t *testing.T) {
 					want, got)
 			}
 		})
+	}
+}
+
+func TestLinuxConnSetBuffers(t *testing.T) {
+	c, s := testLinuxConn(t, nil)
+
+	n := uint32(64)
+
+	if err := c.SetReadBuffer(int(n)); err != nil {
+		t.Fatalf("failed to set read buffer size: %v", err)
+	}
+
+	if err := c.SetWriteBuffer(int(n)); err != nil {
+		t.Fatalf("failed to set write buffer size: %v", err)
+	}
+
+	l := uint32(unsafe.Sizeof(n))
+
+	want := []setSockopt{
+		{
+			level: unix.SOL_SOCKET,
+			name:  unix.SO_RCVBUF,
+			v:     n,
+			l:     l,
+		},
+		{
+			level: unix.SOL_SOCKET,
+			name:  unix.SO_SNDBUF,
+			v:     n,
+			l:     l,
+		},
+	}
+
+	if got := s.setSockopt; !reflect.DeepEqual(want, got) {
+		t.Fatalf("unexpected socket options:\n- want: %v\n-  got: %v",
+			want, got)
 	}
 }
 

@@ -260,6 +260,32 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 	)
 }
 
+// SetReadBuffer sets the size of the operating system's receive buffer
+// associated with the Conn.
+func (c *conn) SetReadBuffer(bytes int) error {
+	v := uint32(bytes)
+
+	return c.s.SetSockopt(
+		unix.SOL_SOCKET,
+		unix.SO_RCVBUF,
+		unsafe.Pointer(&v),
+		uint32(unsafe.Sizeof(v)),
+	)
+}
+
+// SetReadBuffer sets the size of the operating system's transmit buffer
+// associated with the Conn.
+func (c *conn) SetWriteBuffer(bytes int) error {
+	v := uint32(bytes)
+
+	return c.s.SetSockopt(
+		unix.SOL_SOCKET,
+		unix.SO_SNDBUF,
+		unsafe.Pointer(&v),
+		uint32(unsafe.Sizeof(v)),
+	)
+}
+
 // linuxOption converts a ConnOption to its Linux value.
 func linuxOption(o ConnOption) (int, bool) {
 	switch o {
