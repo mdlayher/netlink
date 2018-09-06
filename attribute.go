@@ -75,26 +75,44 @@ func (a *Attribute) UnmarshalBinary(b []byte) error {
 // In most cases, the Length field of each Attribute should be set to 0, so it
 // can be calculated and populated automatically for each Attribute.
 func MarshalAttributes(attrs []Attribute) ([]byte, error) {
+	// Count how many bytes we should allocate to store each attribute's contents.
 	var c int
 	for _, a := range attrs {
-		c += nlaAlign(len(a.Data))
+		c += nlaHeaderLen + nlaAlign(len(a.Data))
 	}
 
-	b := make([]byte, 0, c)
+	// Advance through b with idx to place attribute data at the correct offset.
+	var idx int
+	b := make([]byte, c)
 	for _, a := range attrs {
+		// Infer the length of attribute if zero.
 		if a.Length == 0 {
 			a.Length = uint16(nlaHeaderLen + len(a.Data))
 		}
 
-		ab, err := a.MarshalBinary()
+		// Marshal a into b and advance idx to show many bytes are occupied.
+		n, err := a.marshalFast(b[idx:])
 		if err != nil {
 			return nil, err
 		}
-
-		b = append(b, ab...)
+		idx += n
 	}
 
 	return b, nil
+}
+
+// marshalFast marshals the contents of a into b and returns the number of bytes
+// written to b, including attribute alignment padding.
+func (a *Attribute) marshalFast(b []byte) (int, error) {
+	if int(a.Length) < nlaHeaderLen {
+		return 0, errInvalidAttribute
+	}
+
+	nlenc.PutUint16(b[0:2], a.Length)
+	nlenc.PutUint16(b[2:4], a.Type)
+	n := copy(b[nlaHeaderLen:], a.Data)
+
+	return nlaHeaderLen + nlaAlign(n), nil
 }
 
 // UnmarshalAttributes unpacks a slice of Attributes from a single byte slice.
