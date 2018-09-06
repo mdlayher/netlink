@@ -57,6 +57,10 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 		return nil, 0, err
 	}
 
+	if err := syscall.SetNonblock(sock.fd, true); err != nil {
+		return nil, 0, err
+	}
+
 	return bind(sock, config)
 }
 
@@ -136,8 +140,10 @@ func (c *conn) Receive() ([]Message, error) {
 		// TODO(mdlayher): deal with OOB message data if available, such as
 		// when PacketInfo ConnOption is true.
 		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
-		if err != nil {
+		if err != nil && err != syscall.EAGAIN {
 			return nil, err
+		} else if err == syscall.EAGAIN {
+			continue
 		}
 
 		// Break when we can read all messages
