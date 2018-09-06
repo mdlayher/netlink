@@ -218,3 +218,20 @@ func TestConnSetOptionUnsupported(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestConnSetBuffersUnsupported(t *testing.T) {
+	c := nltest.Dial(nil)
+	defer c.Close()
+
+	ops := []func(n int) error{
+		c.SetReadBuffer,
+		c.SetWriteBuffer,
+	}
+
+	for _, op := range ops {
+		err := op(0)
+		if !strings.Contains(err.Error(), "not supported") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}

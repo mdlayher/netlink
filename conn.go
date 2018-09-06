@@ -25,6 +25,7 @@ var (
 	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
 	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
 	errOptionsNotSupported         = errors.New("options not supported")
+	errSetBufferNotSupported       = errors.New("setting buffer sizes not supported")
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -417,6 +418,35 @@ func (c *Conn) SetOption(option ConnOption, enable bool) error {
 	}
 
 	return fc.SetOption(option, enable)
+}
+
+// A bufferSetter is a Socket that supports setting connection buffer sizes.
+type bufferSetter interface {
+	Socket
+	SetReadBuffer(bytes int) error
+	SetWriteBuffer(bytes int) error
+}
+
+// SetReadBuffer sets the size of the operating system's receive buffer
+// associated with the Conn.
+func (c *Conn) SetReadBuffer(bytes int) error {
+	conn, ok := c.sock.(bufferSetter)
+	if !ok {
+		return errSetBufferNotSupported
+	}
+
+	return conn.SetReadBuffer(bytes)
+}
+
+// SetWriteBuffer sets the size of the operating system's transmit buffer
+// associated with the Conn.
+func (c *Conn) SetWriteBuffer(bytes int) error {
+	conn, ok := c.sock.(bufferSetter)
+	if !ok {
+		return errSetBufferNotSupported
+	}
+
+	return conn.SetWriteBuffer(bytes)
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
