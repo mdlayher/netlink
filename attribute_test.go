@@ -711,3 +711,157 @@ func adEndianTest(order binary.ByteOrder) func(ad *AttributeDecoder) {
 		}
 	}
 }
+
+func TestAttributeEncoderError(t *testing.T) {
+	skipBigEndian(t)
+
+	tests := []struct {
+		name string
+		fn   func(ae *AttributeEncoder)
+	}{
+		{
+			name: "do",
+			fn: func(ae *AttributeEncoder) {
+				ae.Do(1, func() ([]byte, error) {
+					return nil, errors.New("testing error")
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ae := NewAttributeEncoder()
+			tt.fn(ae)
+			_, err := ae.Encode()
+
+			if err == nil {
+				t.Fatal("expected an error, but none occurred")
+			}
+		})
+	}
+}
+
+func TestAttributeEncoderOK(t *testing.T) {
+	skipBigEndian(t)
+
+	tests := []struct {
+		name   string
+		attrs  []Attribute
+		endian binary.ByteOrder
+		fn     func(ae *AttributeEncoder)
+	}{
+		{
+			name:  "empty",
+			attrs: nil,
+			fn: func(_ *AttributeEncoder) {
+			},
+		},
+		{
+			name:  "uint native endian",
+			attrs: adEndianAttrs(nlenc.NativeEndian()),
+			fn:    aeEndianTest(nlenc.NativeEndian()),
+		},
+		{
+			name:   "uint little endian",
+			attrs:  adEndianAttrs(binary.LittleEndian),
+			endian: binary.LittleEndian,
+			fn:     aeEndianTest(binary.LittleEndian),
+		},
+		{
+			name:   "uint big endian",
+			attrs:  adEndianAttrs(binary.BigEndian),
+			endian: binary.BigEndian,
+			fn:     aeEndianTest(binary.BigEndian),
+		},
+		{
+			name: "string",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: nlenc.Bytes("hello netlink"),
+			}},
+			fn: func(ae *AttributeEncoder) {
+				ae.String(1, "hello netlink")
+			},
+		},
+		{
+			name: "byte",
+			attrs: []Attribute{
+				{
+					Type: 1,
+					Data: []byte{0xde, 0xad},
+				},
+			},
+			fn: func(ae *AttributeEncoder) {
+				ae.Bytes(1, []byte{0xde, 0xad})
+			},
+		},
+		{
+			name: "do",
+			attrs: []Attribute{
+				// Arbitrary C-like structure.
+				{
+					Type: 1,
+					Data: []byte{0xde, 0xad, 0xbe},
+				},
+				// Nested attributes.
+				{
+					Type: 2,
+					Data: func() []byte {
+						b, err := MarshalAttributes([]Attribute{{
+							Type: 2,
+							Data: nlenc.Uint16Bytes(2),
+						}})
+						if err != nil {
+							panicf("failed to marshal test attributes: %v", err)
+						}
+
+						return b
+					}(),
+				},
+			},
+			fn: func(ae *AttributeEncoder) {
+				ae.Do(1, func() ([]byte, error) {
+					return []byte{0xde, 0xad, 0xbe}, nil
+				})
+				ae.Do(2, func() ([]byte, error) {
+					ae1 := NewAttributeEncoder()
+					ae1.Uint16(2, 2)
+					return ae1.Encode()
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := MarshalAttributes(tt.attrs)
+			if err != nil {
+				t.Fatalf("failed to marshal attributes: %v", err)
+			}
+
+			ae := NewAttributeEncoder()
+			tt.fn(ae)
+			got, err := ae.Encode()
+
+			if err != nil {
+				t.Fatalf("failed to encode attributes: %v", err)
+			}
+
+			if diff := cmp.Diff(got, b); diff != "" {
+				t.Fatalf("unexpected attribute encoding (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func aeEndianTest(order binary.ByteOrder) func(ae *AttributeEncoder) {
+	return func(ae *AttributeEncoder) {
+		ae.ByteOrder = order
+
+		ae.Uint8(1, uint8(1))
+		ae.Uint16(2, uint16(2))
+		ae.Uint32(3, uint32(3))
+		ae.Uint64(4, uint64(4))
+	}
+}

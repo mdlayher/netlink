@@ -314,3 +314,141 @@ func (ad *AttributeDecoder) Do(fn func(b []byte) error) {
 		ad.err = err
 	}
 }
+
+// An AttributeEncoder provides a safe way to encode attributes.
+//
+// It is recommended to use an AttributeEncoder where possible instead of
+// calling MarshalAttributes or using package nlenc directly.
+//
+// Errors from intermediate encoding steps are returned in the call to
+// Encode.
+type AttributeEncoder struct {
+	// ByteOrder defines a specific byte order to use when processing integer
+	// attributes.  ByteOrder should be set immediately after creating the
+	// AttributeEncoder: before any attributes are encoded.
+	//
+	// If not set, the native byte order will be used.
+	ByteOrder binary.ByteOrder
+
+	attrs []Attribute
+	err   error
+}
+
+// NewAttributeEncoder creates an AttributeEncoder that encodes Attributes.
+func NewAttributeEncoder() *AttributeEncoder {
+	return &AttributeEncoder{
+		ByteOrder: nlenc.NativeEndian(),
+	}
+}
+
+// Uint8 encodes the uint8 data for the specified field.
+func (ae *AttributeEncoder) Uint8(t uint16, v uint8) {
+	if ae.err != nil {
+		return
+	}
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: []byte{v},
+	})
+}
+
+// Uint16 encodes the uint16 data for the specified field.
+func (ae *AttributeEncoder) Uint16(t uint16, v uint16) {
+	if ae.err != nil {
+		return
+	}
+
+	b := make([]byte, 2)
+	ae.ByteOrder.PutUint16(b, v)
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: b,
+	})
+}
+
+// Uint32 encodes the uint32 data for the specified field.
+func (ae *AttributeEncoder) Uint32(t uint16, v uint32) {
+	if ae.err != nil {
+		return
+	}
+
+	b := make([]byte, 4)
+	ae.ByteOrder.PutUint32(b, v)
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: b,
+	})
+}
+
+// Uint64 encodes the uint64 data for the specified field.
+func (ae *AttributeEncoder) Uint64(t uint16, v uint64) {
+	if ae.err != nil {
+		return
+	}
+
+	b := make([]byte, 8)
+	ae.ByteOrder.PutUint64(b, v)
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: b,
+	})
+}
+
+// String encodes string s as a null-terminated string for the specified field.
+func (ae *AttributeEncoder) String(t uint16, s string) {
+	if ae.err != nil {
+		return
+	}
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: nlenc.Bytes(s),
+	})
+}
+
+// Bytes embeds raw byte data in the specified field.
+func (ae *AttributeEncoder) Bytes(t uint16, b []byte) {
+	if ae.err != nil {
+		return
+	}
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: b,
+	})
+}
+
+// Do is a general purpose function to encode arbitrary data into a field.
+//
+// Do is especially helpful in encoding nested attributes, attribute arrays,
+// or encoding arbitrary types (such as C structures) which don't fit cleanly
+// into an unsigned integer value.
+func (ae *AttributeEncoder) Do(t uint16, fn func() ([]byte, error)) {
+	if ae.err != nil {
+		return
+	}
+
+	b, err := fn()
+	if err != nil {
+		ae.err = err
+		return
+	}
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: t,
+		Data: b,
+	})
+}
+
+// Encode returns the encoded bytes representing the attributes.
+func (ae *AttributeEncoder) Encode() ([]byte, error) {
+	if ae.err != nil {
+		return nil, ae.err
+	}
+
+	return MarshalAttributes(ae.attrs)
+}
