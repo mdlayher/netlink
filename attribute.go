@@ -225,6 +225,14 @@ func (ad *AttributeDecoder) Err() error {
 	return ad.err
 }
 
+// Bytes returns the raw bytes of the current Attribute's data.
+func (ad *AttributeDecoder) Bytes() []byte {
+	src := ad.data()
+	dest := make([]byte, len(src))
+	copy(dest, src)
+	return dest
+}
+
 // String returns the string representation of the current Attribute's data.
 func (ad *AttributeDecoder) String() string {
 	if ad.err != nil {
