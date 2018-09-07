@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/bpf"
@@ -26,6 +27,7 @@ var (
 	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
 	errOptionsNotSupported         = errors.New("options not supported")
 	errSetBufferNotSupported       = errors.New("setting buffer sizes not supported")
+	errSyscallConnNotSupported     = errors.New("syscall.RawConn operation not supported")
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -449,6 +451,51 @@ func (c *Conn) SetWriteBuffer(bytes int) error {
 
 	return conn.SetWriteBuffer(bytes)
 }
+
+var _ syscall.Conn = &Conn{}
+
+// TODO(mdlayher): mutex or similar to enforce syscall.RawConn contract of
+// FD remaining valid for duration of calls?
+
+// SyscallConn returns a raw network connection. This implements the
+// syscall.Conn interface.
+//
+// Only the Control method of the returned syscall.RawConn is currently
+// implemented.
+//
+// SyscallConn is intended for advanced use cases, such as getting and setting
+// arbitrary socket options using the netlink socket's file descriptor.
+//
+// Once invoked, it is the caller's responsibility to ensure that operations
+// performed using Conn and the syscall.RawConn do not conflict with
+// each other.
+func (c *Conn) SyscallConn() (syscall.RawConn, error) {
+	conn, ok := c.sock.(fder)
+	if !ok {
+		return nil, errSyscallConnNotSupported
+	}
+
+	return &rawConn{
+		fd: uintptr(conn.FD()),
+	}, nil
+}
+
+var _ syscall.RawConn = &rawConn{}
+
+// A rawConn is a syscall.RawConn.
+type rawConn struct {
+	fd uintptr
+}
+
+func (rc *rawConn) Control(f func(fd uintptr)) error {
+	f(rc.fd)
+	return nil
+}
+
+// TODO(mdlayher): implement Read and Write?
+
+func (rc *rawConn) Read(_ func(fd uintptr) (done bool)) error  { return errSyscallConnNotSupported }
+func (rc *rawConn) Write(_ func(fd uintptr) (done bool)) error { return errSyscallConnNotSupported }
 
 // nextSequence atomically increments Conn's sequence number and returns
 // the incremented value.
