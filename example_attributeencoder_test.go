@@ -8,21 +8,21 @@ import (
 	"github.com/mdlayher/netlink"
 )
 
-// nested is a nested structure within out.
-type nested struct {
+// encodeNested is a nested structure within out.
+type encodeNested struct {
 	A, B uint32
 }
 
-// out is an example structure we will use to pack netlink attributes.
-type out struct {
+// encodeOut is an example structure we will use to pack netlink attributes.
+type encodeOut struct {
 	Number uint16
 	String string
-	Nested nested
+	Nested encodeNested
 }
 
 // encode is an example function used to adapt the ae.Do method
 // to encode an arbitrary structure.
-func (n nested) encode() func() ([]byte, error) {
+func (n encodeNested) encode() func() ([]byte, error) {
 	return func() ([]byte, error) {
 		// Create an internal, nested netlink.NewAttributeEncoder that
 		// operates on the nested set of attributes.
@@ -42,10 +42,10 @@ func ExampleAttributeEncoder_encode() {
 	// as that decoded by the netlink.AttributeDecoder example.
 	ae := netlink.NewAttributeEncoder()
 
-	o := out{
+	o := encodeOut{
 		Number: 1,
 		String: "hello world",
-		Nested: nested{
+		Nested: encodeNested{
 			A: 2,
 			B: 3,
 		},
@@ -55,13 +55,13 @@ func ExampleAttributeEncoder_encode() {
 	ae.Uint16(1, o.Number)
 	// Encode the String attribute as a string.
 	ae.String(2, o.String)
-	// Nested is a nested structure, so we will use our encodeNested
-	// function along with ae.Do to encode it in a concise way.
+	// Nested is a nested structure, so we will use the encodeNested type's
+	// encode method with ae.Do to encode it in a concise way.
 	ae.Do(3, o.Nested.encode())
 
-	b, err := ae.Encode()
 	// Any errors encountered during encoding (including any errors from
 	// encoding nested attributes) will be returned here.
+	b, err := ae.Encode()
 	if err != nil {
 		log.Fatalf("failed to encode attributes: %v", err)
 	}
