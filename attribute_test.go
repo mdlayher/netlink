@@ -525,6 +525,32 @@ func TestAttributeDecoderOK(t *testing.T) {
 			fn:    adEndianTest(binary.BigEndian),
 		},
 		{
+			name: "bytes",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: []byte{0xde, 0xad},
+			}},
+			fn: func(ad *AttributeDecoder) {
+				var b []byte
+				switch t := ad.Type(); t {
+				case 1:
+					b = ad.Bytes()
+				default:
+					panicf("unhandled attribute type: %d", t)
+				}
+
+				if diff := cmp.Diff([]byte{0xde, 0xad}, b); diff != "" {
+					panicf("unexpected attribute value (-want +got):\n%s", diff)
+				}
+
+				b[0] = 0xff
+
+				if diff := cmp.Diff(b, ad.Bytes()); diff == "" {
+					panic("expected attribute value to be copied and different")
+				}
+			},
+		},
+		{
 			name: "string",
 			attrs: []Attribute{{
 				Type: 1,
