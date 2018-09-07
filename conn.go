@@ -77,7 +77,7 @@ func Dial(family int, config *Config) (*Conn, error) {
 //
 // NewConn is primarily useful for tests. Most applications should use
 // Dial instead.
-func NewConn(c Socket, pid uint32) *Conn {
+func NewConn(sock Socket, pid uint32) *Conn {
 	// Seed the sequence number using a random number generator.
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	seq := r.Uint32()
@@ -89,7 +89,7 @@ func NewConn(c Socket, pid uint32) *Conn {
 	}
 
 	return &Conn{
-		sock: c,
+		sock: sock,
 		seq:  &seq,
 		pid:  pid,
 		d:    d,
@@ -116,8 +116,8 @@ func (c *Conn) Close() error {
 //
 // See the documentation of Conn.Send, Conn.Receive, and Validate for details about
 // each function.
-func (c *Conn) Execute(m Message) ([]Message, error) {
-	req, err := c.Send(m)
+func (c *Conn) Execute(message Message) ([]Message, error) {
+	req, err := c.Send(message)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,8 @@ func (c *Conn) fixMsg(m *Message, ml int) {
 }
 
 // SendMessages sends multiple Messages to netlink. The handling of
-// m.Header.Length, Sequence and PID is the same as when calling Send.
+// a Header's Length, Sequence and PID fields is the same as when
+// calling Send.
 func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 	for idx, m := range messages {
 		ml := nlmsgLength(len(m.Data))
@@ -179,34 +180,34 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 	return messages, nil
 }
 
-// Send sends a single Message to netlink.  In most cases, m.Header's Length,
+// Send sends a single Message to netlink.  In most cases, a Header's Length,
 // Sequence, and PID fields should be set to 0, so they can be populated
 // automatically before the Message is sent.  On success, Send returns a copy
 // of the Message with all parameters populated, for later validation.
 //
-// If m.Header.Length is 0, it will be automatically populated using the
+// If Header.Length is 0, it will be automatically populated using the
 // correct length for the Message, including its payload.
 //
-// If m.Header.Sequence is 0, it will be automatically populated using the
+// If Header.Sequence is 0, it will be automatically populated using the
 // next sequence number for this connection.
 //
-// If m.Header.PID is 0, it will be automatically populated using a PID
+// If Header.PID is 0, it will be automatically populated using a PID
 // assigned by netlink.
-func (c *Conn) Send(m Message) (Message, error) {
-	ml := nlmsgLength(len(m.Data))
+func (c *Conn) Send(message Message) (Message, error) {
+	ml := nlmsgLength(len(message.Data))
 
 	// TODO(mdlayher): fine-tune this limit.
 	if ml > (1024 * 32) {
 		return Message{}, errors.New("netlink message data too large")
 	}
 
-	c.fixMsg(&m, ml)
+	c.fixMsg(&message, ml)
 
 	c.debug(func(d *debugger) {
-		d.debugf(1, "send: %+v", m)
+		d.debugf(1, "send: %+v", message)
 	})
 
-	if err := c.sock.Send(m); err != nil {
+	if err := c.sock.Send(message); err != nil {
 		c.debug(func(d *debugger) {
 			d.debugf(1, "send: err: %v", err)
 		})
@@ -214,7 +215,7 @@ func (c *Conn) Send(m Message) (Message, error) {
 		return Message{}, err
 	}
 
-	return m, nil
+	return message, nil
 }
 
 // Receive receives one or more messages from netlink.  Multi-part messages are
