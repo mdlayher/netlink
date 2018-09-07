@@ -341,20 +341,20 @@ func NewAttributeEncoder() *AttributeEncoder {
 	}
 }
 
-// Uint8 encodes the uint8 data for the specified field.
-func (ae *AttributeEncoder) Uint8(t uint16, v uint8) {
+// Uint8 encodes uint8 data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Uint8(typ uint16, v uint8) {
 	if ae.err != nil {
 		return
 	}
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: []byte{v},
 	})
 }
 
-// Uint16 encodes the uint16 data for the specified field.
-func (ae *AttributeEncoder) Uint16(t uint16, v uint16) {
+// Uint16 encodes uint16 data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Uint16(typ uint16, v uint16) {
 	if ae.err != nil {
 		return
 	}
@@ -363,13 +363,13 @@ func (ae *AttributeEncoder) Uint16(t uint16, v uint16) {
 	ae.ByteOrder.PutUint16(b, v)
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: b,
 	})
 }
 
-// Uint32 encodes the uint32 data for the specified field.
-func (ae *AttributeEncoder) Uint32(t uint16, v uint32) {
+// Uint32 encodes uint32 data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Uint32(typ uint16, v uint32) {
 	if ae.err != nil {
 		return
 	}
@@ -378,13 +378,13 @@ func (ae *AttributeEncoder) Uint32(t uint16, v uint32) {
 	ae.ByteOrder.PutUint32(b, v)
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: b,
 	})
 }
 
-// Uint64 encodes the uint64 data for the specified field.
-func (ae *AttributeEncoder) Uint64(t uint16, v uint64) {
+// Uint64 encodes uint64 data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Uint64(typ uint16, v uint64) {
 	if ae.err != nil {
 		return
 	}
@@ -393,41 +393,43 @@ func (ae *AttributeEncoder) Uint64(t uint16, v uint64) {
 	ae.ByteOrder.PutUint64(b, v)
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: b,
 	})
 }
 
-// String encodes string s as a null-terminated string for the specified field.
-func (ae *AttributeEncoder) String(t uint16, s string) {
+// String encodes string s as a null-terminated string into an Attribute
+// specified by typ.
+func (ae *AttributeEncoder) String(typ uint16, s string) {
 	if ae.err != nil {
 		return
 	}
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: nlenc.Bytes(s),
 	})
 }
 
-// Bytes embeds raw byte data in the specified field.
-func (ae *AttributeEncoder) Bytes(t uint16, b []byte) {
+// Bytes embeds raw byte data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Bytes(typ uint16, b []byte) {
 	if ae.err != nil {
 		return
 	}
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: b,
 	})
 }
 
-// Do is a general purpose function to encode arbitrary data into a field.
+// Do is a general purpose function to encode arbitrary data into an attribute
+// specified by typ.
 //
 // Do is especially helpful in encoding nested attributes, attribute arrays,
 // or encoding arbitrary types (such as C structures) which don't fit cleanly
 // into an unsigned integer value.
-func (ae *AttributeEncoder) Do(t uint16, fn func() ([]byte, error)) {
+func (ae *AttributeEncoder) Do(typ uint16, fn func() ([]byte, error)) {
 	if ae.err != nil {
 		return
 	}
@@ -439,7 +441,7 @@ func (ae *AttributeEncoder) Do(t uint16, fn func() ([]byte, error)) {
 	}
 
 	ae.attrs = append(ae.attrs, Attribute{
-		Type: t,
+		Type: typ,
 		Data: b,
 	})
 }
