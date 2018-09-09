@@ -50,8 +50,10 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 		config = &Config{}
 	}
 
-	lockThread := !config.NoLockThread
-	sock := newSysSocket(lockThread)
+	sock, err := newSysSocket(config)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	if err := sock.Socket(family); err != nil {
 		return nil, 0, err
@@ -334,7 +336,7 @@ type sysSocket struct {
 
 // newSysSocket creates a sysSocket that optionally locks its internal goroutine
 // to a single thread.
-func newSysSocket(lockThread bool) *sysSocket {
+func newSysSocket(config *Config) (*sysSocket, error) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -344,6 +346,7 @@ func newSysSocket(lockThread bool) *sysSocket {
 
 	funcC := make(chan func())
 	doneC := make(chan bool)
+	errC := make(chan error)
 
 	go func() {
 		// It is important to lock this goroutine to its OS thread for the duration
@@ -351,26 +354,44 @@ func newSysSocket(lockThread bool) *sysSocket {
 		// messages to the wrong places.
 		// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
 		//
-		// But since this is very experimental, we'll leave it as a configurable at
-		// this point.
-		if lockThread {
-			// The intent is to never unlock the OS thread, so that the thread
-			// will terminate when the goroutine exits starting in Go 1.10:
-			// https://go-review.googlesource.com/c/go/+/46038.
-			//
-			// However, due to recent instability and a potential bad interaction
-			// with the Go runtime for threads which are not unlocked, we have
-			// elected to temporarily unlock the thread:
-			// https://github.com/golang/go/issues/25128#issuecomment-410764489.
-			//
-			// If we ever allow a Conn to set its own network namespace, we must
-			// either ensure that the namespace is restored on exit here or that
-			// the thread is properly terminated at some point in the future.
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+		// The intent is to never unlock the OS thread, so that the thread
+		// will terminate when the goroutine exits starting in Go 1.10:
+		// https://go-review.googlesource.com/c/go/+/46038.
+		//
+		// However, due to recent instability and a potential bad interaction
+		// with the Go runtime for threads which are not unlocked, we have
+		// elected to temporarily unlock the thread when the goroutine terminates:
+		// https://github.com/golang/go/issues/25128#issuecomment-410764489.
+
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		defer wg.Done()
+
+		// The user requested the Conn to operate in a non-default network namespace.
+		if config.NetNS != 0 {
+
+			// Get the current namespace of the thread the goroutine is locked to.
+			origNetNS, err := getThreadNetNS()
+			if err != nil {
+				errC <- err
+				return
+			}
+
+			// Set the network namespace of the current thread using
+			// the file descriptor provided by the user.
+			err = setThreadNetNS(config.NetNS)
+			if err != nil {
+				errC <- err
+				return
+			}
+
+			// Once the thread's namespace has been successfully manipulated,
+			// make sure we change it back when the goroutine returns.
+			defer setThreadNetNS(origNetNS)
 		}
 
-		defer wg.Done()
+		// Signal to caller that initialization was successful.
+		errC <- nil
 
 		for {
 			select {
@@ -382,11 +403,16 @@ func newSysSocket(lockThread bool) *sysSocket {
 		}
 	}()
 
+	// Wait for the goroutine to return err or nil.
+	if err := <-errC; err != nil {
+		return nil, err
+	}
+
 	return &sysSocket{
 		wg:    &wg,
 		funcC: funcC,
 		doneC: doneC,
-	}
+	}, nil
 }
 
 // do runs f in a worker goroutine which can be locked to one thread.

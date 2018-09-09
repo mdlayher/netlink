@@ -533,13 +533,7 @@ type Config struct {
 	// no multicast group subscriptions will be made.
 	Groups uint32
 
-	// Experimental: do not lock the internal system call handling goroutine
-	// to its OS thread.  This may result in a speed-up of system call handling,
-	// but may cause unexpected behavior when sending and receiving a large number
-	// of messages.
-	//
-	// This should almost certainly be set to false, but if you come up with a
-	// valid reason for using this, please file an issue at
-	// https://github.com/mdlayher/netlink to discuss your thoughts.
-	NoLockThread bool
+	// Network namespace the Conn needs to operate in. If set to 0,
+	// no network namespace will be entered.
+	NetNS int
 }
