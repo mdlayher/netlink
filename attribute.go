@@ -26,24 +26,22 @@ type Attribute struct {
 	Data []byte
 }
 
-// MarshalBinary marshals an Attribute into a byte slice.
-func (a Attribute) MarshalBinary() ([]byte, error) {
+// marshal marshals the contents of a into b and returns the number of bytes
+// written to b, including attribute alignment padding.
+func (a *Attribute) marshal(b []byte) (int, error) {
 	if int(a.Length) < nlaHeaderLen {
-		return nil, errInvalidAttribute
+		return 0, errInvalidAttribute
 	}
-
-	b := make([]byte, nlaAlign(int(a.Length)))
 
 	nlenc.PutUint16(b[0:2], a.Length)
 	nlenc.PutUint16(b[2:4], a.Type)
+	n := copy(b[nlaHeaderLen:], a.Data)
 
-	copy(b[nlaHeaderLen:], a.Data)
-
-	return b, nil
+	return nlaHeaderLen + nlaAlign(n), nil
 }
 
-// UnmarshalBinary unmarshals the contents of a byte slice into an Attribute.
-func (a *Attribute) UnmarshalBinary(b []byte) error {
+// unmarshal unmarshals the contents of a byte slice into an Attribute.
+func (a *Attribute) unmarshal(b []byte) error {
 	if len(b) < nlaHeaderLen {
 		return errInvalidAttribute
 	}
@@ -91,7 +89,7 @@ func MarshalAttributes(attrs []Attribute) ([]byte, error) {
 		}
 
 		// Marshal a into b and advance idx to show many bytes are occupied.
-		n, err := a.marshalFast(b[idx:])
+		n, err := a.marshal(b[idx:])
 		if err != nil {
 			return nil, err
 		}
@@ -99,20 +97,6 @@ func MarshalAttributes(attrs []Attribute) ([]byte, error) {
 	}
 
 	return b, nil
-}
-
-// marshalFast marshals the contents of a into b and returns the number of bytes
-// written to b, including attribute alignment padding.
-func (a *Attribute) marshalFast(b []byte) (int, error) {
-	if int(a.Length) < nlaHeaderLen {
-		return 0, errInvalidAttribute
-	}
-
-	nlenc.PutUint16(b[0:2], a.Length)
-	nlenc.PutUint16(b[2:4], a.Type)
-	n := copy(b[nlaHeaderLen:], a.Data)
-
-	return nlaHeaderLen + nlaAlign(n), nil
 }
 
 // UnmarshalAttributes unpacks a slice of Attributes from a single byte slice.
@@ -128,7 +112,7 @@ func UnmarshalAttributes(b []byte) ([]Attribute, error) {
 		}
 
 		var a Attribute
-		if err := (&a).UnmarshalBinary(b[i:]); err != nil {
+		if err := (&a).unmarshal(b[i:]); err != nil {
 			return nil, err
 		}
 
