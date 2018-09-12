@@ -53,25 +53,6 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "multipart done with error attached",
-			msgs: []netlink.Message{
-				{
-					Header: netlink.Header{
-						Flags: netlink.HeaderFlagsMulti,
-					},
-				},
-				{
-					Header: netlink.Header{
-						Type:  netlink.HeaderTypeDone,
-						Flags: netlink.HeaderFlagsMulti,
-					},
-					Data: []byte{0xfc, 0xff, 0xff, 0xff},
-				},
-			},
-			// -4, little endian (EINTR)
-			err: unix.EINTR,
-		},
 	}
 
 	for _, tt := range tests {
