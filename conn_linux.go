@@ -129,6 +129,12 @@ func (c *conn) Send(m Message) error {
 	return c.s.Sendmsg(b, nil, addr, 0)
 }
 
+// Round the length of a netlink message up to align it properly.
+// copy from syscall/netlink_linux.go:nlmAlignOf()
+func nlmAlignOf(msglen int) int {
+	return (msglen + syscall.NLMSG_ALIGNTO - 1) & ^(syscall.NLMSG_ALIGNTO - 1)
+}
+
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
@@ -164,6 +170,8 @@ func (c *conn) Receive() ([]Message, error) {
 	if addr.Family != unix.AF_NETLINK {
 		return nil, errInvalidFamily
 	}
+
+	n = nlmAlignOf(n)
 
 	raw, err := syscall.ParseNetlinkMessage(b[:n])
 	if err != nil {
