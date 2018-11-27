@@ -291,11 +291,6 @@ func TestLinuxConnReceiveMultipleMessagesLastUnaligned(t *testing.T) {
 
 	msgs, err := c.Receive()
 	if err != nil {
-		// TODO(mdlayher): remove once CL 35531 is merged and released.
-		if err == syscall.EINVAL {
-			t.Skip("skipping, see: https://golang.org/cl/35531/")
-		}
-
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
