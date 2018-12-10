@@ -270,7 +270,11 @@ func TestUnmarshalAttributes(t *testing.T) {
 				0x01, 0x00,
 				0xff,
 			},
-			err: errInvalidAttribute,
+			attrs: []Attribute{{
+				Length: 5,
+				Type:   1,
+				Data:   []byte{0xff},
+			}},
 		},
 		{
 			name: "fuzz crasher: length 1, too short",
