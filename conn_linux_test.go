@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
@@ -733,7 +734,11 @@ type testSocket struct {
 		recvflags int
 		from      unix.Sockaddr
 	}
-	setSockopt []setSockopt
+	// TODO(acln): use these next three fields in tests
+	deadline      time.Time
+	readDeadline  time.Time
+	writeDeadline time.Time
+	setSockopt    []setSockopt
 }
 
 type setSockopt struct {
@@ -754,6 +759,8 @@ func (s *testSocket) Close() error {
 }
 
 func (s *testSocket) FD() int { return 0 }
+
+func (s *testSocket) File() *os.File { return nil }
 
 func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
 	if s.getsockname == nil {
@@ -776,6 +783,21 @@ func (s *testSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	s.sendmsg.oob = oob
 	s.sendmsg.to = to
 	s.sendmsg.flags = flags
+	return nil
+}
+
+func (s *testSocket) SetDeadline(t time.Time) error {
+	s.deadline = t
+	return nil
+}
+
+func (s *testSocket) SetReadDeadline(t time.Time) error {
+	s.readDeadline = t
+	return nil
+}
+
+func (s *testSocket) SetWriteDeadline(t time.Time) error {
+	s.writeDeadline = t
 	return nil
 }
 

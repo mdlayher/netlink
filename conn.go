@@ -25,6 +25,7 @@ var (
 	errReadWriteCloserNotSupported = errors.New("raw read/write/closer not supported")
 	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
 	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
+	errDeadlinesNotSupported       = errors.New("deadlines not supported")
 	errOptionsNotSupported         = errors.New("options not supported")
 	errSetBufferNotSupported       = errors.New("setting buffer sizes not supported")
 	errSyscallConnNotSupported     = errors.New("syscall.RawConn operation not supported")
@@ -294,10 +295,10 @@ func (c *Conn) receive() ([]Message, error) {
 	}
 }
 
-// An fder is a Socket that supports retrieving its raw file descriptor.
-type fder interface {
+// A filer is a Socket that supports retrieving its associated *os.File.
+type filer interface {
 	Socket
-	FD() int
+	File() *os.File
 }
 
 var _ io.ReadWriteCloser = &fileReadWriteCloser{}
@@ -327,15 +328,13 @@ func (rwc *fileReadWriteCloser) Close() error { return rwc.f.Close() }
 // performed using Conn and the raw io.ReadWriteCloser do not conflict with
 // each other.  In almost all scenarios, only one of the two should be used.
 func (c *Conn) ReadWriteCloser() (io.ReadWriteCloser, error) {
-	fc, ok := c.sock.(fder)
+	fc, ok := c.sock.(filer)
 	if !ok {
 		return nil, errReadWriteCloserNotSupported
 	}
 
 	return &fileReadWriteCloser{
-		// Backing the io.ReadWriteCloser with an *os.File enables easy reading
-		// and writing without more system call boilerplate.
-		f: os.NewFile(uintptr(fc.FD()), "netlink"),
+		f: fc.File(),
 	}, nil
 }
 
@@ -392,6 +391,44 @@ func (c *Conn) RemoveBPF() error {
 	}
 
 	return s.RemoveBPF()
+}
+
+// A deadlineSetter is a Socket that supports setting deadlines.
+type deadlineSetter interface {
+	Socket
+	SetDeadline(time.Time) error
+	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
+}
+
+// SetDeadline sets the read and write deadlines associated with the connection.
+func (c *Conn) SetDeadline(t time.Time) error {
+	s, ok := c.sock.(deadlineSetter)
+	if !ok {
+		return errDeadlinesNotSupported
+	}
+
+	return s.SetDeadline(t)
+}
+
+// SetReadDeadline sets the read deadline associated with the connection.
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	s, ok := c.sock.(deadlineSetter)
+	if !ok {
+		return errDeadlinesNotSupported
+	}
+
+	return s.SetReadDeadline(t)
+}
+
+// SetWriteDeadline sets the write deadline associated with the connection.
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	s, ok := c.sock.(deadlineSetter)
+	if !ok {
+		return errDeadlinesNotSupported
+	}
+
+	return s.SetWriteDeadline(t)
 }
 
 // A ConnOption is a boolean option that may be set for a Conn.
@@ -470,32 +507,13 @@ var _ syscall.Conn = &Conn{}
 // performed using Conn and the syscall.RawConn do not conflict with
 // each other.
 func (c *Conn) SyscallConn() (syscall.RawConn, error) {
-	conn, ok := c.sock.(fder)
+	fc, ok := c.sock.(filer)
 	if !ok {
 		return nil, errSyscallConnNotSupported
 	}
 
-	return &rawConn{
-		fd: uintptr(conn.FD()),
-	}, nil
+	return newRawConn(fc.File())
 }
-
-var _ syscall.RawConn = &rawConn{}
-
-// A rawConn is a syscall.RawConn.
-type rawConn struct {
-	fd uintptr
-}
-
-func (rc *rawConn) Control(f func(fd uintptr)) error {
-	f(rc.fd)
-	return nil
-}
-
-// TODO(mdlayher): implement Read and Write?
-
-func (rc *rawConn) Read(_ func(fd uintptr) (done bool)) error  { return errSyscallConnNotSupported }
-func (rc *rawConn) Write(_ func(fd uintptr) (done bool)) error { return errSyscallConnNotSupported }
 
 // nextSequence atomically increments Conn's sequence number and returns
 // the incremented value.
