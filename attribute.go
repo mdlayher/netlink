@@ -180,12 +180,8 @@ func (ad *AttributeDecoder) Next() bool {
 
 	ad.i++
 
-	if len(ad.attrs) < ad.i {
-		// No more attributes, stop iteration.
-		return false
-	}
-
-	return true
+	// More attributes?
+	return len(ad.attrs) >= ad.i
 }
 
 // Type returns the Attribute.Type field of the current netlink attribute
