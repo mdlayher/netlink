@@ -501,10 +501,9 @@ func TestAttributeDecoderOK(t *testing.T) {
 	skipBigEndian(t)
 
 	tests := []struct {
-		name   string
-		attrs  []Attribute
-		endian binary.ByteOrder
-		fn     func(ad *AttributeDecoder)
+		name  string
+		attrs []Attribute
+		fn    func(ad *AttributeDecoder)
 	}{
 		{
 			name:  "empty",
