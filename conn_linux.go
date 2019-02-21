@@ -4,6 +4,7 @@ package netlink
 
 import (
 	"errors"
+	"math"
 	"os"
 	"runtime"
 	"sync"
@@ -35,7 +36,8 @@ type socket interface {
 	Getsockname() (unix.Sockaddr, error)
 	Recvmsg(p, oob []byte, flags int) (n int, oobn int, recvflags int, from unix.Sockaddr, err error)
 	Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error
-	SetSockopt(level, name int, v unsafe.Pointer, l uint32) error
+	SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error
+	SetSockoptInt(level, opt, value int) error
 }
 
 // dial is the entry point for Dial.  dial opens a netlink socket using
@@ -197,21 +199,19 @@ func (c *conn) FD() int {
 
 // JoinGroup joins a multicast group by ID.
 func (c *conn) JoinGroup(group uint32) error {
-	return c.s.SetSockopt(
+	return c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_ADD_MEMBERSHIP,
-		unsafe.Pointer(&group),
-		uint32(unsafe.Sizeof(group)),
+		int(group),
 	)
 }
 
 // LeaveGroup leaves a multicast group by ID.
 func (c *conn) LeaveGroup(group uint32) error {
-	return c.s.SetSockopt(
+	return c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_DROP_MEMBERSHIP,
-		unsafe.Pointer(&group),
-		uint32(unsafe.Sizeof(group)),
+		int(group),
 	)
 }
 
@@ -222,24 +222,20 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),
 	}
 
-	return c.s.SetSockopt(
+	return c.s.SetSockoptSockFprog(
 		unix.SOL_SOCKET,
 		unix.SO_ATTACH_FILTER,
-		unsafe.Pointer(&prog),
-		uint32(unsafe.Sizeof(prog)),
+		&prog,
 	)
 }
 
 // RemoveBPF removes a BPF filter from a conn.
 func (c *conn) RemoveBPF() error {
-	// dummy is ignored as argument to SO_DETACH_FILTER
-	// but SetSockopt requires it as an argument
-	var dummy uint32
-	return c.s.SetSockopt(
+	// 0 argument is ignored by SO_DETACH_FILTER.
+	return c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_DETACH_FILTER,
-		unsafe.Pointer(&dummy),
-		uint32(unsafe.Sizeof(dummy)),
+		0,
 	)
 }
 
@@ -251,42 +247,35 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 		return unix.ENOPROTOOPT
 	}
 
-	var v uint32
+	var v int
 	if enable {
 		v = 1
 	}
 
-	return c.s.SetSockopt(
+	return c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		o,
-		unsafe.Pointer(&v),
-		uint32(unsafe.Sizeof(v)),
+		v,
 	)
 }
 
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error {
-	v := uint32(bytes)
-
-	return c.s.SetSockopt(
+	return c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_RCVBUF,
-		unsafe.Pointer(&v),
-		uint32(unsafe.Sizeof(v)),
+		bytes,
 	)
 }
 
 // SetReadBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error {
-	v := uint32(bytes)
-
-	return c.s.SetSockopt(
+	return c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_SNDBUF,
-		unsafe.Pointer(&v),
-		uint32(unsafe.Sizeof(v)),
+		bytes,
 	)
 }
 
@@ -547,10 +536,27 @@ func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	return err
 }
 
-func (s *sysSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
+func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
+	// Value must be in range of a C integer.
+	if value < math.MinInt32 || value > math.MaxInt32 {
+		return unix.EINVAL
+	}
+
 	var err error
 	doErr := s.do(func() {
-		err = setsockopt(s.fd, level, name, v, l)
+		err = unix.SetsockoptInt(s.fd, level, opt, int(value))
+	})
+	if doErr != nil {
+		return doErr
+	}
+
+	return err
+}
+
+func (s *sysSocket) SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error {
+	var err error
+	doErr := s.do(func() {
+		err = unix.SetsockoptSockFprog(s.fd, level, opt, fprog)
 	})
 	if doErr != nil {
 		return doErr
