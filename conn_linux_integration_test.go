@@ -4,15 +4,216 @@ package netlink
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/net/bpf"
+	"golang.org/x/sys/unix"
 )
 
-func TestLinuxNetlinkSetBPF(t *testing.T) {
+func TestLinuxConnIntegration(t *testing.T) {
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Ask to send us an acknowledgement, which will contain an
+	// error code (or success) and a copy of the payload we sent in
+	req := Message{
+		Header: Header{
+			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+		},
+	}
+
+	// Perform a request, receive replies, and validate the replies
+	msgs, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute request: %v", err)
+	}
+	if want, got := 1, len(msgs); want != got {
+		t.Fatalf("unexpected message count from netlink:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("error closing netlink connection: %v", err)
+	}
+
+	m := msgs[0]
+
+	if want, got := 0, int(nlenc.Uint32(m.Data[0:4])); want != got {
+		t.Fatalf("unexpected error code:\n- want: %v\n-  got: %v", want, got)
+	}
+
+	if want, got := 36, int(m.Header.Length); want != got {
+		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := HeaderTypeError, m.Header.Type; want != got {
+		t.Fatalf("unexpected header type:\n- want: %v\n-  got: %v", want, got)
+	}
+	// Recent kernel versions (> 4.14) return a 256 here instead of a 0
+	if want, wantAlt, got := 0, 256, int(m.Header.Flags); want != got && wantAlt != got {
+		t.Fatalf("unexpected header flags:\n- want: %v or %v\n-  got: %v", want, wantAlt, got)
+	}
+
+	// Sequence number not checked because we assign one at random when
+	// a Conn is created.
+
+	// Skip error code and unmarshal the copy of request sent back by
+	// skipping the success code at bytes 0-4
+	var reply Message
+	if err := (&reply).UnmarshalBinary(m.Data[4:]); err != nil {
+		t.Fatalf("failed to unmarshal reply: %v", err)
+	}
+
+	if want, got := req.Header.Flags, reply.Header.Flags; want != got {
+		t.Fatalf("unexpected copy header flags:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := os.Getpid(), int(reply.Header.PID); want != got {
+		t.Fatalf("unexpected copy header PID:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := len(req.Data), len(reply.Data); want != got {
+		t.Fatalf("unexpected copy header data length:\n- want: %v\n-  got: %v", want, got)
+	}
+}
+
+func TestLinuxConnIntegrationConcurrent(t *testing.T) {
+	execN := func(n int, wg *sync.WaitGroup) {
+		c, err := Dial(unix.NETLINK_GENERIC, nil)
+		if err != nil {
+			panic(fmt.Sprintf("failed to dial netlink: %v", err))
+		}
+
+		req := Message{
+			Header: Header{
+				Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			},
+		}
+
+		for i := 0; i < n; i++ {
+			vmsg, err := c.Send(req)
+			if err != nil {
+				panic(fmt.Sprintf("failed to send request: %v", err))
+			}
+
+			msgs, err := c.Receive()
+			if err != nil {
+				panic(fmt.Sprintf("failed to receive reply: %v", err))
+			}
+
+			if l := len(msgs); l != 1 {
+				panic(fmt.Sprintf("unexpected number of reply messages: %d", l))
+			}
+
+			if err := Validate(vmsg, msgs); err != nil {
+				panic(fmt.Sprintf("failed to validate request and reply: %v\n- req: %+v\n- rep: %+v",
+					err, vmsg, msgs))
+			}
+		}
+
+		_ = c.Close()
+		wg.Done()
+	}
+
+	const (
+		workers    = 16
+		iterations = 10000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go execN(iterations, &wg)
+	}
+
+	wg.Wait()
+}
+
+func TestLinuxConnIntegrationClosedConn(t *testing.T) {
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Close the connection immediately and ensure that future calls get EBADF.
+	if err := c.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
+
+	_, err = c.Receive()
+	if diff := cmp.Diff(unix.EBADF, err); diff != "" {
+		t.Fatalf("unexpected error  (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
+	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	const (
+		set = 8192
+
+		// Per man 7 socket:
+		//
+		// "The kernel doubles this value (to allow space for book‐keeping
+		// overhead) when it is set using setsockopt(2), and this doubled value
+		// is returned by getsockopt(2).""
+		want = set * 2
+	)
+
+	if err := c.SetReadBuffer(set); err != nil {
+		t.Fatalf("failed to set read buffer size: %v", err)
+	}
+
+	if err := c.SetWriteBuffer(set); err != nil {
+		t.Fatalf("failed to set write buffer size: %v", err)
+	}
+
+	// Now that we've set the buffers, we can check the size by asking the
+	// kernel using SyscallConn and getsockopt.
+
+	rc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatalf("failed to get syscall conn: %v", err)
+	}
+
+	mustSize := func(opt int) int {
+		var (
+			value int
+			serr  error
+		)
+
+		err := rc.Control(func(fd uintptr) {
+			value, serr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, opt)
+		})
+		if err != nil {
+			t.Fatalf("failed to call control: %v", err)
+		}
+		if serr != nil {
+			t.Fatalf("failed to call getsockopt: %v", serr)
+		}
+
+		return value
+	}
+
+	if diff := cmp.Diff(want, mustSize(unix.SO_RCVBUF)); diff != "" {
+		t.Fatalf("unexpected read buffer size (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(want, mustSize(unix.SO_SNDBUF)); diff != "" {
+		t.Fatalf("unexpected write buffer size (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 	const familyGeneric = 16
 	c, err := Dial(familyGeneric, nil)
 	if err != nil {
@@ -80,7 +281,7 @@ func TestLinuxNetlinkSetBPF(t *testing.T) {
 	}
 }
 
-func TestLinuxNetlinkSetBPFProgram(t *testing.T) {
+func TestLinuxConnIntegration_testBPFProgram(t *testing.T) {
 	vm, err := bpf.NewVM(testBPFProgram(0xffffffff))
 	if err != nil {
 		t.Fatalf("failed to create BPF VM: %v", err)
@@ -143,7 +344,7 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 	}
 }
 
-func TestLinuxNetlinkMulticast(t *testing.T) {
+func TestLinuxConnIntegrationMulticast(t *testing.T) {
 	cfg := &Config{
 		Groups: 0x1, // RTMGRP_LINK
 	}
@@ -168,7 +369,7 @@ func TestLinuxNetlinkMulticast(t *testing.T) {
 
 	ifName := "test0"
 
-	def := sudoIfCreate(t, ifName)
+	def := createInterface(t, ifName)
 	defer def()
 
 	timeout := time.After(5 * time.Second)
@@ -192,10 +393,10 @@ func TestLinuxNetlinkMulticast(t *testing.T) {
 	}
 }
 
-func sudoIfCreate(t *testing.T, ifName string) func() {
+func createInterface(t *testing.T, ifName string) func() {
 	var err error
 
-	cmd := exec.Command("sudo", "ip", "tuntap", "add", ifName, "mode", "tun")
+	cmd := exec.Command("ip", "tuntap", "add", ifName, "mode", "tun")
 	err = cmd.Start()
 	if err != nil {
 		t.Fatalf("error creating tuntap device: %s", err)
@@ -210,7 +411,7 @@ func sudoIfCreate(t *testing.T, ifName string) func() {
 	return func() {
 		var err error
 
-		cmd := exec.Command("sudo", "ip", "link", "del", ifName)
+		cmd := exec.Command("ip", "link", "del", ifName)
 		err = cmd.Start()
 		if err != nil {
 			panic(fmt.Sprintf("error removing tuntap device: %s", err))
