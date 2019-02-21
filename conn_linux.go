@@ -280,7 +280,7 @@ func (c *conn) SetReadDeadline(t time.Time) error {
 }
 
 func (c *conn) SetWriteDeadline(t time.Time) error {
-	return c.SetWriteDeadline(t)
+	return c.s.SetWriteDeadline(t)
 }
 
 // SetReadBuffer sets the size of the operating system's receive buffer
@@ -507,17 +507,14 @@ func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Socka
 
 	doErr := s.read(func(fd int) bool {
 		n, oobn, recvflags, from, err = unix.Recvmsg(fd, p, oob, flags)
-		if err == syscall.EAGAIN {
-			// When the socket is in non-blocking mode, we might see
-			// EAGAIN and end up here. In that case, return false to
-			// let the poller wait for readiness. See the source code
-			// for internal/poll.FD.RawRead for more details.
-			//
-			// If the socket is in blocking mode, this branch should
-			// never be taken.
-			return false
-		}
-		return true
+
+		// When the socket is in non-blocking mode, we might see
+		// EAGAIN and end up here. In that case, return false to
+		// let the poller wait for readiness. See the source code
+		// for internal/poll.FD.RawRead for more details.
+		//
+		// If the socket is in blocking mode, EAGAIN should never occur.
+		return err != syscall.EAGAIN
 	})
 	if doErr != nil {
 		return 0, 0, 0, nil, doErr
@@ -530,11 +527,9 @@ func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	var err error
 	doErr := s.write(func(fd int) bool {
 		err = unix.Sendmsg(fd, p, oob, to, flags)
-		if err == syscall.EAGAIN {
-			// Analogous to Recvmsg. See the comments there.
-			return false
-		}
-		return true
+
+		// Analogous to Recvmsg. See the comments there.
+		return err != syscall.EAGAIN
 	})
 	if doErr != nil {
 		return doErr
