@@ -4,10 +4,10 @@ package netlink
 
 import (
 	"errors"
+	"math"
 	"os"
 	"reflect"
 	"testing"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -306,20 +306,16 @@ func TestLinuxConnJoinLeaveGroup(t *testing.T) {
 		t.Fatalf("failed to leave group: %v", err)
 	}
 
-	l := uint32(unsafe.Sizeof(group))
-
 	want := []setSockopt{
 		{
 			level: unix.SOL_NETLINK,
-			name:  unix.NETLINK_ADD_MEMBERSHIP,
-			v:     group,
-			l:     l,
+			opt:   unix.NETLINK_ADD_MEMBERSHIP,
+			value: int(group),
 		},
 		{
 			level: unix.SOL_NETLINK,
-			name:  unix.NETLINK_DROP_MEMBERSHIP,
-			v:     group,
-			l:     l,
+			opt:   unix.NETLINK_DROP_MEMBERSHIP,
+			value: int(group),
 		},
 	}
 
@@ -330,11 +326,6 @@ func TestLinuxConnJoinLeaveGroup(t *testing.T) {
 }
 
 func TestLinuxConnSetOption(t *testing.T) {
-	const (
-		level  = unix.SOL_NETLINK
-		length = uint32(unsafe.Sizeof(uint32(0)))
-	)
-
 	tests := []struct {
 		name   string
 		option ConnOption
@@ -354,8 +345,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: PacketInfo,
 			enable: true,
 			want: setSockopt{
-				name: unix.NETLINK_PKTINFO,
-				v:    1,
+				opt:   unix.NETLINK_PKTINFO,
+				value: 1,
 			},
 		},
 		{
@@ -363,8 +354,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: PacketInfo,
 			enable: false,
 			want: setSockopt{
-				name: unix.NETLINK_PKTINFO,
-				v:    0,
+				opt:   unix.NETLINK_PKTINFO,
+				value: 0,
 			},
 		},
 		{
@@ -372,8 +363,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: BroadcastError,
 			enable: true,
 			want: setSockopt{
-				name: unix.NETLINK_BROADCAST_ERROR,
-				v:    1,
+				opt:   unix.NETLINK_BROADCAST_ERROR,
+				value: 1,
 			},
 		},
 		{
@@ -381,8 +372,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: NoENOBUFS,
 			enable: true,
 			want: setSockopt{
-				name: unix.NETLINK_NO_ENOBUFS,
-				v:    1,
+				opt:   unix.NETLINK_NO_ENOBUFS,
+				value: 1,
 			},
 		},
 		{
@@ -390,8 +381,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: ListenAllNSID,
 			enable: true,
 			want: setSockopt{
-				name: unix.NETLINK_LISTEN_ALL_NSID,
-				v:    1,
+				opt:   unix.NETLINK_LISTEN_ALL_NSID,
+				value: 1,
 			},
 		},
 		{
@@ -399,8 +390,8 @@ func TestLinuxConnSetOption(t *testing.T) {
 			option: CapAcknowledge,
 			enable: true,
 			want: setSockopt{
-				name: unix.NETLINK_CAP_ACK,
-				v:    1,
+				opt:   unix.NETLINK_CAP_ACK,
+				value: 1,
 			},
 		},
 	}
@@ -410,8 +401,7 @@ func TestLinuxConnSetOption(t *testing.T) {
 			c, s := testLinuxConn(t, nil)
 
 			// Pre-populate fixed values.
-			tt.want.level = level
-			tt.want.l = length
+			tt.want.level = unix.SOL_NETLINK
 
 			if err := c.SetOption(tt.option, tt.enable); err != nil {
 				if want, got := tt.err, err; !reflect.DeepEqual(want, got) {
@@ -433,30 +423,26 @@ func TestLinuxConnSetOption(t *testing.T) {
 func TestLinuxConnSetBuffers(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
-	n := uint32(64)
+	n := 64
 
-	if err := c.SetReadBuffer(int(n)); err != nil {
+	if err := c.SetReadBuffer(n); err != nil {
 		t.Fatalf("failed to set read buffer size: %v", err)
 	}
 
-	if err := c.SetWriteBuffer(int(n)); err != nil {
+	if err := c.SetWriteBuffer(n); err != nil {
 		t.Fatalf("failed to set write buffer size: %v", err)
 	}
-
-	l := uint32(unsafe.Sizeof(n))
 
 	want := []setSockopt{
 		{
 			level: unix.SOL_SOCKET,
-			name:  unix.SO_RCVBUF,
-			v:     n,
-			l:     l,
+			opt:   unix.SO_RCVBUF,
+			value: n,
 		},
 		{
 			level: unix.SOL_SOCKET,
-			name:  unix.SO_SNDBUF,
-			v:     n,
-			l:     l,
+			opt:   unix.SO_SNDBUF,
+			value: n,
 		},
 	}
 
@@ -537,9 +523,8 @@ type testSocket struct {
 
 type setSockopt struct {
 	level int
-	name  int
-	v     uint32
-	l     uint32
+	opt   int
+	value int
 }
 
 func (s *testSocket) Bind(sa unix.Sockaddr) error {
@@ -578,13 +563,21 @@ func (s *testSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	return nil
 }
 
-func (s *testSocket) SetSockopt(level, name int, v unsafe.Pointer, l uint32) error {
+func (s *testSocket) SetSockoptInt(level, opt, value int) error {
+	// Value must be in range of a C integer.
+	if value < math.MinInt32 || value > math.MaxInt32 {
+		return unix.EINVAL
+	}
+
 	s.setSockopt = append(s.setSockopt, setSockopt{
 		level: level,
-		name:  name,
-		v:     *(*uint32)(v),
-		l:     l,
+		opt:   opt,
+		value: value,
 	})
 
 	return nil
+}
+
+func (s *testSocket) SetSockoptSockFprog(_, _ int, _ *unix.SockFprog) error {
+	panic("netlink: testSocket.SetSockoptSockFprog not currently implemented")
 }
