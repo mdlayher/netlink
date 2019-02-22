@@ -28,7 +28,7 @@ func (n encodeNested) encode() func() ([]byte, error) {
 		// operates on the nested set of attributes.
 		ae := netlink.NewAttributeEncoder()
 
-		// Encode the fields of the nested stucture
+		// Encode the fields of the nested structure.
 		ae.Uint32(1, n.A)
 		ae.Uint32(2, n.B)
 
