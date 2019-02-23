@@ -22,7 +22,7 @@ func TestConnExecute(t *testing.T) {
 
 	replies := []netlink.Message{{
 		Header: netlink.Header{
-			Type:     netlink.HeaderTypeError,
+			Type:     netlink.Error,
 			Sequence: 1,
 			PID:      1,
 		},
@@ -160,7 +160,7 @@ func TestConnReceiveShortErrorMessage(t *testing.T) {
 		return []netlink.Message{{
 			Header: netlink.Header{
 				Length: 20,
-				Type:   netlink.HeaderTypeError,
+				Type:   netlink.Error,
 			},
 			Data: []byte{0x01},
 		}}, nil

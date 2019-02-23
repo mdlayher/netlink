@@ -100,19 +100,19 @@ func TestHeaderTypeString(t *testing.T) {
 			s: "unknown(0)",
 		},
 		{
-			t: HeaderTypeNoop,
+			t: Noop,
 			s: "noop",
 		},
 		{
-			t: HeaderTypeError,
+			t: Error,
 			s: "error",
 		},
 		{
-			t: HeaderTypeDone,
+			t: Done,
 			s: "done",
 		},
 		{
-			t: HeaderTypeOverrun,
+			t: Overrun,
 			s: "overrun",
 		},
 	}
@@ -199,7 +199,7 @@ func TestMessageMarshal(t *testing.T) {
 			m: Message{
 				Header: Header{
 					Length:   20,
-					Type:     HeaderTypeError,
+					Type:     Error,
 					Sequence: 2,
 					PID:      20,
 				},
@@ -288,7 +288,7 @@ func TestMessageUnmarshal(t *testing.T) {
 			m: Message{
 				Header: Header{
 					Length:   20,
-					Type:     HeaderTypeError,
+					Type:     Error,
 					Sequence: 2,
 					PID:      20,
 				},

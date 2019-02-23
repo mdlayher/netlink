@@ -214,7 +214,7 @@ func TestError(t *testing.T) {
 			out: []netlink.Message{{
 				Header: netlink.Header{
 					Length:   28,
-					Type:     netlink.HeaderTypeError,
+					Type:     netlink.Error,
 					Flags:    netlink.Request | netlink.Dump,
 					Sequence: 10,
 					PID:      1000,
@@ -242,7 +242,7 @@ func TestError(t *testing.T) {
 			out: []netlink.Message{{
 				Header: netlink.Header{
 					Length:   24,
-					Type:     netlink.HeaderTypeError,
+					Type:     netlink.Error,
 					Flags:    netlink.Request,
 					Sequence: 1,
 					PID:      100,
@@ -320,7 +320,7 @@ func TestMultipart(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length: 16,
-						Type:   netlink.HeaderTypeDone,
+						Type:   netlink.Done,
 						Flags:  netlink.Multi,
 					},
 				},
@@ -365,7 +365,7 @@ func TestMultipart(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length: 16,
-						Type:   netlink.HeaderTypeDone,
+						Type:   netlink.Done,
 						Flags:  netlink.Multi,
 					},
 				},

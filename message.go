@@ -25,11 +25,11 @@ const (
 	Request HeaderFlags = 1
 
 	// Multi indicates a multi-part message, terminated
-	// by HeaderTypeDone on the last message.
+	// by Done on the last message.
 	Multi HeaderFlags = 2
 
 	// Acknowledge requests that netlink reply with
-	// an acknowledgement using HeaderTypeError and, if needed,
+	// an acknowledgement using Error and, if needed,
 	// an error code.
 	Acknowledge HeaderFlags = 4
 
@@ -123,30 +123,30 @@ func (f HeaderFlags) String() string {
 type HeaderType uint16
 
 const (
-	// HeaderTypeNoop indicates that no action was taken.
-	HeaderTypeNoop HeaderType = 0x1
+	// Noop indicates that no action was taken.
+	Noop HeaderType = 0x1
 
-	// HeaderTypeError indicates an error code is present, which is also
+	// Error indicates an error code is present, which is also
 	// used to indicate success when the code is 0.
-	HeaderTypeError HeaderType = 0x2
+	Error HeaderType = 0x2
 
-	// HeaderTypeDone indicates the end of a multi-part message.
-	HeaderTypeDone HeaderType = 0x3
+	// Done indicates the end of a multi-part message.
+	Done HeaderType = 0x3
 
-	// HeaderTypeOverrun indicates that data was lost from this message.
-	HeaderTypeOverrun HeaderType = 0x4
+	// Overrun indicates that data was lost from this message.
+	Overrun HeaderType = 0x4
 )
 
 // String returns the string representation of a HeaderType.
 func (t HeaderType) String() string {
 	switch t {
-	case HeaderTypeNoop:
+	case Noop:
 		return "noop"
-	case HeaderTypeError:
+	case Error:
 		return "error"
-	case HeaderTypeDone:
+	case Done:
 		return "done"
-	case HeaderTypeOverrun:
+	case Overrun:
 		return "overrun"
 	default:
 		return fmt.Sprintf("unknown(%d)", t)
@@ -242,7 +242,7 @@ func checkMessage(m Message) error {
 	// it is unknown whether this change was correct or not.  If you run into
 	// a problem with your application because of this change, please file
 	// an issue.
-	if m.Header.Type != HeaderTypeError {
+	if m.Header.Type != Error {
 		return nil
 	}
 

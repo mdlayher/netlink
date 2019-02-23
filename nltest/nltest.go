@@ -34,7 +34,7 @@ func Multipart(msgs []netlink.Message) ([]netlink.Message, error) {
 	for i := range msgs {
 		// Last message has header type "done" in addition to multi-part flag.
 		if i == len(msgs)-1 {
-			msgs[i].Header.Type = netlink.HeaderTypeDone
+			msgs[i].Header.Type = netlink.Done
 		}
 
 		msgs[i].Header.Flags |= netlink.Multi
@@ -48,7 +48,7 @@ func Multipart(msgs []netlink.Message) ([]netlink.Message, error) {
 func Error(number int, reqs []netlink.Message) ([]netlink.Message, error) {
 	req := reqs[0]
 	req.Header.Length += 4
-	req.Header.Type = netlink.HeaderTypeError
+	req.Header.Type = netlink.Error
 
 	errno := -1 * int32(number)
 	req.Data = append(nlenc.Int32Bytes(errno), req.Data...)
@@ -175,7 +175,7 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	// Detect multi-part messages.
 	var multi bool
 	for _, m := range c.msgs {
-		if m.Header.Flags&netlink.Multi != 0 && m.Header.Type != netlink.HeaderTypeDone {
+		if m.Header.Flags&netlink.Multi != 0 && m.Header.Type != netlink.Done {
 			multi = true
 		}
 	}
