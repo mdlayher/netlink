@@ -24,43 +24,38 @@ const (
 	// Request indicates a request to netlink.
 	Request HeaderFlags = 1
 
-	// Multi indicates a multi-part message, terminated
-	// by Done on the last message.
+	// Multi indicates a multi-part message, terminated by Done on the
+	// last message.
 	Multi HeaderFlags = 2
 
-	// Acknowledge requests that netlink reply with
-	// an acknowledgement using Error and, if needed,
-	// an error code.
+	// Acknowledge requests that netlink reply with an acknowledgement
+	// using Error and, if needed, an error code.
 	Acknowledge HeaderFlags = 4
 
-	// Echo requests that netlink echo this request
-	// back to the sender.
+	// Echo requests that netlink echo this request back to the sender.
 	Echo HeaderFlags = 8
 
-	// DumpInterrupted indicates that a dump was
-	// inconsistent due to a sequence change.
+	// DumpInterrupted indicates that a dump was inconsistent due to a
+	// sequence change.
 	DumpInterrupted HeaderFlags = 16
 
-	// DumpFiltered indicates that a dump was filtered
-	// as requested.
+	// DumpFiltered indicates that a dump was filtered as requested.
 	DumpFiltered HeaderFlags = 32
 
 	// Flags used to retrieve data from netlink.
 
-	// Root requests that netlink return a complete table instead
-	// of a single entry.
+	// Root requests that netlink return a complete table instead of a
+	// single entry.
 	Root HeaderFlags = 0x100
 
-	// Match requests that netlink return a list of all matching
-	// entries.
+	// Match requests that netlink return a list of all matching entries.
 	Match HeaderFlags = 0x200
 
-	// Atomic requests that netlink send an atomic snapshot of
-	// its entries.  Requires CAP_NET_ADMIN or an effective UID of 0.
+	// Atomic requests that netlink send an atomic snapshot of its entries.
+	// Requires CAP_NET_ADMIN or an effective UID of 0.
 	Atomic HeaderFlags = 0x400
 
-	// Dump requests that netlink return a complete list of
-	// all entries.
+	// Dump requests that netlink return a complete list of all entries.
 	Dump HeaderFlags = Root | Match
 
 	// Flags used to create objects.
@@ -68,7 +63,7 @@ const (
 	// Replace indicates request replaces an existing matching object.
 	Replace HeaderFlags = 0x100
 
-	// Excl  indicates request does not replace the object if it already exists.
+	// Excl indicates request does not replace the object if it already exists.
 	Excl HeaderFlags = 0x200
 
 	// Create indicates request creates an object if it doesn't already exist.
@@ -126,8 +121,8 @@ const (
 	// Noop indicates that no action was taken.
 	Noop HeaderType = 0x1
 
-	// Error indicates an error code is present, which is also
-	// used to indicate success when the code is 0.
+	// Error indicates an error code is present, which is also used to indicate
+	// success when the code is 0.
 	Error HeaderType = 0x2
 
 	// Done indicates the end of a multi-part message.
