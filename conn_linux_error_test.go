@@ -42,13 +42,13 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 			msgs: []netlink.Message{
 				{
 					Header: netlink.Header{
-						Flags: netlink.HeaderFlagsMulti,
+						Flags: netlink.Multi,
 					},
 				},
 				{
 					Header: netlink.Header{
 						Type:  netlink.HeaderTypeDone,
-						Flags: netlink.HeaderFlagsMulti,
+						Flags: netlink.Multi,
 					},
 				},
 			},

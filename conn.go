@@ -249,7 +249,7 @@ func (c *Conn) Receive() ([]Message, error) {
 
 	// Trim the final message with multi-part done indicator if
 	// present.
-	if m := msgs[len(msgs)-1]; m.Header.Flags&HeaderFlagsMulti != 0 && m.Header.Type == HeaderTypeDone {
+	if m := msgs[len(msgs)-1]; m.Header.Flags&Multi != 0 && m.Header.Type == HeaderTypeDone {
 		return msgs[:len(msgs)-1], nil
 	}
 
@@ -276,7 +276,7 @@ func (c *Conn) receive() ([]Message, error) {
 			}
 
 			// Does this message indicate a multi-part message?
-			if m.Header.Flags&HeaderFlagsMulti == 0 {
+			if m.Header.Flags&Multi == 0 {
 				// No, check the next messages.
 				continue
 			}

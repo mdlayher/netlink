@@ -21,61 +21,61 @@ type HeaderFlags uint16
 const (
 	// General netlink communication flags.
 
-	// HeaderFlagsRequest indicates a request to netlink.
-	HeaderFlagsRequest HeaderFlags = 1
+	// Request indicates a request to netlink.
+	Request HeaderFlags = 1
 
-	// HeaderFlagsMulti indicates a multi-part message, terminated
+	// Multi indicates a multi-part message, terminated
 	// by HeaderTypeDone on the last message.
-	HeaderFlagsMulti HeaderFlags = 2
+	Multi HeaderFlags = 2
 
-	// HeaderFlagsAcknowledge requests that netlink reply with
+	// Acknowledge requests that netlink reply with
 	// an acknowledgement using HeaderTypeError and, if needed,
 	// an error code.
-	HeaderFlagsAcknowledge HeaderFlags = 4
+	Acknowledge HeaderFlags = 4
 
-	// HeaderFlagsEcho requests that netlink echo this request
+	// Echo requests that netlink echo this request
 	// back to the sender.
-	HeaderFlagsEcho HeaderFlags = 8
+	Echo HeaderFlags = 8
 
-	// HeaderFlagsDumpInterrupted indicates that a dump was
+	// DumpInterrupted indicates that a dump was
 	// inconsistent due to a sequence change.
-	HeaderFlagsDumpInterrupted HeaderFlags = 16
+	DumpInterrupted HeaderFlags = 16
 
-	// HeaderFlagsDumpFiltered indicates that a dump was filtered
+	// DumpFiltered indicates that a dump was filtered
 	// as requested.
-	HeaderFlagsDumpFiltered HeaderFlags = 32
+	DumpFiltered HeaderFlags = 32
 
 	// Flags used to retrieve data from netlink.
 
-	// HeaderFlagsRoot requests that netlink return a complete table instead
+	// Root requests that netlink return a complete table instead
 	// of a single entry.
-	HeaderFlagsRoot HeaderFlags = 0x100
+	Root HeaderFlags = 0x100
 
-	// HeaderFlagsMatch requests that netlink return a list of all matching
+	// Match requests that netlink return a list of all matching
 	// entries.
-	HeaderFlagsMatch HeaderFlags = 0x200
+	Match HeaderFlags = 0x200
 
-	// HeaderFlagsAtomic requests that netlink send an atomic snapshot of
+	// Atomic requests that netlink send an atomic snapshot of
 	// its entries.  Requires CAP_NET_ADMIN or an effective UID of 0.
-	HeaderFlagsAtomic HeaderFlags = 0x400
+	Atomic HeaderFlags = 0x400
 
-	// HeaderFlagsDump requests that netlink return a complete list of
+	// Dump requests that netlink return a complete list of
 	// all entries.
-	HeaderFlagsDump HeaderFlags = HeaderFlagsRoot | HeaderFlagsMatch
+	Dump HeaderFlags = Root | Match
 
 	// Flags used to create objects.
 
-	// HeaderFlagsReplace indicates request replaces an existing matching object.
-	HeaderFlagsReplace HeaderFlags = 0x100
+	// Replace indicates request replaces an existing matching object.
+	Replace HeaderFlags = 0x100
 
-	// HeaderFlagsExcl  indicates request does not replace the object if it already exists.
-	HeaderFlagsExcl HeaderFlags = 0x200
+	// Excl  indicates request does not replace the object if it already exists.
+	Excl HeaderFlags = 0x200
 
-	// HeaderFlagsCreate indicates request creates an object if it doesn't already exist.
-	HeaderFlagsCreate HeaderFlags = 0x400
+	// Create indicates request creates an object if it doesn't already exist.
+	Create HeaderFlags = 0x400
 
-	// HeaderFlagsAppend indicates request adds to the end of the object list.
-	HeaderFlagsAppend HeaderFlags = 0x800
+	// Append indicates request adds to the end of the object list.
+	Append HeaderFlags = 0x800
 )
 
 // String returns the string representation of a HeaderFlags.

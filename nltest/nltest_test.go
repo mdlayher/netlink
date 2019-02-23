@@ -98,7 +98,7 @@ func TestConnExecuteOK(t *testing.T) {
 	req := netlink.Message{
 		Header: netlink.Header{
 			Length:   16,
-			Flags:    netlink.HeaderFlagsRequest,
+			Flags:    netlink.Request,
 			Sequence: 1,
 			PID:      1,
 		},
@@ -125,7 +125,7 @@ func TestConnExecuteMultipartOK(t *testing.T) {
 	req := netlink.Message{
 		Header: netlink.Header{
 			Length:   16,
-			Flags:    netlink.HeaderFlagsRequest,
+			Flags:    netlink.Request,
 			Sequence: 1,
 			PID:      1,
 		},
@@ -146,7 +146,7 @@ func TestConnExecuteMultipartOK(t *testing.T) {
 		t.Fatalf("failed to execute request: %v", err)
 	}
 
-	req.Header.Flags |= netlink.HeaderFlagsMulti
+	req.Header.Flags |= netlink.Multi
 	if want := []netlink.Message{req}; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected response messages:\n- want: %v\n-  got: %v",
 			want, got)
@@ -204,7 +204,7 @@ func TestError(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length:   24,
-						Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump,
+						Flags:    netlink.Request | netlink.Dump,
 						Sequence: 10,
 						PID:      1000,
 					},
@@ -215,7 +215,7 @@ func TestError(t *testing.T) {
 				Header: netlink.Header{
 					Length:   28,
 					Type:     netlink.HeaderTypeError,
-					Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump,
+					Flags:    netlink.Request | netlink.Dump,
 					Sequence: 10,
 					PID:      1000,
 				},
@@ -232,7 +232,7 @@ func TestError(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length:   20,
-						Flags:    netlink.HeaderFlagsRequest,
+						Flags:    netlink.Request,
 						Sequence: 1,
 						PID:      100,
 					},
@@ -243,7 +243,7 @@ func TestError(t *testing.T) {
 				Header: netlink.Header{
 					Length:   24,
 					Type:     netlink.HeaderTypeError,
-					Flags:    netlink.HeaderFlagsRequest,
+					Flags:    netlink.Request,
 					Sequence: 1,
 					PID:      100,
 				},
@@ -313,7 +313,7 @@ func TestMultipart(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length: 20,
-						Flags:  netlink.HeaderFlagsMulti,
+						Flags:  netlink.Multi,
 					},
 					Data: []byte{0xff, 0xff, 0xff, 0xff},
 				},
@@ -321,7 +321,7 @@ func TestMultipart(t *testing.T) {
 					Header: netlink.Header{
 						Length: 16,
 						Type:   netlink.HeaderTypeDone,
-						Flags:  netlink.HeaderFlagsMulti,
+						Flags:  netlink.Multi,
 					},
 				},
 			},
@@ -351,14 +351,14 @@ func TestMultipart(t *testing.T) {
 				{
 					Header: netlink.Header{
 						Length: 20,
-						Flags:  netlink.HeaderFlagsMulti,
+						Flags:  netlink.Multi,
 					},
 					Data: []byte{0xff, 0xff, 0xff, 0xff},
 				},
 				{
 					Header: netlink.Header{
 						Length: 24,
-						Flags:  netlink.HeaderFlagsMulti,
+						Flags:  netlink.Multi,
 					},
 					Data: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				},
@@ -366,7 +366,7 @@ func TestMultipart(t *testing.T) {
 					Header: netlink.Header{
 						Length: 16,
 						Type:   netlink.HeaderTypeDone,
-						Flags:  netlink.HeaderFlagsMulti,
+						Flags:  netlink.Multi,
 					},
 				},
 			},
@@ -447,7 +447,7 @@ func TestCheckRequest(t *testing.T) {
 			reqs: []netlink.Message{{
 				Header: netlink.Header{
 					Type:  10,
-					Flags: netlink.HeaderFlagsRequest,
+					Flags: netlink.Request,
 				},
 			}},
 			ok: true,
@@ -455,11 +455,11 @@ func TestCheckRequest(t *testing.T) {
 		{
 			name:  "flags only",
 			types: []netlink.HeaderType{0},
-			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest},
+			flags: []netlink.HeaderFlags{netlink.Request},
 			reqs: []netlink.Message{{
 				Header: netlink.Header{
 					Type:  10,
-					Flags: netlink.HeaderFlagsRequest,
+					Flags: netlink.Request,
 				},
 			}},
 			ok: true,
@@ -467,18 +467,18 @@ func TestCheckRequest(t *testing.T) {
 		{
 			name:  "bad type",
 			types: []netlink.HeaderType{10, 20},
-			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest, netlink.HeaderFlagsReplace},
+			flags: []netlink.HeaderFlags{netlink.Request, netlink.Replace},
 			reqs: []netlink.Message{
 				{
 					Header: netlink.Header{
 						Type:  10,
-						Flags: netlink.HeaderFlagsRequest,
+						Flags: netlink.Request,
 					},
 				},
 				{
 					Header: netlink.Header{
 						Type:  99,
-						Flags: netlink.HeaderFlagsReplace,
+						Flags: netlink.Replace,
 					},
 				},
 			},
@@ -486,18 +486,18 @@ func TestCheckRequest(t *testing.T) {
 		{
 			name:  "bad flags",
 			types: []netlink.HeaderType{10, 20},
-			flags: []netlink.HeaderFlags{netlink.HeaderFlagsRequest, netlink.HeaderFlagsReplace},
+			flags: []netlink.HeaderFlags{netlink.Request, netlink.Replace},
 			reqs: []netlink.Message{
 				{
 					Header: netlink.Header{
 						Type:  10,
-						Flags: netlink.HeaderFlagsRequest,
+						Flags: netlink.Request,
 					},
 				},
 				{
 					Header: netlink.Header{
 						Type:  20,
-						Flags: netlink.HeaderFlagsRequest,
+						Flags: netlink.Request,
 					},
 				},
 			},

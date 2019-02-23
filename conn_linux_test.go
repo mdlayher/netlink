@@ -69,7 +69,7 @@ func TestLinuxConnSend(t *testing.T) {
 	req := Message{
 		Header: Header{
 			Length:   uint32(nlmsgAlign(nlmsgLength(2))),
-			Flags:    HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags:    Request | Acknowledge,
 			Sequence: 1,
 			PID:      uint32(os.Getpid()),
 		},
@@ -138,7 +138,7 @@ func TestLinuxConnReceive(t *testing.T) {
 	req := Message{
 		Header: Header{
 			Length:   uint32(nlmsgAlign(nlmsgLength(4))),
-			Flags:    HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags:    Request | Acknowledge,
 			Sequence: 1,
 			PID:      uint32(os.Getpid()),
 		},

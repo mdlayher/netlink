@@ -37,7 +37,7 @@ func Multipart(msgs []netlink.Message) ([]netlink.Message, error) {
 			msgs[i].Header.Type = netlink.HeaderTypeDone
 		}
 
-		msgs[i].Header.Flags |= netlink.HeaderFlagsMulti
+		msgs[i].Header.Flags |= netlink.Multi
 	}
 
 	return msgs, nil
@@ -175,7 +175,7 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	// Detect multi-part messages.
 	var multi bool
 	for _, m := range c.msgs {
-		if m.Header.Flags&netlink.HeaderFlagsMulti != 0 && m.Header.Type != netlink.HeaderTypeDone {
+		if m.Header.Flags&netlink.Multi != 0 && m.Header.Type != netlink.HeaderTypeDone {
 			multi = true
 		}
 	}

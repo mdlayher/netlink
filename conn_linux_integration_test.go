@@ -27,7 +27,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	// error code (or success) and a copy of the payload we sent in
 	req := Message{
 		Header: Header{
-			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags: Request | Acknowledge,
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 
 		req := Message{
 			Header: Header{
-				Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+				Flags: Request | Acknowledge,
 			},
 		}
 
@@ -237,7 +237,7 @@ func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 
 	req := Message{
 		Header: Header{
-			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags: Request | Acknowledge,
 		},
 	}
 

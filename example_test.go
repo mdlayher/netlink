@@ -27,7 +27,7 @@ func ExampleConn_execute() {
 		Header: netlink.Header{
 			// Package netlink will automatically set header fields
 			// which are set to zero
-			Flags: netlink.HeaderFlagsRequest | netlink.HeaderFlagsAcknowledge,
+			Flags: netlink.Request | netlink.Acknowledge,
 		},
 	}
 

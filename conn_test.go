@@ -15,7 +15,7 @@ import (
 func TestConnExecute(t *testing.T) {
 	req := netlink.Message{
 		Header: netlink.Header{
-			Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsAcknowledge,
+			Flags:    netlink.Request | netlink.Acknowledge,
 			Sequence: 1,
 		},
 	}
@@ -115,7 +115,7 @@ func TestConnExecuteMultipart(t *testing.T) {
 		t.Fatalf("failed to receive messages: %v", err)
 	}
 
-	msg.Header.Flags |= netlink.HeaderFlagsMulti
+	msg.Header.Flags |= netlink.Multi
 
 	if want, got := []netlink.Message{msg}, msgs; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output messages from Conn.Receive:\n- want: %#v\n-  got: %#v",
