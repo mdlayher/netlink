@@ -7,9 +7,6 @@ MIT Licensed.
 For more information about how netlink works, check out my blog series
 on [Linux, Netlink, and Go](https://medium.com/@mdlayher/linux-netlink-and-go-part-1-netlink-4781aaeeaca8).
 
-If you're looking for package `genetlink`, it's been moved to its own
-repository at [`github.com/mdlayher/genetlink`](https://github.com/mdlayher/genetlink).
-
 Why?
 ----
 
@@ -17,11 +14,12 @@ A [number of netlink packages](https://godoc.org/?q=netlink) are already
 available for Go, but I wasn't able to find one that aligned with what
 I wanted in a netlink package:
 
-- Simple, idiomatic API
+- Straightforward, idiomatic API
 - Well tested
 - Well documented
-- Makes use of Go best practices
-- Doesn't need root to work
+- Doesn't use package/global variables or state
+- Doesn't necessarily need root to work
 
 My goal for this package is to use it as a building block for the creation
-of other netlink family packages.
+of other netlink family packages. For a list of these packages and others, see
+[the importers list on godoc.org](https://godoc.org/github.com/mdlayher/netlink?importers).
