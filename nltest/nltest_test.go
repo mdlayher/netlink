@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
 )
@@ -88,9 +89,14 @@ func TestConnReceiveError(t *testing.T) {
 	})
 	defer c.Close()
 
+	want := &netlink.OpError{
+		Op:  "receive",
+		Err: errFoo,
+	}
+
 	_, err := c.Receive()
-	if err != errFoo {
-		t.Fatalf("unexpected error: %v", err)
+	if diff := cmp.Diff(want.Error(), err.Error()); diff != "" {
+		t.Fatalf("unexpected error (-want +got):\n%s", diff)
 	}
 }
 
@@ -162,10 +168,14 @@ func TestConnExecuteError(t *testing.T) {
 	})
 	defer c.Close()
 
+	want := &netlink.OpError{
+		Op:  "receive",
+		Err: err,
+	}
+
 	_, got := c.Execute(netlink.Message{})
-	if want := err; want != got {
-		t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
-			want, got)
+	if diff := cmp.Diff(want.Error(), got.Error()); diff != "" {
+		t.Fatalf("unexpected error (-want +got):\n%s", diff)
 	}
 }
 

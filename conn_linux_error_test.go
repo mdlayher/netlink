@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	"github.com/mdlayher/netlink/nltest"
@@ -35,7 +36,10 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				// -2, little endian (ENOENT)
 				Data: []byte{0xfe, 0xff, 0xff, 0xff},
 			}},
-			err: unix.ENOENT,
+			err: &netlink.OpError{
+				Op:  "receive",
+				Err: unix.ENOENT,
+			},
 		},
 		{
 			name: "multipart done without error attached",
@@ -68,9 +72,8 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 
 			_, err := c.Receive()
 
-			if want, got := tt.err, err; want != got {
-				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
-					want, got)
+			if diff := cmp.Diff(tt.err, err); diff != "" {
+				t.Fatalf("unexpected error (-want +got):\n%s", diff)
 			}
 		})
 	}

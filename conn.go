@@ -12,25 +12,6 @@ import (
 	"golang.org/x/net/bpf"
 )
 
-// Error messages which can be returned by Validate.
-var (
-	errMismatchedSequence = errors.New("mismatched sequence in netlink reply")
-	errMismatchedPID      = errors.New("mismatched PID in netlink reply")
-	errShortErrorMessage  = errors.New("not enough data for netlink error code")
-)
-
-// Errors which can be returned by a Socket that does not implement
-// all exposed methods of Conn.
-var (
-	errReadWriteCloserNotSupported = errors.New("raw read/write/closer not supported")
-	errMulticastGroupsNotSupported = errors.New("multicast groups not supported")
-	errBPFFiltersNotSupported      = errors.New("BPF filters not supported")
-	errDeadlinesNotSupported       = errors.New("deadlines not supported")
-	errOptionsNotSupported         = errors.New("options not supported")
-	errSetBufferNotSupported       = errors.New("setting buffer sizes not supported")
-	errSyscallConnNotSupported     = errors.New("syscall.RawConn operation not supported")
-)
-
 // A Conn is a connection to netlink.  A Conn can be used to send and
 // receives messages to and from netlink.
 //
@@ -110,7 +91,14 @@ func (c *Conn) debug(fn func(d *debugger)) {
 
 // Close closes the connection.
 func (c *Conn) Close() error {
-	return c.sock.Close()
+	if err := c.sock.Close(); err != nil {
+		return &OpError{
+			Op:  "close",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // Execute sends a single Message to netlink using Conn.Send, receives one or more
@@ -177,7 +165,10 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 			d.debugf(1, "send msgs: err: %v", err)
 		})
 
-		return nil, err
+		return nil, &OpError{
+			Op:  "send-messages",
+			Err: err,
+		}
 	}
 
 	return messages, nil
@@ -215,7 +206,10 @@ func (c *Conn) Send(message Message) (Message, error) {
 			d.debugf(1, "send: err: %v", err)
 		})
 
-		return Message{}, err
+		return Message{}, &OpError{
+			Op:  "send",
+			Err: err,
+		}
 	}
 
 	return message, nil
@@ -258,12 +252,15 @@ func (c *Conn) Receive() ([]Message, error) {
 
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
-func (c *Conn) receive() ([]Message, error) {
+func (c *Conn) receive() ([]Message, *OpError) {
 	var res []Message
 	for {
 		msgs, err := c.sock.Receive()
 		if err != nil {
-			return nil, err
+			return nil, &OpError{
+				Op:  "receive",
+				Err: err,
+			}
 		}
 
 		// If this message is multi-part, we will need to perform an recursive call
@@ -328,13 +325,13 @@ func (rwc *fileReadWriteCloser) Close() error { return rwc.f.Close() }
 // performed using Conn and the raw io.ReadWriteCloser do not conflict with
 // each other.  In almost all scenarios, only one of the two should be used.
 func (c *Conn) ReadWriteCloser() (io.ReadWriteCloser, error) {
-	fc, ok := c.sock.(filer)
+	conn, ok := c.sock.(filer)
 	if !ok {
-		return nil, errReadWriteCloserNotSupported
+		return nil, notSupported("read-write-closer")
 	}
 
 	return &fileReadWriteCloser{
-		f: fc.File(),
+		f: conn.File(),
 	}, nil
 }
 
@@ -348,22 +345,36 @@ type groupJoinLeaver interface {
 
 // JoinGroup joins a netlink multicast group by its ID.
 func (c *Conn) JoinGroup(group uint32) error {
-	gc, ok := c.sock.(groupJoinLeaver)
+	conn, ok := c.sock.(groupJoinLeaver)
 	if !ok {
-		return errMulticastGroupsNotSupported
+		return notSupported("join-group")
 	}
 
-	return gc.JoinGroup(group)
+	if err := conn.JoinGroup(group); err != nil {
+		return &OpError{
+			Op:  "join-group",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // LeaveGroup leaves a netlink multicast group by its ID.
 func (c *Conn) LeaveGroup(group uint32) error {
-	gc, ok := c.sock.(groupJoinLeaver)
+	conn, ok := c.sock.(groupJoinLeaver)
 	if !ok {
-		return errMulticastGroupsNotSupported
+		return notSupported("leave-group")
 	}
 
-	return gc.LeaveGroup(group)
+	if err := conn.LeaveGroup(group); err != nil {
+		return &OpError{
+			Op:  "leave-group",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // A bpfSetter is a Socket that supports setting and removing BPF filters.
@@ -375,22 +386,36 @@ type bpfSetter interface {
 
 // SetBPF attaches an assembled BPF program to a Conn.
 func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
-	bc, ok := c.sock.(bpfSetter)
+	conn, ok := c.sock.(bpfSetter)
 	if !ok {
-		return errBPFFiltersNotSupported
+		return notSupported("set-bpf")
 	}
 
-	return bc.SetBPF(filter)
+	if err := conn.SetBPF(filter); err != nil {
+		return &OpError{
+			Op:  "set-bpf",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // RemoveBPF removes a BPF filter from a Conn.
 func (c *Conn) RemoveBPF() error {
-	s, ok := c.sock.(bpfSetter)
+	conn, ok := c.sock.(bpfSetter)
 	if !ok {
-		return errBPFFiltersNotSupported
+		return notSupported("remove-bpf")
 	}
 
-	return s.RemoveBPF()
+	if err := conn.RemoveBPF(); err != nil {
+		return &OpError{
+			Op:  "remove-bpf",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // A deadlineSetter is a Socket that supports setting deadlines.
@@ -406,12 +431,19 @@ type deadlineSetter interface {
 // Deadline functionality is only supported on Go 1.12+. Calling this function
 // on older versions of Go will result in an error.
 func (c *Conn) SetDeadline(t time.Time) error {
-	s, ok := c.sock.(deadlineSetter)
+	conn, ok := c.sock.(deadlineSetter)
 	if !ok {
-		return errDeadlinesNotSupported
+		return notSupported("set-deadline")
 	}
 
-	return s.SetDeadline(t)
+	if err := conn.SetDeadline(t); err != nil {
+		return &OpError{
+			Op:  "set-deadline",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // SetReadDeadline sets the read deadline associated with the connection.
@@ -419,12 +451,19 @@ func (c *Conn) SetDeadline(t time.Time) error {
 // Deadline functionality is only supported on Go 1.12+. Calling this function
 // on older versions of Go will result in an error.
 func (c *Conn) SetReadDeadline(t time.Time) error {
-	s, ok := c.sock.(deadlineSetter)
+	conn, ok := c.sock.(deadlineSetter)
 	if !ok {
-		return errDeadlinesNotSupported
+		return notSupported("set-read-deadline")
 	}
 
-	return s.SetReadDeadline(t)
+	if err := conn.SetReadDeadline(t); err != nil {
+		return &OpError{
+			Op:  "set-read-deadline",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // SetWriteDeadline sets the write deadline associated with the connection.
@@ -432,12 +471,19 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 // Deadline functionality is only supported on Go 1.12+. Calling this function
 // on older versions of Go will result in an error.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
-	s, ok := c.sock.(deadlineSetter)
+	conn, ok := c.sock.(deadlineSetter)
 	if !ok {
-		return errDeadlinesNotSupported
+		return notSupported("set-write-deadline")
 	}
 
-	return s.SetWriteDeadline(t)
+	if err := conn.SetWriteDeadline(t); err != nil {
+		return &OpError{
+			Op:  "set-write-deadline",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // A ConnOption is a boolean option that may be set for a Conn.
@@ -461,12 +507,19 @@ type optionSetter interface {
 
 // SetOption enables or disables a netlink socket option for the Conn.
 func (c *Conn) SetOption(option ConnOption, enable bool) error {
-	fc, ok := c.sock.(optionSetter)
+	conn, ok := c.sock.(optionSetter)
 	if !ok {
-		return errOptionsNotSupported
+		return notSupported("set-option")
 	}
 
-	return fc.SetOption(option, enable)
+	if err := conn.SetOption(option, enable); err != nil {
+		return &OpError{
+			Op:  "set-option",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // A bufferSetter is a Socket that supports setting connection buffer sizes.
@@ -481,10 +534,17 @@ type bufferSetter interface {
 func (c *Conn) SetReadBuffer(bytes int) error {
 	conn, ok := c.sock.(bufferSetter)
 	if !ok {
-		return errSetBufferNotSupported
+		return notSupported("set-read-buffer")
 	}
 
-	return conn.SetReadBuffer(bytes)
+	if err := conn.SetReadBuffer(bytes); err != nil {
+		return &OpError{
+			Op:  "set-read-buffer",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // SetWriteBuffer sets the size of the operating system's transmit buffer
@@ -492,10 +552,17 @@ func (c *Conn) SetReadBuffer(bytes int) error {
 func (c *Conn) SetWriteBuffer(bytes int) error {
 	conn, ok := c.sock.(bufferSetter)
 	if !ok {
-		return errSetBufferNotSupported
+		return notSupported("set-write-buffer")
 	}
 
-	return conn.SetWriteBuffer(bytes)
+	if err := conn.SetWriteBuffer(bytes); err != nil {
+		return &OpError{
+			Op:  "set-write-buffer",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 var _ syscall.Conn = &Conn{}
@@ -520,7 +587,7 @@ var _ syscall.Conn = &Conn{}
 func (c *Conn) SyscallConn() (syscall.RawConn, error) {
 	fc, ok := c.sock.(filer)
 	if !ok {
-		return nil, errSyscallConnNotSupported
+		return nil, notSupported("syscall-conn")
 	}
 
 	return newRawConn(fc.File())
@@ -540,7 +607,10 @@ func Validate(request Message, replies []Message) error {
 		//   - request had no sequence, meaning we are probably validating
 		//     a multicast reply
 		if m.Header.Sequence != request.Header.Sequence && request.Header.Sequence != 0 {
-			return errMismatchedSequence
+			return &OpError{
+				Op:  "validate",
+				Err: errMismatchedSequence,
+			}
 		}
 
 		// Check for mismatched PID, unless:
@@ -549,7 +619,10 @@ func Validate(request Message, replies []Message) error {
 		//     - netlink has not yet assigned us a PID
 		//   - response had no PID, meaning it's from the kernel as a multicast reply
 		if m.Header.PID != request.Header.PID && request.Header.PID != 0 && m.Header.PID != 0 {
-			return errMismatchedPID
+			return &OpError{
+				Op:  "validate",
+				Err: errMismatchedPID,
+			}
 		}
 	}
 

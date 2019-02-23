@@ -448,8 +448,25 @@ func TestValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := Validate(tt.req, tt.rep)
+			if err == nil {
+				if tt.err != nil {
+					t.Fatal("expected an error, but none occurred")
+				}
 
-			if want, got := tt.err, err; want != got {
+				return
+			}
+
+			oerr, ok := err.(*OpError)
+			if !ok {
+				t.Fatalf("unexpected validate error type: %#v", err)
+			}
+
+			if want, got := "validate", oerr.Op; want != got {
+				t.Fatalf("unexpected op:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+
+			if want, got := tt.err, oerr.Err; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}

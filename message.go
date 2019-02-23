@@ -225,7 +225,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 }
 
 // checkMessage checks a single Message for netlink errors.
-func checkMessage(m Message) error {
+func checkMessage(m Message) *OpError {
 	const success = 0
 
 	// Per libnl documentation, only messages that indicate type error can
@@ -242,13 +242,19 @@ func checkMessage(m Message) error {
 	}
 
 	if len(m.Data) < 4 {
-		return errShortErrorMessage
+		return &OpError{
+			Op:  "receive",
+			Err: errShortErrorMessage,
+		}
 	}
 
 	if c := nlenc.Int32(m.Data[0:4]); c != success {
 		// Error code is a negative integer, convert it into
 		// an OS-specific system call error
-		return newError(-1 * int(c))
+		return &OpError{
+			Op:  "receive",
+			Err: newError(-1 * int(c)),
+		}
 	}
 
 	return nil
