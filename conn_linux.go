@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/net/bpf"
@@ -22,6 +23,8 @@ var (
 
 var _ Socket = &conn{}
 
+var _ deadlineSetter = &conn{}
+
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
 	s  socket
@@ -33,9 +36,13 @@ type socket interface {
 	Bind(sa unix.Sockaddr) error
 	Close() error
 	FD() int
+	File() *os.File
 	Getsockname() (unix.Sockaddr, error)
 	Recvmsg(p, oob []byte, flags int) (n int, oobn int, recvflags int, from unix.Sockaddr, err error)
 	Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error
+	SetDeadline(t time.Time) error
+	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
 	SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error
 	SetSockoptInt(level, opt, value int) error
 }
@@ -197,6 +204,11 @@ func (c *conn) FD() int {
 	return c.s.FD()
 }
 
+// File retrieves the *os.File associated with the Conn.
+func (c *conn) File() *os.File {
+	return c.s.File()
+}
+
 // JoinGroup joins a multicast group by ID.
 func (c *conn) JoinGroup(group uint32) error {
 	return c.s.SetSockoptInt(
@@ -259,6 +271,18 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 	)
 }
 
+func (c *conn) SetDeadline(t time.Time) error {
+	return c.s.SetDeadline(t)
+}
+
+func (c *conn) SetReadDeadline(t time.Time) error {
+	return c.s.SetReadDeadline(t)
+}
+
+func (c *conn) SetWriteDeadline(t time.Time) error {
+	return c.s.SetWriteDeadline(t)
+}
+
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error {
@@ -314,120 +338,85 @@ var _ socket = &sysSocket{}
 
 // A sysSocket is a socket which uses system calls for socket operations.
 type sysSocket struct {
-	fd int
-
-	wg    *sync.WaitGroup
-	funcC chan<- func()
-
-	mu sync.RWMutex
-
-	done  bool
-	doneC chan<- bool
+	mu     sync.RWMutex
+	fd     *os.File
+	closed bool
+	g      *lockedNetNSGoroutine
 }
 
 // newSysSocket creates a sysSocket that optionally locks its internal goroutine
 // to a single thread.
 func newSysSocket(config *Config) (*sysSocket, error) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// This system call loop strategy was inspired by:
-	// https://github.com/golang/go/wiki/LockOSThread.  Thanks to squeed on
-	// Gophers Slack for providing this useful link.
-
-	funcC := make(chan func())
-	doneC := make(chan bool)
-	errC := make(chan error)
-
-	go func() {
-		// It is important to lock this goroutine to its OS thread for the duration
-		// of the netlink socket being used, or else the kernel may end up routing
-		// messages to the wrong places.
-		// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
-		//
-		// The intent is to never unlock the OS thread, so that the thread
-		// will terminate when the goroutine exits starting in Go 1.10:
-		// https://go-review.googlesource.com/c/go/+/46038.
-		//
-		// However, due to recent instability and a potential bad interaction
-		// with the Go runtime for threads which are not unlocked, we have
-		// elected to temporarily unlock the thread when the goroutine terminates:
-		// https://github.com/golang/go/issues/25128#issuecomment-410764489.
-
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-		defer wg.Done()
-
-		// The user requested the Conn to operate in a non-default network namespace.
-		if config.NetNS != 0 {
-
-			// Get the current namespace of the thread the goroutine is locked to.
-			origNetNS, err := getThreadNetNS()
-			if err != nil {
-				errC <- err
-				return
-			}
-
-			// Set the network namespace of the current thread using
-			// the file descriptor provided by the user.
-			err = setThreadNetNS(config.NetNS)
-			if err != nil {
-				errC <- err
-				return
-			}
-
-			// Once the thread's namespace has been successfully manipulated,
-			// make sure we change it back when the goroutine returns.
-			defer setThreadNetNS(origNetNS)
-		}
-
-		// Signal to caller that initialization was successful.
-		errC <- nil
-
-		for {
-			select {
-			case <-doneC:
-				return
-			case f := <-funcC:
-				f()
-			}
-		}
-	}()
-
-	// Wait for the goroutine to return err or nil.
-	if err := <-errC; err != nil {
+	g, err := newLockedNetNSGoroutine(config.NetNS)
+	if err != nil {
 		return nil, err
 	}
-
 	return &sysSocket{
-		wg:    &wg,
-		funcC: funcC,
-		doneC: doneC,
+		g: g,
 	}, nil
 }
 
 // do runs f in a worker goroutine which can be locked to one thread.
 func (s *sysSocket) do(f func()) error {
-	done := make(chan bool, 1)
-
 	// All operations handled by this function are assumed to only
 	// read from s.done.
 	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	if s.done {
-		s.mu.RUnlock()
+	if s.closed {
 		return syscall.EBADF
 	}
 
-	s.funcC <- func() {
-		f()
-		done <- true
-	}
-	<-done
-
-	s.mu.RUnlock()
-
+	s.g.run(f)
 	return nil
+}
+
+// read executes f, a read function, against the associated file descriptor.
+func (s *sysSocket) read(f func(fd int) bool) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return syscall.EBADF
+	}
+
+	var err error
+	s.g.run(func() {
+		err = fdread(s.fd, f)
+	})
+	return err
+}
+
+// write executes f, a write function, against the associated file descriptor.
+func (s *sysSocket) write(f func(fd int) bool) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return syscall.EBADF
+	}
+
+	var err error
+	s.g.run(func() {
+		err = fdwrite(s.fd, f)
+	})
+	return err
+}
+
+// control executes f, a control function, against the associated file descriptor.
+func (s *sysSocket) control(f func(fd int)) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return syscall.EBADF
+	}
+
+	var err error
+	s.g.run(func() {
+		err = fdcontrol(s.fd, f)
+	})
+	return err
 }
 
 func (s *sysSocket) Socket(family int) error {
@@ -450,14 +439,24 @@ func (s *sysSocket) Socket(family int) error {
 		return err
 	}
 
-	s.fd = fd
+	if err := setBlockingMode(fd); err != nil {
+		return err
+	}
+
+	// When using Go 1.12+, the setBlockingMode call we just did puts the
+	// file descriptor into non-blocking mode. In that case, os.NewFile
+	// registers the file descriptor with the runtime poller, which is
+	// then used for all subsequent operations.
+	//
+	// See also: https://golang.org/pkg/os/#NewFile
+	s.fd = os.NewFile(uintptr(fd), "netlink")
 	return nil
 }
 
 func (s *sysSocket) Bind(sa unix.Sockaddr) error {
 	var err error
-	doErr := s.do(func() {
-		err = unix.Bind(s.fd, sa)
+	doErr := s.control(func(fd int) {
+		err = unix.Bind(fd, sa)
 	})
 	if doErr != nil {
 		return doErr
@@ -477,19 +476,18 @@ func (s *sysSocket) Close() error {
 
 	// Close the socket from the main thread, this operation has no risk
 	// of routing data to the wrong socket.
-	err := unix.Close(s.fd)
-	s.done = true
+	err := s.fd.Close()
+	s.closed = true
 
-	// Signal the syscall worker to exit, wait for the WaitGroup to join,
-	// and close the job channel only when the worker is guaranteed to have stopped.
-	close(s.doneC)
-	s.wg.Wait()
-	close(s.funcC)
+	// Stop the associated goroutine and wait for it to return.
+	s.g.stop()
 
 	return err
 }
 
-func (s *sysSocket) FD() int { return s.fd }
+func (s *sysSocket) FD() int { return int(s.fd.Fd()) }
+
+func (s *sysSocket) File() *os.File { return s.fd }
 
 func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
 	var (
@@ -497,8 +495,8 @@ func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
 		err error
 	)
 
-	doErr := s.do(func() {
-		sa, err = unix.Getsockname(s.fd)
+	doErr := s.control(func(fd int) {
+		sa, err = unix.Getsockname(fd)
 	})
 	if doErr != nil {
 		return nil, doErr
@@ -514,8 +512,16 @@ func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Socka
 		err                error
 	)
 
-	doErr := s.do(func() {
-		n, oobn, recvflags, from, err = unix.Recvmsg(s.fd, p, oob, flags)
+	doErr := s.read(func(fd int) bool {
+		n, oobn, recvflags, from, err = unix.Recvmsg(fd, p, oob, flags)
+
+		// When the socket is in non-blocking mode, we might see
+		// EAGAIN and end up here. In that case, return false to
+		// let the poller wait for readiness. See the source code
+		// for internal/poll.FD.RawRead for more details.
+		//
+		// If the socket is in blocking mode, EAGAIN should never occur.
+		return err != syscall.EAGAIN
 	})
 	if doErr != nil {
 		return 0, 0, 0, nil, doErr
@@ -526,14 +532,29 @@ func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Socka
 
 func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	var err error
-	doErr := s.do(func() {
-		err = unix.Sendmsg(s.fd, p, oob, to, flags)
+	doErr := s.write(func(fd int) bool {
+		err = unix.Sendmsg(fd, p, oob, to, flags)
+
+		// Analogous to Recvmsg. See the comments there.
+		return err != syscall.EAGAIN
 	})
 	if doErr != nil {
 		return doErr
 	}
 
 	return err
+}
+
+func (s *sysSocket) SetDeadline(t time.Time) error {
+	return s.fd.SetDeadline(t)
+}
+
+func (s *sysSocket) SetReadDeadline(t time.Time) error {
+	return s.fd.SetReadDeadline(t)
+}
+
+func (s *sysSocket) SetWriteDeadline(t time.Time) error {
+	return s.fd.SetWriteDeadline(t)
 }
 
 func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
@@ -543,8 +564,8 @@ func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	var err error
-	doErr := s.do(func() {
-		err = unix.SetsockoptInt(s.fd, level, opt, int(value))
+	doErr := s.control(func(fd int) {
+		err = unix.SetsockoptInt(fd, level, opt, value)
 	})
 	if doErr != nil {
 		return doErr
@@ -555,12 +576,111 @@ func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
 
 func (s *sysSocket) SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error {
 	var err error
-	doErr := s.do(func() {
-		err = unix.SetsockoptSockFprog(s.fd, level, opt, fprog)
+	doErr := s.control(func(fd int) {
+		err = unix.SetsockoptSockFprog(fd, level, opt, fprog)
 	})
 	if doErr != nil {
 		return doErr
 	}
 
 	return err
+}
+
+// lockedNetNSGoroutine is a worker goroutine locked to an operating system
+// thread, optionally configured to run in a non-default network namespace.
+type lockedNetNSGoroutine struct {
+	wg    sync.WaitGroup
+	doneC chan struct{}
+	funcC chan func()
+}
+
+func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
+	g := &lockedNetNSGoroutine{
+		doneC: make(chan struct{}),
+		funcC: make(chan func()),
+	}
+
+	errC := make(chan error)
+	g.wg.Add(1)
+
+	go func() {
+		// It is important to lock this goroutine to its OS thread for the duration
+		// of the netlink socket being used, or else the kernel may end up routing
+		// messages to the wrong places.
+		// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
+		//
+		// The intent is to never unlock the OS thread, so that the thread
+		// will terminate when the goroutine exits starting in Go 1.10:
+		// https://go-review.googlesource.com/c/go/+/46038.
+		//
+		// However, due to recent instability and a potential bad interaction
+		// with the Go runtime for threads which are not unlocked, we have
+		// elected to temporarily unlock the thread when the goroutine terminates:
+		// https://github.com/golang/go/issues/25128#issuecomment-410764489.
+
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		defer g.wg.Done()
+
+		// The user requested the Conn to operate in a non-default network namespace.
+		if netNS != 0 {
+
+			// Get the current namespace of the thread the goroutine is locked to.
+			origNetNS, err := getThreadNetNS()
+			if err != nil {
+				errC <- err
+				return
+			}
+
+			// Set the network namespace of the current thread using
+			// the file descriptor provided by the user.
+			err = setThreadNetNS(netNS)
+			if err != nil {
+				errC <- err
+				return
+			}
+
+			// Once the thread's namespace has been successfully manipulated,
+			// make sure we change it back when the goroutine returns.
+			defer setThreadNetNS(origNetNS)
+		}
+
+		// Signal to caller that initialization was successful.
+		errC <- nil
+
+		for {
+			select {
+			case <-g.doneC:
+				return
+			case f := <-g.funcC:
+				f()
+			}
+		}
+	}()
+
+	// Wait for the goroutine to return err or nil.
+	if err := <-errC; err != nil {
+		return nil, err
+	}
+
+	return g, nil
+}
+
+// stop signals the goroutine to stop and blocks until it does.
+//
+// It is invalid to call run concurrently with stop. It is also invalid to
+// call run after stop has returned.
+func (g *lockedNetNSGoroutine) stop() {
+	close(g.doneC)
+	g.wg.Wait()
+}
+
+// run runs f on the worker goroutine.
+func (g *lockedNetNSGoroutine) run(f func()) {
+	done := make(chan struct{})
+	g.funcC <- func() {
+		defer close(done)
+		f()
+	}
+	<-done
 }

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
@@ -204,6 +205,16 @@ func TestConnSetBPFUnsupported(t *testing.T) {
 	defer c.Close()
 
 	err := c.SetBPF(nil)
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConnSetDeadlineUnsupported(t *testing.T) {
+	c := nltest.Dial(nil)
+	defer c.Close()
+
+	err := c.SetDeadline(time.Now())
 	if !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("unexpected error: %v", err)
 	}

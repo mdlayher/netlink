@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -420,6 +421,34 @@ func TestLinuxConnSetOption(t *testing.T) {
 	}
 }
 
+func TestLinuxConnSetDeadlines(t *testing.T) {
+	c, s := testLinuxConn(t, nil)
+
+	rwd := time.Now().Add(1 * time.Second)
+	if err := c.SetDeadline(rwd); err != nil {
+		t.Fatalf("failed to set deadline: %v", err)
+	}
+	if !s.deadline.Equal(rwd) {
+		t.Fatalf("set deadline %v, want %v", s.deadline, rwd)
+	}
+
+	rd := time.Now().Add(2 * time.Second)
+	if err := c.SetReadDeadline(rd); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+	if !s.readDeadline.Equal(rd) {
+		t.Fatalf("set read deadline to %v, want %v", s.readDeadline, rd)
+	}
+
+	wd := time.Now().Add(1 * time.Second)
+	if err := c.SetWriteDeadline(wd); err != nil {
+		t.Fatalf("failed to set write deadline: %v", err)
+	}
+	if !s.writeDeadline.Equal(wd) {
+		t.Fatalf("set write deadline to %v, want %v", s.writeDeadline, wd)
+	}
+}
+
 func TestLinuxConnSetBuffers(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
@@ -518,7 +547,10 @@ type testSocket struct {
 		recvflags int
 		from      unix.Sockaddr
 	}
-	setSockopt []setSockopt
+	deadline      time.Time
+	readDeadline  time.Time
+	writeDeadline time.Time
+	setSockopt    []setSockopt
 }
 
 type setSockopt struct {
@@ -538,6 +570,8 @@ func (s *testSocket) Close() error {
 }
 
 func (s *testSocket) FD() int { return 0 }
+
+func (s *testSocket) File() *os.File { return nil }
 
 func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
 	if s.getsockname == nil {
@@ -560,6 +594,21 @@ func (s *testSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	s.sendmsg.oob = oob
 	s.sendmsg.to = to
 	s.sendmsg.flags = flags
+	return nil
+}
+
+func (s *testSocket) SetDeadline(t time.Time) error {
+	s.deadline = t
+	return nil
+}
+
+func (s *testSocket) SetReadDeadline(t time.Time) error {
+	s.readDeadline = t
+	return nil
+}
+
+func (s *testSocket) SetWriteDeadline(t time.Time) error {
+	s.writeDeadline = t
 	return nil
 }
 
