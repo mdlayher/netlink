@@ -19,63 +19,63 @@ func TestHeaderFlagsString(t *testing.T) {
 			s: "0",
 		},
 		{
-			f: HeaderFlagsRequest,
+			f: Request,
 			s: "request",
 		},
 		{
-			f: HeaderFlagsMulti,
+			f: Multi,
 			s: "multi",
 		},
 		{
-			f: HeaderFlagsEcho,
+			f: Echo,
 			s: "echo",
 		},
 		{
-			f: HeaderFlagsDumpInterrupted,
+			f: DumpInterrupted,
 			s: "dumpinterrupted",
 		},
 		{
-			f: HeaderFlagsDumpFiltered,
+			f: DumpFiltered,
 			s: "dumpfiltered",
 		},
 		{
-			f: HeaderFlagsRoot,
+			f: Root,
 			s: "0x100",
 		},
 		{
-			f: HeaderFlagsReplace,
+			f: Replace,
 			s: "0x100",
 		},
 		{
-			f: HeaderFlagsMatch,
+			f: Match,
 			s: "0x200",
 		},
 		{
-			f: HeaderFlagsExcl,
+			f: Excl,
 			s: "0x200",
 		},
 		{
-			f: HeaderFlagsAtomic,
+			f: Atomic,
 			s: "0x400",
 		},
 		{
-			f: HeaderFlagsCreate,
+			f: Create,
 			s: "0x400",
 		},
 		{
-			f: HeaderFlagsAppend,
+			f: Append,
 			s: "0x800",
 		},
 		{
-			f: HeaderFlagsDump,
+			f: Dump,
 			s: "0x300",
 		},
 		{
-			f: HeaderFlagsRequest | HeaderFlagsDump,
+			f: Request | Dump,
 			s: "request|0x300",
 		},
 		{
-			f: HeaderFlagsRequest | HeaderFlagsAcknowledge | HeaderFlagsCreate | HeaderFlagsReplace,
+			f: Request | Acknowledge | Create | Replace,
 			s: "request|acknowledge|0x500",
 		},
 	}
@@ -100,19 +100,19 @@ func TestHeaderTypeString(t *testing.T) {
 			s: "unknown(0)",
 		},
 		{
-			t: HeaderTypeNoop,
+			t: Noop,
 			s: "noop",
 		},
 		{
-			t: HeaderTypeError,
+			t: Error,
 			s: "error",
 		},
 		{
-			t: HeaderTypeDone,
+			t: Done,
 			s: "done",
 		},
 		{
-			t: HeaderTypeOverrun,
+			t: Overrun,
 			s: "overrun",
 		},
 	}
@@ -179,7 +179,7 @@ func TestMessageMarshal(t *testing.T) {
 			m: Message{
 				Header: Header{
 					Length:   20,
-					Flags:    HeaderFlagsRequest,
+					Flags:    Request,
 					Sequence: 1,
 					PID:      10,
 				},
@@ -199,7 +199,7 @@ func TestMessageMarshal(t *testing.T) {
 			m: Message{
 				Header: Header{
 					Length:   20,
-					Type:     HeaderTypeError,
+					Type:     Error,
 					Sequence: 2,
 					PID:      20,
 				},
@@ -288,7 +288,7 @@ func TestMessageUnmarshal(t *testing.T) {
 			m: Message{
 				Header: Header{
 					Length:   20,
-					Type:     HeaderTypeError,
+					Type:     Error,
 					Sequence: 2,
 					PID:      20,
 				},

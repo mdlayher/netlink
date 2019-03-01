@@ -27,7 +27,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	// error code (or success) and a copy of the payload we sent in
 	req := Message{
 		Header: Header{
-			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags: Request | Acknowledge,
 		},
 	}
 
@@ -54,7 +54,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := 36, int(m.Header.Length); want != got {
 		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := HeaderTypeError, m.Header.Type; want != got {
+	if want, got := Error, m.Header.Type; want != got {
 		t.Fatalf("unexpected header type:\n- want: %v\n-  got: %v", want, got)
 	}
 	// Recent kernel versions (> 4.14) return a 256 here instead of a 0
@@ -92,7 +92,7 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 
 		req := Message{
 			Header: Header{
-				Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+				Flags: Request | Acknowledge,
 			},
 		}
 
@@ -237,7 +237,7 @@ func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 
 	req := Message{
 		Header: Header{
-			Flags: HeaderFlagsRequest | HeaderFlagsAcknowledge,
+			Flags: Request | Acknowledge,
 		},
 	}
 
