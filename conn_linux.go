@@ -442,6 +442,13 @@ func (s *sysSocket) Socket(family int) error {
 	if err := setBlockingMode(fd); err != nil {
 		return err
 	}
+
+	// When using Go 1.12+, the setBlockingMode call we just did puts the
+	// file descriptor into non-blocking mode. In that case, os.NewFile
+	// registers the file descriptor with the runtime poller, which is
+	// then used for all subsequent operations.
+	//
+	// See also: https://golang.org/pkg/os/#NewFile
 	s.fd = os.NewFile(uintptr(fd), "netlink")
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// setBlockingMode puts the file descriptor into non-blocking mode.
 func setBlockingMode(sysfd int) error {
 	return unix.SetNonblock(sysfd, true)
 }

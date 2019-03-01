@@ -23,7 +23,5 @@ func (rc *rawConn) Control(f func(fd uintptr)) error {
 	return nil
 }
 
-// TODO(mdlayher): implement Read and Write?
-
 func (rc *rawConn) Read(_ func(fd uintptr) (done bool)) error  { return errSyscallConnNotSupported }
 func (rc *rawConn) Write(_ func(fd uintptr) (done bool)) error { return errSyscallConnNotSupported }

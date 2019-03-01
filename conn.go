@@ -402,6 +402,9 @@ type deadlineSetter interface {
 }
 
 // SetDeadline sets the read and write deadlines associated with the connection.
+//
+// Deadline functionality is only supported on Go 1.12+. Calling this function
+// on older versions of Go will result in an error.
 func (c *Conn) SetDeadline(t time.Time) error {
 	s, ok := c.sock.(deadlineSetter)
 	if !ok {
@@ -412,6 +415,9 @@ func (c *Conn) SetDeadline(t time.Time) error {
 }
 
 // SetReadDeadline sets the read deadline associated with the connection.
+//
+// Deadline functionality is only supported on Go 1.12+. Calling this function
+// on older versions of Go will result in an error.
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	s, ok := c.sock.(deadlineSetter)
 	if !ok {
@@ -422,6 +428,9 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 }
 
 // SetWriteDeadline sets the write deadline associated with the connection.
+//
+// Deadline functionality is only supported on Go 1.12+. Calling this function
+// on older versions of Go will result in an error.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	s, ok := c.sock.(deadlineSetter)
 	if !ok {
