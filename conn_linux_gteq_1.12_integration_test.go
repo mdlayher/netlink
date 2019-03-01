@@ -53,7 +53,7 @@ func TestLinuxConnIntegrationExecuteAfterReadDeadline(t *testing.T) {
 
 	req := netlink.Message{
 		Header: netlink.Header{
-			Flags:    netlink.HeaderFlagsRequest | netlink.HeaderFlagsAcknowledge,
+			Flags:    netlink.Request | netlink.Acknowledge,
 			Sequence: 1,
 		},
 	}
