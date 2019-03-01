@@ -421,6 +421,34 @@ func TestLinuxConnSetOption(t *testing.T) {
 	}
 }
 
+func TestLinuxConnSetDeadlines(t *testing.T) {
+	c, s := testLinuxConn(t, nil)
+
+	rwd := time.Now().Add(1 * time.Second)
+	if err := c.SetDeadline(rwd); err != nil {
+		t.Fatalf("failed to set deadline: %v", err)
+	}
+	if !s.deadline.Equal(rwd) {
+		t.Fatalf("set deadline %v, want %v", s.deadline, rwd)
+	}
+
+	rd := time.Now().Add(2 * time.Second)
+	if err := c.SetReadDeadline(rd); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+	if !s.readDeadline.Equal(rd) {
+		t.Fatalf("set read deadline to %v, want %v", s.readDeadline, rd)
+	}
+
+	wd := time.Now().Add(1 * time.Second)
+	if err := c.SetWriteDeadline(wd); err != nil {
+		t.Fatalf("failed to set write deadline: %v", err)
+	}
+	if !s.writeDeadline.Equal(wd) {
+		t.Fatalf("set write deadline to %v, want %v", s.writeDeadline, wd)
+	}
+}
+
 func TestLinuxConnSetBuffers(t *testing.T) {
 	c, s := testLinuxConn(t, nil)
 
@@ -519,7 +547,6 @@ type testSocket struct {
 		recvflags int
 		from      unix.Sockaddr
 	}
-	// TODO(acln): use these next three fields in tests
 	deadline      time.Time
 	readDeadline  time.Time
 	writeDeadline time.Time
