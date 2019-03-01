@@ -3,6 +3,7 @@ package netlink
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 )
 
@@ -48,6 +49,7 @@ func IsNotExist(err error) bool {
 }
 
 var _ error = &OpError{}
+var _ net.Error = &OpError{}
 
 // An OpError is an error produced as the result of a failed netlink operation.
 type OpError struct {
@@ -65,4 +67,38 @@ func (e *OpError) Error() string {
 	}
 
 	return fmt.Sprintf("netlink %q: %v", e.Op, e.Err)
+}
+
+// Portions of this code taken from the Go standard library:
+//
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+type timeout interface {
+	Timeout() bool
+}
+
+// Timeout reports whether the error was caused by an I/O timeout.
+func (e *OpError) Timeout() bool {
+	if ne, ok := e.Err.(*os.SyscallError); ok {
+		t, ok := ne.Err.(timeout)
+		return ok && t.Timeout()
+	}
+	t, ok := e.Err.(timeout)
+	return ok && t.Timeout()
+}
+
+type temporary interface {
+	Temporary() bool
+}
+
+// Temporary reports whether an operation may succeed if retried.
+func (e *OpError) Temporary() bool {
+	if ne, ok := e.Err.(*os.SyscallError); ok {
+		t, ok := ne.Err.(temporary)
+		return ok && t.Temporary()
+	}
+	t, ok := e.Err.(temporary)
+	return ok && t.Temporary()
 }
