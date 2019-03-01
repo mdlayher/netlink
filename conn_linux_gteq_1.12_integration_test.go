@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/mdlayher/netlink"
+
+	"golang.org/x/sys/unix"
 )
 
-func TestConnReadTimeout(t *testing.T) {
-	const family = 16 // NETLINK_GENERIC
-	conn, err := netlink.Dial(family, nil)
+func TestLinuxConnIntegrationTimeout(t *testing.T) {
+	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
@@ -37,9 +38,8 @@ func TestConnReadTimeout(t *testing.T) {
 	}
 }
 
-func TestConnExecuteAfterReadDeadline(t *testing.T) {
-	const family = 16 // NETLINK_GENERIC
-	conn, err := netlink.Dial(family, nil)
+func TestLinuxConnIntegrationExecuteAfterReadDeadline(t *testing.T) {
+	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
