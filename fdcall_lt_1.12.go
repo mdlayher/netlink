@@ -2,10 +2,7 @@
 
 package netlink
 
-import (
-	"os"
-	"syscall"
-)
+import "os"
 
 func setBlockingMode(sysfd int) error {
 	return nil
