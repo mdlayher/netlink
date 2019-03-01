@@ -225,7 +225,11 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 }
 
 // checkMessage checks a single Message for netlink errors.
-func checkMessage(m Message) *OpError {
+func checkMessage(m Message) error {
+	// NB: All non-nil errors returned from this function *must* be of type
+	// OpError in order to maintain the appropriate contract with callers of
+	// this package.
+
 	const success = 0
 
 	// Per libnl documentation, only messages that indicate type error can

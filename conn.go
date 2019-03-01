@@ -252,7 +252,14 @@ func (c *Conn) Receive() ([]Message, error) {
 
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
-func (c *Conn) receive() ([]Message, *OpError) {
+func (c *Conn) receive() ([]Message, error) {
+	// NB: All non-nil errors returned from this function *must* be of type
+	// OpError in order to maintain the appropriate contract with callers of
+	// this package.
+	//
+	// This contract also applies to functions called within this function,
+	// such as checkMessage.
+
 	var res []Message
 	for {
 		msgs, err := c.sock.Receive()
