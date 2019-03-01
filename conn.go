@@ -506,8 +506,10 @@ var _ syscall.Conn = &Conn{}
 // SyscallConn returns a raw network connection. This implements the
 // syscall.Conn interface.
 //
-// Only the Control method of the returned syscall.RawConn is currently
-// implemented.
+// On Go 1.12+, all methods of the returned syscall.RawConn are supported and
+// the Conn is integrated with the runtime network poller. On versions of Go
+// prior to Go 1.12, only the Control method of the returned syscall.RawConn
+// is implemented.
 //
 // SyscallConn is intended for advanced use cases, such as getting and setting
 // arbitrary socket options using the netlink socket's file descriptor.
