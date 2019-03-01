@@ -4,6 +4,7 @@ package nltest
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
@@ -166,10 +167,16 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 		case io.EOF:
 			// EOF, simulate no replies in multi-part message.
 			return nil, nil
-		default:
-			// Some error occurred and should be passed to the caller.
-			return nil, c.err
 		}
+
+		// If the error is a system call error, wrap it in os.NewSyscallError
+		// to simulate what the Linux netlink.Conn does.
+		if isSyscallError(c.err) {
+			return nil, os.NewSyscallError("recvmsg", c.err)
+		}
+
+		// Some generic error occurred and should be passed to the caller.
+		return nil, c.err
 	}
 
 	// Detect multi-part messages.
