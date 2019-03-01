@@ -148,7 +148,7 @@ func TestLinuxConnIntegrationClosedConn(t *testing.T) {
 
 	want := &OpError{
 		Op:  "receive",
-		Err: unix.EBADF,
+		Err: os.NewSyscallError("recvmsg", unix.EBADF),
 	}
 
 	_, err = c.Receive()
