@@ -1,11 +1,14 @@
 language: go
-go:
-  - 1.12.x
-  - 1.11.x
-  - 1.10.x
-os:
-  - linux
-  - osx
+matrix:
+  include:
+    - os: linux
+      go: 1.x
+    - os: linux
+      go: 1.11.x
+    - os: linux
+      go: 1.10.x
+    - os: osx
+      go: 1.x
 sudo: required
 before_install:
   - go get golang.org/x/lint/golint
