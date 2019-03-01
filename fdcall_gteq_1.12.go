@@ -1,10 +1,9 @@
-//+build tip
+//+build go1.12,linux
 
 package netlink
 
 import (
 	"os"
-	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -41,8 +40,4 @@ func fdcontrol(fd *os.File, f func(int)) error {
 	return rc.Control(func(sysfd uintptr) {
 		f(int(sysfd))
 	})
-}
-
-func newRawConn(fd *os.File) (syscall.RawConn, error) {
-	return fd.SyscallConn()
 }

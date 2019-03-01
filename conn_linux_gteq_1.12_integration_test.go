@@ -1,4 +1,4 @@
-//+build tip
+//+build go1.12,integration,linux
 
 package netlink_test
 
@@ -11,17 +11,13 @@ import (
 )
 
 func TestConnReadTimeout(t *testing.T) {
-	const family = 15 // NETLINK_KOBJECT_UEVENT
+	const family = 16 // NETLINK_GENERIC
 	conn, err := netlink.Dial(family, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
 	defer conn.Close()
 
-	// Hopefully, no events are happening just as this test is running.
-	// Use a reasonably small interval.
-	//
-	// TODO(acln): perhaps there is a better way to write this test
 	timeout := 1 * time.Millisecond
 	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		t.Fatalf("failed to set deadline: %v", err)
