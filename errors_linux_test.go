@@ -3,6 +3,7 @@
 package netlink_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,6 +29,13 @@ func TestIsNotExistLinux(t *testing.T) {
 			},
 		},
 		{
+			name: "OpError os.SyscallError ENOBUFS",
+			err: &netlink.OpError{
+				Op:  "receive",
+				Err: os.NewSyscallError("recvmsg", unix.ENOBUFS),
+			},
+		},
+		{
 			name: "ENOENT",
 			err:  unix.ENOENT,
 			want: true,
@@ -37,6 +45,14 @@ func TestIsNotExistLinux(t *testing.T) {
 			err: &netlink.OpError{
 				Op:  "receive",
 				Err: unix.ENOENT,
+			},
+			want: true,
+		},
+		{
+			name: "OpError os.SyscallError ENOENT",
+			err: &netlink.OpError{
+				Op:  "receive",
+				Err: os.NewSyscallError("recvmsg", unix.ENOENT),
 			},
 			want: true,
 		},

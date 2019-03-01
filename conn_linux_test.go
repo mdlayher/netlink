@@ -107,31 +107,6 @@ func TestLinuxConnSend(t *testing.T) {
 	}
 }
 
-func TestLinuxConnReceiveInvalidSockaddr(t *testing.T) {
-	c, s := testLinuxConn(t, nil)
-
-	s.recvmsg.from = &unix.SockaddrInet4{}
-
-	_, got := c.Receive()
-	if want := errInvalidSockaddr; want != got {
-		t.Fatalf("unexpected error:\n-  want: %v\n-  got: %v", want, got)
-	}
-}
-
-func TestLinuxConnReceiveInvalidFamily(t *testing.T) {
-	c, s := testLinuxConn(t, nil)
-
-	s.recvmsg.from = &unix.SockaddrNetlink{
-		// Should always be AF_NETLINK
-		Family: unix.AF_NETLINK + 1,
-	}
-
-	_, got := c.Receive()
-	if want := errInvalidFamily; want != got {
-		t.Fatalf("unexpected error:\n-  want: %v\n-  got: %v", want, got)
-	}
-}
-
 func TestLinuxConnReceive(t *testing.T) {
 	// The request we sent netlink in the previous test; it will be echoed
 	// back to us as part of this test
@@ -339,7 +314,7 @@ func TestLinuxConnSetOption(t *testing.T) {
 			name:   "invalid",
 			option: 999,
 			enable: true,
-			err:    unix.ENOPROTOOPT,
+			err:    os.NewSyscallError("setsockopt", unix.ENOPROTOOPT),
 		},
 		{
 			name:   "packet info on",

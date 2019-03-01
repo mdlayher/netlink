@@ -3,7 +3,6 @@
 package netlink
 
 import (
-	"errors"
 	"math"
 	"os"
 	"runtime"
@@ -16,16 +15,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var (
-	errInvalidSockaddr = errors.New("expected unix.SockaddrNetlink but received different unix.Sockaddr")
-	errInvalidFamily   = errors.New("received invalid netlink family")
-)
-
 var _ Socket = &conn{}
 
 var _ deadlineSetter = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
+//
+// All conn methods must wrap system call errors with os.NewSyscallError to
+// enable more intelligible error messages in OpError.
 type conn struct {
 	s  socket
 	sa *unix.SockaddrNetlink
@@ -61,11 +58,11 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 
 	sock, err := newSysSocket(config)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, os.NewSyscallError("netlink-sys-socket", err)
 	}
 
 	if err := sock.Socket(family); err != nil {
-		return nil, 0, err
+		return nil, 0, os.NewSyscallError("socket", err)
 	}
 
 	return bind(sock, config)
@@ -88,13 +85,13 @@ func bind(s socket, config *Config) (*conn, uint32, error) {
 
 	if err := s.Bind(addr); err != nil {
 		_ = s.Close()
-		return nil, 0, err
+		return nil, 0, os.NewSyscallError("bind", err)
 	}
 
 	sa, err := s.Getsockname()
 	if err != nil {
 		_ = s.Close()
-		return nil, 0, err
+		return nil, 0, os.NewSyscallError("getsockname", err)
 	}
 
 	pid := sa.(*unix.SockaddrNetlink).Pid
@@ -121,7 +118,7 @@ func (c *conn) SendMessages(messages []Message) error {
 		Family: unix.AF_NETLINK,
 	}
 
-	return c.s.Sendmsg(buf, nil, addr, 0)
+	return os.NewSyscallError("sendmsg", c.s.Sendmsg(buf, nil, addr, 0))
 }
 
 // Send sends a single Message to netlink.
@@ -135,7 +132,7 @@ func (c *conn) Send(m Message) error {
 		Family: unix.AF_NETLINK,
 	}
 
-	return c.s.Sendmsg(b, nil, addr, 0)
+	return os.NewSyscallError("sendmsg", c.s.Sendmsg(b, nil, addr, 0))
 }
 
 // Receive receives one or more Messages from netlink.
@@ -148,7 +145,7 @@ func (c *conn) Receive() ([]Message, error) {
 		// when PacketInfo ConnOption is true.
 		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
 		if err != nil {
-			return nil, err
+			return nil, os.NewSyscallError("recvmsg", err)
 		}
 
 		// Break when we can read all messages
@@ -161,24 +158,16 @@ func (c *conn) Receive() ([]Message, error) {
 	}
 
 	// Read out all available messages
-	n, _, _, from, err := c.s.Recvmsg(b, nil, 0)
+	n, _, _, _, err := c.s.Recvmsg(b, nil, 0)
 	if err != nil {
-		return nil, err
-	}
-
-	addr, ok := from.(*unix.SockaddrNetlink)
-	if !ok {
-		return nil, errInvalidSockaddr
-	}
-	if addr.Family != unix.AF_NETLINK {
-		return nil, errInvalidFamily
+		return nil, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
 
 	raw, err := syscall.ParseNetlinkMessage(b[:n])
 	if err != nil {
-		return nil, err
+		return nil, os.NewSyscallError("syscall-parse-netlink-message", err)
 	}
 
 	msgs := make([]Message, 0, len(raw))
@@ -196,7 +185,7 @@ func (c *conn) Receive() ([]Message, error) {
 
 // Close closes the connection.
 func (c *conn) Close() error {
-	return c.s.Close()
+	return os.NewSyscallError("close", c.s.Close())
 }
 
 // FD retrieves the file descriptor of the Conn.
@@ -211,20 +200,20 @@ func (c *conn) File() *os.File {
 
 // JoinGroup joins a multicast group by ID.
 func (c *conn) JoinGroup(group uint32) error {
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_ADD_MEMBERSHIP,
 		int(group),
-	)
+	))
 }
 
 // LeaveGroup leaves a multicast group by ID.
 func (c *conn) LeaveGroup(group uint32) error {
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_DROP_MEMBERSHIP,
 		int(group),
-	)
+	))
 }
 
 // SetBPF attaches an assembled BPF program to a conn.
@@ -234,21 +223,21 @@ func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
 		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),
 	}
 
-	return c.s.SetSockoptSockFprog(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptSockFprog(
 		unix.SOL_SOCKET,
 		unix.SO_ATTACH_FILTER,
 		&prog,
-	)
+	))
 }
 
 // RemoveBPF removes a BPF filter from a conn.
 func (c *conn) RemoveBPF() error {
 	// 0 argument is ignored by SO_DETACH_FILTER.
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_DETACH_FILTER,
 		0,
-	)
+	))
 }
 
 // SetOption enables or disables a netlink socket option for the Conn.
@@ -256,7 +245,7 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 	o, ok := linuxOption(option)
 	if !ok {
 		// Return the typical Linux error for an unknown ConnOption.
-		return unix.ENOPROTOOPT
+		return os.NewSyscallError("setsockopt", unix.ENOPROTOOPT)
 	}
 
 	var v int
@@ -264,11 +253,11 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 		v = 1
 	}
 
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		o,
 		v,
-	)
+	))
 }
 
 func (c *conn) SetDeadline(t time.Time) error {
@@ -286,21 +275,21 @@ func (c *conn) SetWriteDeadline(t time.Time) error {
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error {
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_RCVBUF,
 		bytes,
-	)
+	))
 }
 
 // SetReadBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error {
-	return c.s.SetSockoptInt(
+	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_SNDBUF,
 		bytes,
-	)
+	))
 }
 
 // linuxOption converts a ConnOption to its Linux value.
