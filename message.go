@@ -253,8 +253,9 @@ func checkMessage(m Message) error {
 	}
 
 	if c := nlenc.Int32(m.Data[0:4]); c != success {
-		// Error code is a negative integer, convert it into
-		// an OS-specific system call error
+		// Error code is a negative integer, convert it into an OS-specific raw
+		// system call error, but do not wrap with os.NewSyscallError to signify
+		// that this error was produced by a netlink message; not a system call.
 		return &OpError{
 			Op:  "receive",
 			Err: newError(-1 * int(c)),

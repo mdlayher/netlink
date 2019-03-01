@@ -58,6 +58,12 @@ type OpError struct {
 	Op string
 
 	// Err is the underlying error which caused this OpError.
+	//
+	// If Err was produced by a system call error, Err will be of type
+	// *os.SyscallError. If Err was produced by an error code in a netlink
+	// message, Err will contain a raw error value type such as a unix.Errno.
+	//
+	// Most callers should inspect Err using a helper such as IsNotExist.
 	Err error
 }
 
