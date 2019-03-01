@@ -23,5 +23,5 @@ func getThreadNetNS() (int, error) {
 // setThreadNetNS sets the network namespace of the thread of the current goroutine to
 // the namespace described by the user-provided file descriptor.
 func setThreadNetNS(fd int) error {
-	return unix.Setns(fd, unix.CLONE_NEWNET)
+	return os.NewSyscallError("setns", unix.Setns(fd, unix.CLONE_NEWNET))
 }
