@@ -2,7 +2,6 @@ package netlink
 
 import (
 	"errors"
-	"io"
 	"math/rand"
 	"os"
 	"sync/atomic"
@@ -283,49 +282,6 @@ func (c *Conn) receive() ([]Message, error) {
 	}
 }
 
-// A filer is a Socket that supports retrieving its associated *os.File.
-type filer interface {
-	Socket
-	File() *os.File
-}
-
-var _ io.ReadWriteCloser = &fileReadWriteCloser{}
-
-// A fileReadWriteCloser is a limited *os.File which only allows access to its
-// Read and Write methods.
-type fileReadWriteCloser struct {
-	f *os.File
-}
-
-// Read implements io.ReadWriteCloser.
-func (rwc *fileReadWriteCloser) Read(b []byte) (int, error) { return rwc.f.Read(b) }
-
-// Write implements io.ReadWriteCloser.
-func (rwc *fileReadWriteCloser) Write(b []byte) (int, error) { return rwc.f.Write(b) }
-
-// Close implements io.ReadWriteCloser.
-func (rwc *fileReadWriteCloser) Close() error { return rwc.f.Close() }
-
-// ReadWriteCloser returns a raw io.ReadWriteCloser backed by the connection
-// of the Conn.
-//
-// ReadWriteCloser is intended for advanced use cases, such as those that do
-// not involve standard netlink message passing.
-//
-// Once invoked, it is the caller's responsibility to ensure that operations
-// performed using Conn and the raw io.ReadWriteCloser do not conflict with
-// each other.  In almost all scenarios, only one of the two should be used.
-func (c *Conn) ReadWriteCloser() (io.ReadWriteCloser, error) {
-	conn, ok := c.sock.(filer)
-	if !ok {
-		return nil, notSupported("read-write-closer")
-	}
-
-	return &fileReadWriteCloser{
-		f: conn.File(),
-	}, nil
-}
-
 // A groupJoinLeaver is a Socket that supports joining and leaving
 // netlink multicast groups.
 type groupJoinLeaver interface {
@@ -484,6 +440,12 @@ func (c *Conn) SetWriteBuffer(bytes int) error {
 	}
 
 	return newOpError("set-write-buffer", conn.SetWriteBuffer(bytes))
+}
+
+// A filer is a Socket that supports retrieving its associated *os.File.
+type filer interface {
+	Socket
+	File() *os.File
 }
 
 var _ syscall.Conn = &Conn{}

@@ -173,16 +173,6 @@ func TestConnReceiveShortErrorMessage(t *testing.T) {
 	}
 }
 
-func TestConnReadWriteCloserUnsupported(t *testing.T) {
-	c := nltest.Dial(nil)
-	defer c.Close()
-
-	_, err := c.ReadWriteCloser()
-	if !strings.Contains(err.Error(), "not supported") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestConnJoinLeaveGroupUnsupported(t *testing.T) {
 	c := nltest.Dial(nil)
 	defer c.Close()
