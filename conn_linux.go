@@ -167,7 +167,7 @@ func (c *conn) Receive() ([]Message, error) {
 
 	raw, err := syscall.ParseNetlinkMessage(b[:n])
 	if err != nil {
-		return nil, os.NewSyscallError("syscall-parse-netlink-message", err)
+		return nil, err
 	}
 
 	msgs := make([]Message, 0, len(raw))

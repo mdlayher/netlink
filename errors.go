@@ -72,7 +72,7 @@ func (e *OpError) Error() string {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("netlink %q: %v", e.Op, e.Err)
+	return fmt.Sprintf("netlink %s: %v", e.Op, e.Err)
 }
 
 // Portions of this code taken from the Go standard library:
