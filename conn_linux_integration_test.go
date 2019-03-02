@@ -146,10 +146,7 @@ func TestLinuxConnIntegrationClosedConn(t *testing.T) {
 		t.Fatalf("failed to close: %v", err)
 	}
 
-	want := &OpError{
-		Op:  "receive",
-		Err: os.NewSyscallError("recvmsg", unix.EBADF),
-	}
+	want := newOpError("receive", os.NewSyscallError("recvmsg", unix.EBADF))
 
 	_, err = c.Receive()
 	if diff := cmp.Diff(want, err); diff != "" {

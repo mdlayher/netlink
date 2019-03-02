@@ -21,11 +21,8 @@ var (
 )
 
 // notSupported provides a concise constructor for "not supported" errors.
-func notSupported(op string) *OpError {
-	return &OpError{
-		Op:  op,
-		Err: errNotSupported,
-	}
+func notSupported(op string) error {
+	return newOpError(op, errNotSupported)
 }
 
 // IsNotExist determines if an error is produced as the result of querying some
@@ -65,6 +62,19 @@ type OpError struct {
 	//
 	// Most callers should inspect Err using a helper such as IsNotExist.
 	Err error
+}
+
+// newOpError is a small wrapper for creating an OpError. As a convenience, it
+// returns nil if the input err is nil: akin to os.NewSyscallError.
+func newOpError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return &OpError{
+		Op:  op,
+		Err: err,
+	}
 }
 
 func (e *OpError) Error() string {

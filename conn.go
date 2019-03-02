@@ -91,14 +91,7 @@ func (c *Conn) debug(fn func(d *debugger)) {
 
 // Close closes the connection.
 func (c *Conn) Close() error {
-	if err := c.sock.Close(); err != nil {
-		return &OpError{
-			Op:  "close",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("close", c.sock.Close())
 }
 
 // Execute sends a single Message to netlink using Conn.Send, receives one or more
@@ -165,10 +158,7 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 			d.debugf(1, "send msgs: err: %v", err)
 		})
 
-		return nil, &OpError{
-			Op:  "send-messages",
-			Err: err,
-		}
+		return nil, newOpError("send-messages", err)
 	}
 
 	return messages, nil
@@ -206,10 +196,7 @@ func (c *Conn) Send(message Message) (Message, error) {
 			d.debugf(1, "send: err: %v", err)
 		})
 
-		return Message{}, &OpError{
-			Op:  "send",
-			Err: err,
-		}
+		return Message{}, newOpError("send", err)
 	}
 
 	return message, nil
@@ -264,10 +251,7 @@ func (c *Conn) receive() ([]Message, error) {
 	for {
 		msgs, err := c.sock.Receive()
 		if err != nil {
-			return nil, &OpError{
-				Op:  "receive",
-				Err: err,
-			}
+			return nil, newOpError("receive", err)
 		}
 
 		// If this message is multi-part, we will need to perform an recursive call
@@ -357,14 +341,7 @@ func (c *Conn) JoinGroup(group uint32) error {
 		return notSupported("join-group")
 	}
 
-	if err := conn.JoinGroup(group); err != nil {
-		return &OpError{
-			Op:  "join-group",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("join-group", conn.JoinGroup(group))
 }
 
 // LeaveGroup leaves a netlink multicast group by its ID.
@@ -374,14 +351,7 @@ func (c *Conn) LeaveGroup(group uint32) error {
 		return notSupported("leave-group")
 	}
 
-	if err := conn.LeaveGroup(group); err != nil {
-		return &OpError{
-			Op:  "leave-group",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("leave-group", conn.LeaveGroup(group))
 }
 
 // A bpfSetter is a Socket that supports setting and removing BPF filters.
@@ -398,14 +368,7 @@ func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
 		return notSupported("set-bpf")
 	}
 
-	if err := conn.SetBPF(filter); err != nil {
-		return &OpError{
-			Op:  "set-bpf",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-bpf", conn.SetBPF(filter))
 }
 
 // RemoveBPF removes a BPF filter from a Conn.
@@ -415,14 +378,7 @@ func (c *Conn) RemoveBPF() error {
 		return notSupported("remove-bpf")
 	}
 
-	if err := conn.RemoveBPF(); err != nil {
-		return &OpError{
-			Op:  "remove-bpf",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("remove-bpf", conn.RemoveBPF())
 }
 
 // A deadlineSetter is a Socket that supports setting deadlines.
@@ -443,14 +399,7 @@ func (c *Conn) SetDeadline(t time.Time) error {
 		return notSupported("set-deadline")
 	}
 
-	if err := conn.SetDeadline(t); err != nil {
-		return &OpError{
-			Op:  "set-deadline",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-deadline", conn.SetDeadline(t))
 }
 
 // SetReadDeadline sets the read deadline associated with the connection.
@@ -463,14 +412,7 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 		return notSupported("set-read-deadline")
 	}
 
-	if err := conn.SetReadDeadline(t); err != nil {
-		return &OpError{
-			Op:  "set-read-deadline",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-read-deadline", conn.SetReadDeadline(t))
 }
 
 // SetWriteDeadline sets the write deadline associated with the connection.
@@ -483,14 +425,7 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 		return notSupported("set-write-deadline")
 	}
 
-	if err := conn.SetWriteDeadline(t); err != nil {
-		return &OpError{
-			Op:  "set-write-deadline",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-write-deadline", conn.SetWriteDeadline(t))
 }
 
 // A ConnOption is a boolean option that may be set for a Conn.
@@ -519,14 +454,7 @@ func (c *Conn) SetOption(option ConnOption, enable bool) error {
 		return notSupported("set-option")
 	}
 
-	if err := conn.SetOption(option, enable); err != nil {
-		return &OpError{
-			Op:  "set-option",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-option", conn.SetOption(option, enable))
 }
 
 // A bufferSetter is a Socket that supports setting connection buffer sizes.
@@ -544,14 +472,7 @@ func (c *Conn) SetReadBuffer(bytes int) error {
 		return notSupported("set-read-buffer")
 	}
 
-	if err := conn.SetReadBuffer(bytes); err != nil {
-		return &OpError{
-			Op:  "set-read-buffer",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-read-buffer", conn.SetReadBuffer(bytes))
 }
 
 // SetWriteBuffer sets the size of the operating system's transmit buffer
@@ -562,14 +483,7 @@ func (c *Conn) SetWriteBuffer(bytes int) error {
 		return notSupported("set-write-buffer")
 	}
 
-	if err := conn.SetWriteBuffer(bytes); err != nil {
-		return &OpError{
-			Op:  "set-write-buffer",
-			Err: err,
-		}
-	}
-
-	return nil
+	return newOpError("set-write-buffer", conn.SetWriteBuffer(bytes))
 }
 
 var _ syscall.Conn = &Conn{}
@@ -614,10 +528,7 @@ func Validate(request Message, replies []Message) error {
 		//   - request had no sequence, meaning we are probably validating
 		//     a multicast reply
 		if m.Header.Sequence != request.Header.Sequence && request.Header.Sequence != 0 {
-			return &OpError{
-				Op:  "validate",
-				Err: errMismatchedSequence,
-			}
+			return newOpError("validate", errMismatchedSequence)
 		}
 
 		// Check for mismatched PID, unless:
@@ -626,10 +537,7 @@ func Validate(request Message, replies []Message) error {
 		//     - netlink has not yet assigned us a PID
 		//   - response had no PID, meaning it's from the kernel as a multicast reply
 		if m.Header.PID != request.Header.PID && request.Header.PID != 0 && m.Header.PID != 0 {
-			return &OpError{
-				Op:  "validate",
-				Err: errMismatchedPID,
-			}
+			return newOpError("validate", errMismatchedPID)
 		}
 	}
 
