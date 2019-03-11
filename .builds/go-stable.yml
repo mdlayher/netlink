@@ -7,6 +7,7 @@ environment:
   GO111MODULE: "on"
 tasks:
   - build: |
+      go version
       go get golang.org/x/lint/golint
       go get honnef.co/go/tools/cmd/staticcheck
       cd netlink/
