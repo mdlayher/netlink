@@ -181,7 +181,7 @@ func TestLinuxConnIntegrationConcurrentReceiveClose(t *testing.T) {
 func TestLinuxConnIntegrationConcurrentSerializeExecute(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
-		panicf("failed to dial netlink: %v", err)
+		t.Fatalf("failed to dial netlink: %v", err)
 	}
 
 	execN := func(n int) {
@@ -301,7 +301,7 @@ func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
 func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
+		t.Fatalf("failed to dial netlink: %v", err)
 	}
 	defer c.Close()
 
@@ -429,12 +429,11 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 }
 
 func TestLinuxConnIntegrationMulticast(t *testing.T) {
-
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
 		Groups: 0x1, // RTMGRP_LINK
 	})
 	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
+		t.Fatalf("failed to dial netlink: %v", err)
 	}
 
 	in := make(chan []netlink.Message)
