@@ -1,6 +1,6 @@
 //+build integration,linux
 
-package netlink
+package netlink_test
 
 import (
 	"fmt"
@@ -12,22 +12,23 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
 
 func TestLinuxConnIntegration(t *testing.T) {
-	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
 
 	// Ask to send us an acknowledgement, which will contain an
 	// error code (or success) and a copy of the payload we sent in
-	req := Message{
-		Header: Header{
-			Flags: Request | Acknowledge,
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
 		},
 	}
 
@@ -54,7 +55,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	if want, got := 36, int(m.Header.Length); want != got {
 		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := Error, m.Header.Type; want != got {
+	if want, got := netlink.Error, m.Header.Type; want != got {
 		t.Fatalf("unexpected header type:\n- want: %v\n-  got: %v", want, got)
 	}
 	// Recent kernel versions (> 4.14) return a 256 here instead of a 0
@@ -67,7 +68,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 
 	// Skip error code and unmarshal the copy of request sent back by
 	// skipping the success code at bytes 0-4
-	var reply Message
+	var reply netlink.Message
 	if err := (&reply).UnmarshalBinary(m.Data[4:]); err != nil {
 		t.Fatalf("failed to unmarshal reply: %v", err)
 	}
@@ -83,42 +84,44 @@ func TestLinuxConnIntegration(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationConcurrent(t *testing.T) {
-	execN := func(n int, wg *sync.WaitGroup) {
-		c, err := Dial(unix.NETLINK_GENERIC, nil)
-		if err != nil {
-			panic(fmt.Sprintf("failed to dial netlink: %v", err))
-		}
+func TestLinuxConnIntegrationConcurrentRaceFree(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
 
-		req := Message{
-			Header: Header{
-				Flags: Request | Acknowledge,
+	execN := func(n int) {
+		req := netlink.Message{
+			Header: netlink.Header{
+				Flags: netlink.Request | netlink.Acknowledge,
 			},
 		}
 
+		var res netlink.Message
 		for i := 0; i < n; i++ {
-			vmsg, err := c.Send(req)
-			if err != nil {
-				panic(fmt.Sprintf("failed to send request: %v", err))
+			// Don't expect a "valid" request/reply because we are not serializing
+			// our Send/Receive calls via Execute or with an external lock.
+			//
+			// Just verify that we don't trigger the race detector, we got a
+			// valid netlink response, and it can be decoded as a valid
+			// netlink message.
+			if _, err := c.Send(req); err != nil {
+				panicf("failed to send request: %v", err)
 			}
 
 			msgs, err := c.Receive()
 			if err != nil {
-				panic(fmt.Sprintf("failed to receive reply: %v", err))
+				panicf("failed to receive reply: %v", err)
 			}
 
 			if l := len(msgs); l != 1 {
-				panic(fmt.Sprintf("unexpected number of reply messages: %d", l))
+				panicf("unexpected number of reply messages: %d", l)
 			}
 
-			if err := Validate(vmsg, msgs); err != nil {
-				panic(fmt.Sprintf("failed to validate request and reply: %v\n- req: %+v\n- rep: %+v",
-					err, vmsg, msgs))
+			if err := res.UnmarshalBinary(msgs[0].Data[4:]); err != nil {
+				panicf("failed to unmarshal reply: %v", err)
 			}
 		}
-
-		_ = c.Close()
-		wg.Done()
 	}
 
 	const (
@@ -128,15 +131,95 @@ func TestLinuxConnIntegrationConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
+	defer wg.Wait()
+
 	for i := 0; i < workers; i++ {
-		go execN(iterations, &wg)
+		go func() {
+			defer wg.Done()
+			execN(iterations)
+		}()
+	}
+}
+
+func TestLinuxConnIntegrationConcurrentReceiveClose(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
 	}
 
-	wg.Wait()
+	// Verify this test cannot block indefinitely due to Receive hanging after
+	// a call to Close.
+	timer := time.AfterFunc(10*time.Second, func() {
+		panic("test took too long")
+	})
+	defer timer.Stop()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer wg.Wait()
+
+	go func() {
+		defer wg.Done()
+
+		_, err := c.Receive()
+		if err == nil {
+			panicf("expected an error, but none occurred")
+		}
+
+		// Expect an error due to file descriptor being closed.
+		serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
+		if diff := cmp.Diff(unix.EBADF, serr); diff != "" {
+			t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
+		}
+	}()
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
+}
+
+func TestLinuxConnIntegrationConcurrentSerializeExecute(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		panicf("failed to dial netlink: %v", err)
+	}
+
+	execN := func(n int) {
+		req := netlink.Message{
+			Header: netlink.Header{
+				Flags: netlink.Request | netlink.Acknowledge,
+			},
+		}
+
+		for i := 0; i < n; i++ {
+			// Execute will internally call Validate to ensure its
+			// request/response transaction is serialized appropriately, and
+			// any errors doing so will be reported here.
+			if _, err := c.Execute(req); err != nil {
+				panicf("failed to execute: %v", err)
+			}
+		}
+	}
+
+	const (
+		workers    = 4
+		iterations = 2000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	defer wg.Wait()
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			execN(iterations)
+		}()
+	}
 }
 
 func TestLinuxConnIntegrationClosedConn(t *testing.T) {
-	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -146,16 +229,16 @@ func TestLinuxConnIntegrationClosedConn(t *testing.T) {
 		t.Fatalf("failed to close: %v", err)
 	}
 
-	want := newOpError("receive", os.NewSyscallError("recvmsg", unix.EBADF))
-
 	_, err = c.Receive()
-	if diff := cmp.Diff(want, err); diff != "" {
-		t.Fatalf("unexpected error (-want +got):\n%s", diff)
+
+	serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
+	if diff := cmp.Diff(unix.EBADF, serr); diff != "" {
+		t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
 	}
 }
 
 func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
-	c, err := Dial(unix.NETLINK_GENERIC, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
@@ -216,8 +299,7 @@ func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
 }
 
 func TestLinuxConnIntegrationSetBPF(t *testing.T) {
-	const familyGeneric = 16
-	c, err := Dial(familyGeneric, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
@@ -237,9 +319,9 @@ func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 		t.Fatalf("failed to attach BPF program to socket: %v", err)
 	}
 
-	req := Message{
-		Header: Header{
-			Flags: Request | Acknowledge,
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
 		},
 	}
 
@@ -347,22 +429,21 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 }
 
 func TestLinuxConnIntegrationMulticast(t *testing.T) {
-	cfg := &Config{
-		Groups: 0x1, // RTMGRP_LINK
-	}
 
-	c, err := Dial(0, cfg) // dials NETLINK_ROUTE
+	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
+		Groups: 0x1, // RTMGRP_LINK
+	})
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
 
-	in := make(chan []Message)
+	in := make(chan []netlink.Message)
 
 	// routine for receiving any messages
 	recv := func() {
 		data, err := c.Receive()
 		if err != nil {
-			panic(fmt.Sprintf("error in receive: %s", err))
+			panicf("error in receive: %s", err)
 		}
 		in <- data
 	}
@@ -375,7 +456,7 @@ func TestLinuxConnIntegrationMulticast(t *testing.T) {
 	defer def()
 
 	timeout := time.After(5 * time.Second)
-	var data []Message
+	var data []netlink.Message
 	select {
 	case data = <-in:
 		break
@@ -416,11 +497,15 @@ func createInterface(t *testing.T, ifName string) func() {
 		cmd := exec.Command("ip", "link", "del", ifName)
 		err = cmd.Start()
 		if err != nil {
-			panic(fmt.Sprintf("error removing tuntap device: %s", err))
+			panicf("error removing tuntap device: %s", err)
 		}
 		err = cmd.Wait()
 		if err != nil {
-			panic(fmt.Sprintf("error running command to remove tuntap device: %s", err))
+			panicf("error running command to remove tuntap device: %s", err)
 		}
 	}
+}
+
+func panicf(format string, a ...interface{}) {
+	panic(fmt.Sprintf(format, a...))
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"os"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -31,6 +32,10 @@ type Conn struct {
 
 	// d provides debugging capabilities for a Conn if not nil.
 	d *debugger
+
+	// mu serializes access to the netlink socket for the request/response
+	// transaction within Execute.
+	mu sync.RWMutex
 }
 
 // A Socket is an operating-system specific implementation of netlink
@@ -88,24 +93,40 @@ func (c *Conn) debug(fn func(d *debugger)) {
 	fn(c.d)
 }
 
-// Close closes the connection.
+// Close closes the connection. Close will unblock any concurrent calls to
+// Receive which are waiting on a response from the kernel.
 func (c *Conn) Close() error {
+	// Close does not acquire a lock because it must be able to interrupt any
+	// blocked system calls, such as when Receive is waiting on a multicast
+	// group message.
+	//
+	// We rely on the kernel to deal with concurrent operations to the netlink
+	// socket itself.
 	return newOpError("close", c.sock.Close())
 }
 
-// Execute sends a single Message to netlink using Conn.Send, receives one or more
-// replies using Conn.Receive, and then checks the validity of the replies against
+// Execute sends a single Message to netlink using Send, receives one or more
+// replies using Receive, and then checks the validity of the replies against
 // the request using Validate.
 //
-// See the documentation of Conn.Send, Conn.Receive, and Validate for details about
+// Execute acquires a lock for the duration of the function call which blocks
+// concurrent calls to Send, SendMessages, and Receive, in order to ensure
+// consistency between netlink request/reply messages.
+//
+// See the documentation of Send, Receive, and Validate for details about
 // each function.
 func (c *Conn) Execute(message Message) ([]Message, error) {
-	req, err := c.Send(message)
+	// Acquire the write lock and invoke the internal implementations of Send
+	// and Receive which require the lock already be held.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req, err := c.lockedSend(message)
 	if err != nil {
 		return nil, err
 	}
 
-	replies, err := c.Receive()
+	replies, err := c.lockedReceive()
 	if err != nil {
 		return nil, err
 	}
@@ -117,24 +138,14 @@ func (c *Conn) Execute(message Message) ([]Message, error) {
 	return replies, nil
 }
 
-func (c *Conn) fixMsg(m *Message, ml int) {
-	if m.Header.Length == 0 {
-		m.Header.Length = uint32(nlmsgAlign(ml))
-	}
-
-	if m.Header.Sequence == 0 {
-		m.Header.Sequence = c.nextSequence()
-	}
-
-	if m.Header.PID == 0 {
-		m.Header.PID = c.pid
-	}
-}
-
 // SendMessages sends multiple Messages to netlink. The handling of
 // a Header's Length, Sequence and PID fields is the same as when
 // calling Send.
 func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
+	// Wait for any concurrent calls to Execute to finish before proceeding.
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	for idx, m := range messages {
 		ml := nlmsgLength(len(m.Data))
 
@@ -177,6 +188,17 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 // If Header.PID is 0, it will be automatically populated using a PID
 // assigned by netlink.
 func (c *Conn) Send(message Message) (Message, error) {
+	// Wait for any concurrent calls to Execute to finish before proceeding.
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.lockedSend(message)
+}
+
+// lockedSend implements Send, but must be called with c.mu acquired for reading.
+// We rely on the kernel to deal with concurrent reads and writes to the netlink
+// socket itself.
+func (c *Conn) lockedSend(message Message) (Message, error) {
 	ml := nlmsgLength(len(message.Data))
 
 	// TODO(mdlayher): fine-tune this limit.
@@ -207,6 +229,17 @@ func (c *Conn) Send(message Message) (Message, error) {
 //
 // If any of the messages indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
+	// Wait for any concurrent calls to Execute to finish before proceeding.
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.lockedReceive()
+}
+
+// lockedSend implements Receive, but must be called with c.mu acquired for reading.
+// We rely on the kernel to deal with concurrent reads and writes to the netlink
+// socket itself.
+func (c *Conn) lockedReceive() ([]Message, error) {
 	msgs, err := c.receive()
 	if err != nil {
 		c.debug(func(d *debugger) {
@@ -474,6 +507,21 @@ func (c *Conn) SyscallConn() (syscall.RawConn, error) {
 	}
 
 	return newRawConn(fc.File())
+}
+
+// fixMsg updates the fields of m using the logic specified in Send.
+func (c *Conn) fixMsg(m *Message, ml int) {
+	if m.Header.Length == 0 {
+		m.Header.Length = uint32(nlmsgAlign(ml))
+	}
+
+	if m.Header.Sequence == 0 {
+		m.Header.Sequence = c.nextSequence()
+	}
+
+	if m.Header.PID == 0 {
+		m.Header.PID = c.pid
+	}
 }
 
 // nextSequence atomically increments Conn's sequence number and returns
