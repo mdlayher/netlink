@@ -169,7 +169,7 @@ func TestLinuxConnIntegrationConcurrentReceiveClose(t *testing.T) {
 		// Expect an error due to file descriptor being closed.
 		serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
 		if diff := cmp.Diff(unix.EBADF, serr); diff != "" {
-			t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
+			panicf("unexpected error from receive (-want +got):\n%s", diff)
 		}
 	}()
 
