@@ -236,7 +236,7 @@ func (c *Conn) Receive() ([]Message, error) {
 	return c.lockedReceive()
 }
 
-// lockedSend implements Receive, but must be called with c.mu acquired for reading.
+// lockedReceive implements Receive, but must be called with c.mu acquired for reading.
 // We rely on the kernel to deal with concurrent reads and writes to the netlink
 // socket itself.
 func (c *Conn) lockedReceive() ([]Message, error) {
