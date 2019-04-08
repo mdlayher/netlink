@@ -1,4 +1,4 @@
-//+build integration,linux
+//+build linux
 
 package netlink_test
 
@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestLinuxConnIntegration(t *testing.T) {
+func TestIntegrationConn(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -84,7 +84,7 @@ func TestLinuxConnIntegration(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationConcurrentRaceFree(t *testing.T) {
+func TestIntegrationConnConcurrentRaceFree(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -141,7 +141,7 @@ func TestLinuxConnIntegrationConcurrentRaceFree(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationConcurrentReceiveClose(t *testing.T) {
+func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -178,7 +178,7 @@ func TestLinuxConnIntegrationConcurrentReceiveClose(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationConcurrentSerializeExecute(t *testing.T) {
+func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -218,7 +218,7 @@ func TestLinuxConnIntegrationConcurrentSerializeExecute(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationClosedConn(t *testing.T) {
+func TestIntegrationConnClosedConn(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -237,7 +237,7 @@ func TestLinuxConnIntegrationClosedConn(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
+func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -298,7 +298,7 @@ func TestLinuxConnIntegrationSetBuffersSyscallConn(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationSetBPF(t *testing.T) {
+func TestIntegrationConnSetBPF(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -365,7 +365,7 @@ func TestLinuxConnIntegrationSetBPF(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegration_testBPFProgram(t *testing.T) {
+func TestIntegration_testBPFProgram(t *testing.T) {
 	vm, err := bpf.NewVM(testBPFProgram(0xffffffff))
 	if err != nil {
 		t.Fatalf("failed to create BPF VM: %v", err)
@@ -428,7 +428,7 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 	}
 }
 
-func TestLinuxConnIntegrationMulticast(t *testing.T) {
+func TestIntegrationConnMulticast(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
 		Groups: 0x1, // RTMGRP_LINK
 	})
@@ -476,31 +476,30 @@ func TestLinuxConnIntegrationMulticast(t *testing.T) {
 }
 
 func createInterface(t *testing.T, ifName string) func() {
-	var err error
+	t.Helper()
 
 	cmd := exec.Command("ip", "tuntap", "add", ifName, "mode", "tun")
-	err = cmd.Start()
-	if err != nil {
-		t.Fatalf("error creating tuntap device: %s", err)
-		return func() {}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("error creating tuntap device: %v", err)
 	}
-	err = cmd.Wait()
-	if err != nil {
-		t.Fatalf("error running command to create tuntap device: %s", err)
-		return func() {}
+
+	if err := cmd.Wait(); err != nil {
+		// This test requires elevated privileges.
+		if cmd.ProcessState.ExitCode() == int(unix.EPERM) {
+			t.Skipf("skipping, permission denied while creating tuntap device: %v", err)
+		}
+
+		t.Fatalf("error running command to create tuntap device: %v", err)
 	}
 
 	return func() {
-		var err error
-
 		cmd := exec.Command("ip", "link", "del", ifName)
-		err = cmd.Start()
-		if err != nil {
-			panicf("error removing tuntap device: %s", err)
+		if err := cmd.Start(); err != nil {
+			panicf("error removing tuntap device: %v", err)
 		}
-		err = cmd.Wait()
-		if err != nil {
-			panicf("error running command to remove tuntap device: %s", err)
+
+		if err := cmd.Wait(); err != nil {
+			panicf("error running command to remove tuntap device: %v", err)
 		}
 	}
 }
