@@ -16,9 +16,8 @@ var (
 
 // Errors which can be returned by a Socket that does not implement
 // all exposed methods of Conn.
-var (
-	errNotSupported = errors.New("operation not supported")
-)
+
+var errNotSupported = errors.New("operation not supported")
 
 // notSupported provides a concise constructor for "not supported" errors.
 func notSupported(op string) error {

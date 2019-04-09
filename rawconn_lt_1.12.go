@@ -26,6 +26,7 @@ func (rc *rawConn) Control(f func(fd uintptr)) error {
 func (rc *rawConn) Read(_ func(fd uintptr) (done bool)) error {
 	return notSupported("syscall-conn-read")
 }
+
 func (rc *rawConn) Write(_ func(fd uintptr) (done bool)) error {
 	return notSupported("syscall-conn-write")
 }

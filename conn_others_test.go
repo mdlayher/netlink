@@ -2,9 +2,7 @@
 
 package netlink
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestOthersConnUnimplemented(t *testing.T) {
 	c := &conn{}

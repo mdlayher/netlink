@@ -196,6 +196,7 @@ func TestUint8(t *testing.T) {
 		})
 	}
 }
+
 func TestUint16(t *testing.T) {
 	skipBigEndian(t)
 	tests := []struct {

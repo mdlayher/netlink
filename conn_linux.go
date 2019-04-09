@@ -455,7 +455,6 @@ func (s *sysSocket) Bind(sa unix.Sockaddr) error {
 }
 
 func (s *sysSocket) Close() error {
-
 	// Be sure to acquire a write lock because we need to stop any other
 	// goroutines from sending system call requests after close.
 	// Any invocation of do() after this write lock unlocks is guaranteed
