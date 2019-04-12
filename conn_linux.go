@@ -154,7 +154,7 @@ func (c *conn) Receive() ([]Message, error) {
 		}
 
 		// Double in size if not enough bytes
-		b = make([]byte, len(b)*2)
+		b = append(b, make([]byte, len(b))...)
 	}
 
 	// Read out all available messages
