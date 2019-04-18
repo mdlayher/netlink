@@ -6,6 +6,10 @@ MIT Licensed.
 For more information about how netlink works, check out my blog series
 on [Linux, Netlink, and Go](https://medium.com/@mdlayher/linux-netlink-and-go-part-1-netlink-4781aaeeaca8).
 
+If you have any questions or you'd like some guidance, please join us on
+[Gophers Slack](https://invite.slack.golangbridge.org) in the `#networking`
+channel!
+
 ## Stability
 
 At this time, package `netlink` is in a pre-v1.0.0 state. Changes are being made

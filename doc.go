@@ -1,5 +1,9 @@
 // Package netlink provides low-level access to Linux netlink sockets.
 //
+// If you have any questions or you'd like some guidance, please join us on
+// Gophers Slack (https://invite.slack.golangbridge.org) in the #networking
+// channel!
+//
 //
 // Debugging
 //
