@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"reflect"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -484,8 +485,10 @@ func createInterface(t *testing.T, ifName string) func() {
 	}
 
 	if err := cmd.Wait(); err != nil {
+		// TODO(mdlayher): switch back to cmd.ProcessState.ExitCode() when we
+		// drop support for Go 1.11.x.
 		// This test requires elevated privileges.
-		if cmd.ProcessState.ExitCode() == int(unix.EPERM) {
+		if cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus() == int(unix.EPERM) {
 			t.Skipf("skipping, permission denied while creating tuntap device: %v", err)
 		}
 
