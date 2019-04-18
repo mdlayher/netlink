@@ -4,7 +4,7 @@ Package `netlink` provides low-level access to Linux netlink sockets.
 MIT Licensed.
 
 For more information about how netlink works, check out my blog series
-on [Linux, Netlink, and Go](https://medium.com/@mdlayher/linux-netlink-and-go-part-1-netlink-4781aaeeaca8).
+on [Linux, Netlink, and Go](https://mdlayher.com/blog/linux-netlink-and-go-part-1-netlink/).
 
 If you have any questions or you'd like some guidance, please join us on
 [Gophers Slack](https://invite.slack.golangbridge.org) in the `#networking`
