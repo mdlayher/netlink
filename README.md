@@ -10,6 +10,16 @@ If you have any questions or you'd like some guidance, please join us on
 [Gophers Slack](https://invite.slack.golangbridge.org) in the `#networking`
 channel!
 
+## Ecosystem
+
+Over time, an ecosystem of Go packages has developed around package `netlink`.
+Many of these packages provide building blocks for further interactions with
+various netlink families, such as `NETLINK_GENERIC` or `NETLINK_ROUTE`.
+
+![netlink ecosystem](./netlink.svg)
+
+To have your package included in this diagram, please send a pull request!
+
 ## Stability
 
 At this time, package `netlink` is in a pre-v1.0.0 state. Changes are being made
