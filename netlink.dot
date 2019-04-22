@@ -25,10 +25,10 @@ digraph {
             "github.com/mdlayher/taskstats" [URL="https://github.com/mdlayher/taskstats"]
             "github.com/mdlayher/wifi" [URL="https://github.com/mdlayher/wifi"]
             "github.com/mdlayher/wireguardctrl" [URL="https://github.com/mdlayher/wireguardctrl"]
-            "github.com/axatrax/l2tp" [URL="https://github.com/axatrax/l2tp"]
             "github.com/Merovius/nbd" [URL="https://github.com/Merovius/nbd"]
             "github.com/rtr7/router7" [URL="https://github.com/rtr7/router7"]
             "github.com/u-root/u-bmc" [URL="https://github.com/u-root/u-bmc"]
+            "github.com/axatrax/l2tp" [URL="https://github.com/axatrax/l2tp"]
         } -> "github.com/mdlayher/genetlink" 
     }
 
