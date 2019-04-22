@@ -31,6 +31,14 @@ digraph {
         } -> "github.com/mdlayher/genetlink" 
     }
 
+    subgraph cluster_kobject_uevent {
+        label = "NETLINK_KOBJECT_UEVENT";
+
+        {
+            "github.com/mdlayher/kobject" [URL="https://github.com/mdlayher/kobject"]
+        } -> "github.com/mdlayher/netlink"
+    }
+
     subgraph cluster_netfilter {
         label = "NETLINK_NETFILTER (nfnetlink)";
 
