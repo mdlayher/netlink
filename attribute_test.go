@@ -557,7 +557,9 @@ func TestAttributeDecoderOK(t *testing.T) {
 			name: "string",
 			attrs: []Attribute{{
 				Type: 1,
-				Data: nlenc.Bytes("hello world"),
+				// The string should be able to contain extra trailing NULL
+				// bytes which will all be removed automatically.
+				Data: nlenc.Bytes("hello world\x00\x00\x00"),
 			}},
 			fn: func(ad *AttributeDecoder) {
 				var s string

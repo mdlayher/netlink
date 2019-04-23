@@ -1,6 +1,10 @@
 package nlenc
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 func TestBytesString(t *testing.T) {
 	tests := []struct {
@@ -29,5 +33,17 @@ func TestBytesString(t *testing.T) {
 				t.Fatalf("unexpected string:\n- want: %q\n-  got: %q", want, got)
 			}
 		})
+	}
+}
+
+func TestStringTrailingNull(t *testing.T) {
+	const want = "hello world"
+
+	// Buffer has many trailing NULL bytes which should all be removed.
+	var b [64]byte
+	copy(b[:], want)
+
+	if diff := cmp.Diff(want, String(b[:])); diff != "" {
+		t.Fatalf("unexpected string (-want +got):\n%s", diff)
 	}
 }
