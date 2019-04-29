@@ -13,6 +13,14 @@ digraph {
         } -> "github.com/mdlayher/netlink"
     }
 
+    subgraph cluster_crypto {
+        label = "NETLINK_CRYPTO";
+
+        {
+            "github.com/mdlayher/cryptonl" [URL="https://github.com/mdlayher/cryptonl"]
+        } -> "github.com/mdlayher/netlink"
+    }
+
     subgraph cluster_generic {
         label = "NETLINK_GENERIC (genetlink)";
         "github.com/mdlayher/genetlink" [URL="https://github.com/mdlayher/genetlink"]
