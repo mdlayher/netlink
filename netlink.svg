@@ -192,64 +192,64 @@
 <path fill="none" stroke="#000000" d="M275.6788,-960C305.0928,-960 337.4919,-960 368.3321,-960"/>
 <polygon fill="#000000" stroke="#000000" points="368.7246,-963.5001 378.7246,-960 368.7245,-956.5001 368.7246,-963.5001"/>
 </g>
-<!-- github.com/mdlayher/wireguardctrl -->
-<g id="node11" class="node">
-<title>github.com/mdlayher/wireguardctrl</title>
-<g id="a_node11"><a xlink:href="https://github.com/mdlayher/wireguardctrl" xlink:title="github.com/mdlayher/wireguardctrl">
-<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-906" rx="137.2758" ry="18"/>
-<text text-anchor="middle" x="171.3362" y="-902.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/mdlayher/wireguardctrl</text>
-</a>
-</g>
-</g>
-<!-- github.com/mdlayher/wireguardctrl&#45;&gt;github.com/mdlayher/genetlink -->
-<g id="edge10" class="edge">
-<title>github.com/mdlayher/wireguardctrl&#45;&gt;github.com/mdlayher/genetlink</title>
-<path fill="none" stroke="#000000" d="M257.1196,-920.0469C303.7995,-927.6907 361.5647,-937.1496 409.1695,-944.9449"/>
-<polygon fill="#000000" stroke="#000000" points="408.7318,-948.4197 419.166,-946.5818 409.863,-941.5117 408.7318,-948.4197"/>
-</g>
 <!-- github.com/Merovius/nbd -->
-<g id="node12" class="node">
+<g id="node11" class="node">
 <title>github.com/Merovius/nbd</title>
-<g id="a_node12"><a xlink:href="https://github.com/Merovius/nbd" xlink:title="github.com/Merovius/nbd">
-<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-852" rx="103.1819" ry="18"/>
-<text text-anchor="middle" x="171.3362" y="-848.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/Merovius/nbd</text>
+<g id="a_node11"><a xlink:href="https://github.com/Merovius/nbd" xlink:title="github.com/Merovius/nbd">
+<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-906" rx="103.1819" ry="18"/>
+<text text-anchor="middle" x="171.3362" y="-902.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/Merovius/nbd</text>
 </a>
 </g>
 </g>
 <!-- github.com/Merovius/nbd&#45;&gt;github.com/mdlayher/genetlink -->
-<g id="edge11" class="edge">
+<g id="edge10" class="edge">
 <title>github.com/Merovius/nbd&#45;&gt;github.com/mdlayher/genetlink</title>
-<path fill="none" stroke="#000000" d="M255.7359,-862.5317C279.0161,-866.5497 304.0768,-871.9258 326.6724,-879 374.644,-894.0188 426.5199,-919.3855 461.1179,-937.7356"/>
-<polygon fill="#000000" stroke="#000000" points="459.4965,-940.8375 469.9641,-942.4745 462.802,-934.6671 459.4965,-940.8375"/>
+<path fill="none" stroke="#000000" d="M246.993,-918.3887C295.2157,-926.2851 358.0096,-936.5675 409.1103,-944.9352"/>
+<polygon fill="#000000" stroke="#000000" points="408.7326,-948.4198 419.1668,-946.5819 409.8638,-941.5119 408.7326,-948.4198"/>
 </g>
 <!-- github.com/rtr7/router7 -->
-<g id="node13" class="node">
+<g id="node12" class="node">
 <title>github.com/rtr7/router7</title>
-<g id="a_node13"><a xlink:href="https://github.com/rtr7/router7" xlink:title="github.com/rtr7/router7">
-<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-798" rx="94.4839" ry="18"/>
-<text text-anchor="middle" x="171.3362" y="-794.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/rtr7/router7</text>
+<g id="a_node12"><a xlink:href="https://github.com/rtr7/router7" xlink:title="github.com/rtr7/router7">
+<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-852" rx="94.4839" ry="18"/>
+<text text-anchor="middle" x="171.3362" y="-848.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/rtr7/router7</text>
 </a>
 </g>
 </g>
 <!-- github.com/rtr7/router7&#45;&gt;github.com/mdlayher/genetlink -->
-<g id="edge12" class="edge">
+<g id="edge11" class="edge">
 <title>github.com/rtr7/router7&#45;&gt;github.com/mdlayher/genetlink</title>
-<path fill="none" stroke="#000000" d="M257.7697,-805.4093C280.822,-809.4088 305.259,-815.5562 326.6724,-825 387.0749,-851.639 445.2293,-903.6188 476.7727,-934.7304"/>
-<polygon fill="#000000" stroke="#000000" points="474.6582,-937.5658 484.204,-942.1624 479.6082,-932.6163 474.6582,-937.5658"/>
+<path fill="none" stroke="#000000" d="M250.9186,-861.7151C275.5276,-865.812 302.5094,-871.4351 326.6724,-879 374.644,-894.0188 426.5199,-919.3855 461.1179,-937.7356"/>
+<polygon fill="#000000" stroke="#000000" points="459.4965,-940.8375 469.9641,-942.4745 462.802,-934.6671 459.4965,-940.8375"/>
 </g>
 <!-- github.com/u&#45;root/u&#45;bmc -->
-<g id="node14" class="node">
+<g id="node13" class="node">
 <title>github.com/u&#45;root/u&#45;bmc</title>
-<g id="a_node14"><a xlink:href="https://github.com/u-root/u-bmc" xlink:title="github.com/u&#45;root/u&#45;bmc">
-<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-744" rx="100.9827" ry="18"/>
-<text text-anchor="middle" x="171.3362" y="-740.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/u&#45;root/u&#45;bmc</text>
+<g id="a_node13"><a xlink:href="https://github.com/u-root/u-bmc" xlink:title="github.com/u&#45;root/u&#45;bmc">
+<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-798" rx="100.9827" ry="18"/>
+<text text-anchor="middle" x="171.3362" y="-794.3" font-family="Times,serif" font-size="14.00" fill="#000000">github.com/u&#45;root/u&#45;bmc</text>
 </a>
 </g>
 </g>
 <!-- github.com/u&#45;root/u&#45;bmc&#45;&gt;github.com/mdlayher/genetlink -->
-<g id="edge13" class="edge">
+<g id="edge12" class="edge">
 <title>github.com/u&#45;root/u&#45;bmc&#45;&gt;github.com/mdlayher/genetlink</title>
-<path fill="none" stroke="#000000" d="M265.8192,-750.3539C286.7356,-754.4583 308.1634,-760.918 326.6724,-771 399.005,-810.4001 457.6675,-891.1511 484.8041,-933.2038"/>
+<path fill="none" stroke="#000000" d="M261.4204,-806.0589C283.386,-810.065 306.386,-816.0532 326.6724,-825 387.0749,-851.639 445.2293,-903.6188 476.7727,-934.7304"/>
+<polygon fill="#000000" stroke="#000000" points="474.6582,-937.5658 484.204,-942.1624 479.6082,-932.6163 474.6582,-937.5658"/>
+</g>
+<!-- golang.zx2c4.com/wireguard/wgctrl -->
+<g id="node14" class="node">
+<title>golang.zx2c4.com/wireguard/wgctrl</title>
+<g id="a_node14"><a xlink:href="https://golang.zx2c4.com/wireguard/wgctrl" xlink:title="golang.zx2c4.com/wireguard/wgctrl">
+<ellipse fill="none" stroke="#000000" cx="171.3362" cy="-744" rx="139.1754" ry="18"/>
+<text text-anchor="middle" x="171.3362" y="-740.3" font-family="Times,serif" font-size="14.00" fill="#000000">golang.zx2c4.com/wireguard/wgctrl</text>
+</a>
+</g>
+</g>
+<!-- golang.zx2c4.com/wireguard/wgctrl&#45;&gt;github.com/mdlayher/genetlink -->
+<g id="edge13" class="edge">
+<title>golang.zx2c4.com/wireguard/wgctrl&#45;&gt;github.com/mdlayher/genetlink</title>
+<path fill="none" stroke="#000000" d="M284.2004,-754.5868C299.0091,-758.5427 313.5719,-763.864 326.6724,-771 399.005,-810.4001 457.6675,-891.1511 484.8041,-933.2038"/>
 <polygon fill="#000000" stroke="#000000" points="481.9483,-935.2357 490.2614,-941.804 487.8588,-931.4852 481.9483,-935.2357"/>
 </g>
 <!-- github.com/mdlayher/kobject -->
