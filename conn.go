@@ -428,6 +428,7 @@ const (
 	NoENOBUFS
 	ListenAllNSID
 	CapAcknowledge
+	ExtendAckReporting
 )
 
 // An optionSetter is a Socket that supports setting netlink options.

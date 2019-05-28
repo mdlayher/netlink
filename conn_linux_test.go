@@ -370,6 +370,15 @@ func TestLinuxConnSetOption(t *testing.T) {
 				value: 1,
 			},
 		},
+		{
+			name:   "extended ACK reporting",
+			option: ExtendAckReporting,
+			enable: true,
+			want: setSockopt{
+				opt:   unix.NETLINK_EXT_ACK,
+				value: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
