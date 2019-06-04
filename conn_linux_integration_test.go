@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"sync"
 	"syscall"
 	"testing"
@@ -511,6 +512,35 @@ func TestIntegrationConnNetNS(t *testing.T) {
 
 	if diff := cmp.Diff(ifName, ifi); diff != "" {
 		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
+	u, err := user.Current()
+	if err != nil {
+		t.Fatalf("failed to get user: %v", err)
+	}
+	if u.Uid == "0" {
+		t.Skip("skipping, test must be run as non-root user")
+	}
+
+	// Created in CI build environment.
+	const ns = "unpriv0"
+	f, err := os.Open("/var/run/netns/" + ns)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("skipping, expected %s namespace to exist", ns)
+		}
+
+		t.Fatalf("failed to open namespace file: %v", err)
+	}
+	defer f.Close()
+
+	_, err = netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
+		NetNS: int(f.Fd()),
+	})
+	if !os.IsPermission(err) {
+		t.Fatalf("expected permission denied, but got: %v", err)
 	}
 }
 
