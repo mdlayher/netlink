@@ -5,6 +5,7 @@ sources:
   - https://github.com/mdlayher/netlink
 environment:
   GO111MODULE: "on"
+  GOTRACEBACK: "all"
 tasks:
   - build: |
       go version
