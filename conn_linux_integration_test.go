@@ -3,10 +3,11 @@
 package netlink_test
 
 import (
+	"bytes"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
-	"reflect"
 	"sync"
 	"syscall"
 	"testing"
@@ -430,80 +431,158 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 }
 
 func TestIntegrationConnMulticast(t *testing.T) {
-	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
-		Groups: 0x1, // RTMGRP_LINK
+	skipUnprivileged(t)
+
+	c := rtnlDial(t, 0)
+	defer c.Close()
+
+	// Create an interface to trigger a notification, and remove it at the end
+	// of the test.
+	const ifName = "nltest0"
+	defer shell(t, "ip", "link", "del", ifName)
+
+	ifi := rtnlReceive(t, c, func() {
+		shell(t, "ip", "tuntap", "add", ifName, "mode", "tun")
 	})
-	if err != nil {
-		t.Fatalf("failed to dial netlink: %v", err)
-	}
 
-	in := make(chan []netlink.Message)
-
-	// routine for receiving any messages
-	recv := func() {
-		data, err := c.Receive()
-		if err != nil {
-			panicf("error in receive: %s", err)
-		}
-		in <- data
-	}
-
-	go recv()
-
-	ifName := "test0"
-
-	def := createInterface(t, ifName)
-	defer def()
-
-	timeout := time.After(5 * time.Second)
-	var data []netlink.Message
-	select {
-	case data = <-in:
-		break
-	case <-timeout:
-		panic("did not receive any messages after 5 seconds")
-	}
-
-	interf := []byte(ifName)
-	want := make([]uint8, len(ifName))
-	copy(want, interf[:])
-
-	got := make([]uint8, len(ifName))
-	copy(got, data[0].Data[20:len(ifName)+20])
-
-	if !reflect.DeepEqual(want, got) {
-		t.Fatalf("received message does not mention ifName %q", ifName)
+	if diff := cmp.Diff(ifName, ifi); diff != "" {
+		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
 	}
 }
 
-func createInterface(t *testing.T, ifName string) func() {
+func TestIntegrationConnNetNS(t *testing.T) {
+	skipUnprivileged(t)
+
+	// Create a network namespace for use within this test.
+	const ns = "nltest0"
+	shell(t, "ip", "netns", "add", ns)
+	defer shell(t, "ip", "netns", "del", ns)
+
+	f, err := os.Open("/var/run/netns/" + ns)
+	if err != nil {
+		t.Fatalf("failed to open namespace file: %v", err)
+	}
+	defer f.Close()
+
+	// Create a connection in each the host namespace and the new network
+	// namespace. We will use these to validate that a namespace was entered
+	// and that an interface creation notification was only visible to the
+	// connection within the namespace.
+	hostC := rtnlDial(t, 0)
+	defer hostC.Close()
+
+	nsC := rtnlDial(t, int(f.Fd()))
+	defer nsC.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer wg.Wait()
+
+	go func() {
+		defer wg.Done()
+
+		_, err := hostC.Receive()
+		if err == nil {
+			panic("received netlink message in host namespace")
+		}
+
+		// Timeout means we were interrupted, so return.
+		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			return
+		}
+
+		panicf("failed to receive in host namespace: %v", err)
+	}()
+
+	// Create a temporary interface within the new network namespace.
+	const ifName = "nltestns0"
+	defer shell(t, "ip", "netns", "exec", ns, "ip", "link", "del", ifName)
+
+	ifi := rtnlReceive(t, nsC, func() {
+		// Trigger a notification in the new namespace.
+		shell(t, "ip", "netns", "exec", ns, "ip", "tuntap", "add", ifName, "mode", "tun")
+	})
+
+	// And finally interrupt the host connection so it can exit its
+	// receive goroutine.
+	if err := hostC.SetDeadline(time.Unix(1, 0)); err != nil {
+		t.Fatalf("failed to interrupt host connection: %v", err)
+	}
+
+	if diff := cmp.Diff(ifName, ifi); diff != "" {
+		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
+	}
+}
+
+func rtnlDial(t *testing.T, netNS int) *netlink.Conn {
 	t.Helper()
 
-	cmd := exec.Command("ip", "tuntap", "add", ifName, "mode", "tun")
+	time.AfterFunc(5*time.Second, func() {
+		panic("test took too long")
+	})
+
+	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
+		Groups: 0x1, // RTMGRP_LINK
+		NetNS:  netNS,
+	})
+	if err != nil {
+		t.Fatalf("failed to dial rtnetlink: %v", err)
+	}
+
+	return c
+}
+
+func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
+	t.Helper()
+
+	// Receive messages in goroutine.
+	msgC := make(chan netlink.Message)
+	go func() {
+		msgs, err := c.Receive()
+		if err != nil {
+			panicf("failed to receive rtnetlink messages: %s", err)
+		}
+
+		msgC <- msgs[0]
+	}()
+
+	// Execute the function which will generate messages, and then wait for
+	// a message.
+	do()
+	m := <-msgC
+
+	// Find the interface name in the rtnetlink message and parse it directly,
+	// cutting up until the first NULL byte. This is probably a bit fragile
+	// but it seems to work.
+	i := bytes.Index(m.Data[20:], []byte{0x00})
+	return string(m.Data[20 : 20+i])
+}
+
+func skipUnprivileged(t *testing.T) {
+	const ifName = "nlprobe0"
+	shell(t, "ip", "tuntap", "add", ifName, "mode", "tun")
+	shell(t, "ip", "link", "del", ifName)
+}
+
+func shell(t *testing.T, name string, arg ...string) {
+	t.Helper()
+
+	t.Logf("$ %s %v", name, arg)
+
+	cmd := exec.Command(name, arg...)
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("error creating tuntap device: %v", err)
+		t.Fatalf("failed to start command %q: %v", name, err)
 	}
 
 	if err := cmd.Wait(); err != nil {
 		// TODO(mdlayher): switch back to cmd.ProcessState.ExitCode() when we
 		// drop support for Go 1.11.x.
-		// This test requires elevated privileges.
+		// Shell operations in these tests require elevated privileges.
 		if cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus() == int(unix.EPERM) {
-			t.Skipf("skipping, permission denied while creating tuntap device: %v", err)
+			t.Skipf("skipping, permission denied: %v", err)
 		}
 
-		t.Fatalf("error running command to create tuntap device: %v", err)
-	}
-
-	return func() {
-		cmd := exec.Command("ip", "link", "del", ifName)
-		if err := cmd.Start(); err != nil {
-			panicf("error removing tuntap device: %v", err)
-		}
-
-		if err := cmd.Wait(); err != nil {
-			panicf("error running command to remove tuntap device: %v", err)
-		}
+		t.Fatalf("failed to wait for command %q: %v", name, err)
 	}
 }
 
