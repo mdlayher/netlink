@@ -622,6 +622,18 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 	// Any bare syscall errors (e.g. setns) should be wrapped with
 	// os.NewSyscallError for the remainder of this function.
 
+	if netNS == CallingThreadNetNS {
+		// The caller wishes to use the network namespace of the calling
+		// thread for operations on Conn. Retrieve the namespace and pass
+		// it along to the new goroutine.
+		callerNS, err := getThreadNetNS()
+		if err != nil {
+			return nil, err
+		}
+
+		netNS = callerNS
+	}
+
 	g := &lockedNetNSGoroutine{
 		doneC: make(chan struct{}),
 		funcC: make(chan func()),
