@@ -569,6 +569,11 @@ const (
 	// network namespaces. See the documentation of runtime.LockOSThread and
 	// runtime.UnlockOSThread for details.
 	//
+	// A Conn is capable of entering a specific network namespace on its own,
+	// without any OS thread locking by the caller, but this option is useful
+	// for cases where the caller has already locked the calling OS thread and
+	// manipulated the network namespace of the calling thread.
+	//
 	// This option is useful in very specific circumstances, and must be used
 	// with great care.
 	CallingThreadNetNS = -1
