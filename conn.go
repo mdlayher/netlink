@@ -558,42 +558,27 @@ func Validate(request Message, replies []Message) error {
 	return nil
 }
 
-const (
-	// CallingThreadNetNS is a special value for Config.NetNS that allows Conn
-	// to enter the same Linux network namespace as the calling thread. Setting
-	// network namespaces is a privileged operation, so this option must be
-	// explicitly specified in order to do so.
-	//
-	// Note that the Go runtime multiplexes many goroutines onto many OS threads,
-	// and special care must be taken when manipulating thread state such as
-	// network namespaces. See the documentation of runtime.LockOSThread and
-	// runtime.UnlockOSThread for details.
-	//
-	// A Conn is capable of entering a specific network namespace on its own,
-	// without any OS thread locking by the caller, but this option is useful
-	// for cases where the caller has already locked the calling OS thread and
-	// manipulated the network namespace of the calling thread.
-	//
-	// This option is useful in very specific circumstances, and must be used
-	// with great care.
-	CallingThreadNetNS = -1
-)
-
 // Config contains options for a Conn.
 type Config struct {
 	// Groups is a bitmask which specifies multicast groups. If set to 0,
 	// no multicast group subscriptions will be made.
 	Groups uint32
 
-	// NetNS specifies the network namespace the Conn will operate in. If set
-	// to 0, no network namespace will be entered.
+	// NetNS specifies the network namespace the Conn will operate in.
 	//
-	// Entering a network namespace is a privileged operation, and most
-	// applications should leave this set to 0.
+	// If set (non-zero), Conn will enter the specified network namespace and
+	// an error will occur in Dial if the operation fails.
 	//
-	// If the caller wishes to use the calling thread's network namespace for
-	// operations on Conn, use netlink.CallingThreadNetNS. This option may be
-	// required if the caller has manipulated the network namespace of the
-	// calling thread.
+	// If not set (zero), a best-effort attempt will be made to enter the
+	// network namespace of the calling thread: this means that any changes made
+	// to the calling thread's network namespace will also be reflected in Conn.
+	// If this operation fails (due to lack of permissions), Dial will not return
+	// an error, and the Conn will operate in the default network namespace of
+	// the process. This enables non-privileged use of Conn in applications
+	// which do not require elevated privileges.
+	//
+	// Entering a network namespace is a privileged operation (root or
+	// CAP_SYS_ADMIN are required), and most applications should leave this set
+	// to 0.
 	NetNS int
 }

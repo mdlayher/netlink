@@ -622,16 +622,9 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 	// Any bare syscall errors (e.g. setns) should be wrapped with
 	// os.NewSyscallError for the remainder of this function.
 
-	if netNS == CallingThreadNetNS {
-		// The caller wishes to use the network namespace of the calling
-		// thread for operations on Conn. Retrieve the namespace and pass
-		// it along to the new goroutine.
-		callerNS, err := getThreadNetNS()
-		if err != nil {
-			return nil, err
-		}
-
-		netNS = callerNS
+	callerNS, err := getThreadNetNS()
+	if err != nil {
+		return nil, err
 	}
 
 	g := &lockedNetNSGoroutine{
@@ -661,27 +654,38 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		defer runtime.UnlockOSThread()
 		defer g.wg.Done()
 
-		// The user requested the Conn to operate in a non-default network namespace.
-		if netNS != 0 {
+		// Get the current namespace of the thread the goroutine is locked to.
+		origNetNS, err := getThreadNetNS()
+		if err != nil {
+			errC <- err
+			return
+		}
 
-			// Get the current namespace of the thread the goroutine is locked to.
-			origNetNS, err := getThreadNetNS()
-			if err != nil {
-				errC <- err
-				return
-			}
+		// Attempt to set the network namespace of the current thread to either:
+		// - the namespace referred to by the provided file descriptor from config
+		// - the calling thread's namespace
+		//
+		// See the rules specified in the Config.NetNS documentation.
+		explicitNS := true
+		if netNS == 0 {
+			explicitNS = false
+			netNS = callerNS
+		}
 
-			// Set the network namespace of the current thread using
-			// the file descriptor provided by the user.
-			err = setThreadNetNS(netNS)
-			if err != nil {
-				errC <- err
-				return
-			}
-
-			// Once the thread's namespace has been successfully manipulated,
+		// Only return an error if the network namespace was explicitly
+		// configured; implicit configuration by zero value should be ignored.
+		err = setThreadNetNS(netNS)
+		switch {
+		case err != nil && explicitNS:
+			errC <- err
+			return
+		case err == nil:
+			// If the thread's namespace has been successfully manipulated,
 			// make sure we change it back when the goroutine returns.
 			defer setThreadNetNS(origNetNS)
+		default:
+			// We couldn't successfully set the namespace, but the caller didn't
+			// explicitly ask for it to be set either. Continue.
 		}
 
 		// Signal to caller that initialization was successful.
