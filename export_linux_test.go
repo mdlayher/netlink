@@ -1,4 +1,4 @@
-//+build linux
+//+build go1.12,linux
 
 package netlink
 
