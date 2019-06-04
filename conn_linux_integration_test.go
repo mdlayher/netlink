@@ -5,7 +5,6 @@ package netlink_test
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -445,70 +444,6 @@ func TestIntegrationConnMulticast(t *testing.T) {
 	ifi := rtnlReceive(t, c, func() {
 		shell(t, "ip", "tuntap", "add", ifName, "mode", "tun")
 	})
-
-	if diff := cmp.Diff(ifName, ifi); diff != "" {
-		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
-	}
-}
-
-func TestIntegrationConnNetNS(t *testing.T) {
-	skipUnprivileged(t)
-
-	// Create a network namespace for use within this test.
-	const ns = "nltest0"
-	shell(t, "ip", "netns", "add", ns)
-	defer shell(t, "ip", "netns", "del", ns)
-
-	f, err := os.Open("/var/run/netns/" + ns)
-	if err != nil {
-		t.Fatalf("failed to open namespace file: %v", err)
-	}
-	defer f.Close()
-
-	// Create a connection in each the host namespace and the new network
-	// namespace. We will use these to validate that a namespace was entered
-	// and that an interface creation notification was only visible to the
-	// connection within the namespace.
-	hostC := rtnlDial(t, 0)
-	defer hostC.Close()
-
-	nsC := rtnlDial(t, int(f.Fd()))
-	defer nsC.Close()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	defer wg.Wait()
-
-	go func() {
-		defer wg.Done()
-
-		_, err := hostC.Receive()
-		if err == nil {
-			panic("received netlink message in host namespace")
-		}
-
-		// Timeout means we were interrupted, so return.
-		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			return
-		}
-
-		panicf("failed to receive in host namespace: %v", err)
-	}()
-
-	// Create a temporary interface within the new network namespace.
-	const ifName = "nltestns0"
-	defer shell(t, "ip", "netns", "exec", ns, "ip", "link", "del", ifName)
-
-	ifi := rtnlReceive(t, nsC, func() {
-		// Trigger a notification in the new namespace.
-		shell(t, "ip", "netns", "exec", ns, "ip", "tuntap", "add", ifName, "mode", "tun")
-	})
-
-	// And finally interrupt the host connection so it can exit its
-	// receive goroutine.
-	if err := hostC.SetDeadline(time.Unix(1, 0)); err != nil {
-		t.Fatalf("failed to interrupt host connection: %v", err)
-	}
 
 	if diff := cmp.Diff(ifName, ifi); diff != "" {
 		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
