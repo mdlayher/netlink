@@ -1,4 +1,4 @@
-//+build go1.12,integration,linux
+//+build go1.12,linux
 
 package netlink_test
 
