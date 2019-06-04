@@ -18,6 +18,10 @@ import (
 // A Conn is safe for concurrent use, but to avoid contention in
 // high-throughput applications, the caller should almost certainly create a
 // pool of Conns and distribute them among workers.
+//
+// A Conn is capable of manipulating netlink subsystems from within a specific
+// Linux network namespace, but special care must be taken when doing so. See
+// the documentation of Config for details.
 type Conn struct {
 	// sock is the operating system-specific implementation of
 	// a netlink sockets connection.
@@ -554,13 +558,37 @@ func Validate(request Message, replies []Message) error {
 	return nil
 }
 
+const (
+	// CallingThreadNetNS is a special value for Config.NetNS that allows Conn
+	// to enter the same Linux network namespace as the calling thread. Setting
+	// network namespaces is a privileged operation, so this option must be
+	// explicitly specified in order to do so.
+	//
+	// Note that the Go runtime multiplexes many goroutines onto many OS threads,
+	// and special care must be taken when manipulating thread state such as
+	// network namespaces. See the documentation of runtime.LockOSThread and
+	// runtime.UnlockOSThread for details.
+	//
+	// This option is useful in very specific circumstances, and must be used
+	// with great care.
+	CallingThreadNetNS = -1
+)
+
 // Config contains options for a Conn.
 type Config struct {
 	// Groups is a bitmask which specifies multicast groups. If set to 0,
 	// no multicast group subscriptions will be made.
 	Groups uint32
 
-	// Network namespace the Conn needs to operate in. If set to 0,
-	// no network namespace will be entered.
+	// NetNS specifies the network namespace the Conn will operate in. If set
+	// to 0, no network namespace will be entered.
+	//
+	// Entering a network namespace is a privileged operation, and most
+	// applications should leave this set to 0.
+	//
+	// If the caller wishes to use the calling thread's network namespace for
+	// operations on Conn, use netlink.CallingThreadNetNS. This option may be
+	// required if the caller has manipulated the network namespace of the
+	// calling thread.
 	NetNS int
 }
