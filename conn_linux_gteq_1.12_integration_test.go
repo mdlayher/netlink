@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestLinuxConnIntegrationTimeout(t *testing.T) {
+func TestIntegrationConnTimeout(t *testing.T) {
 	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
@@ -38,7 +38,7 @@ func TestLinuxConnIntegrationTimeout(t *testing.T) {
 	}
 }
 
-func TestLinuxConnIntegrationExecuteAfterReadDeadline(t *testing.T) {
+func TestIntegrationConnExecuteAfterReadDeadline(t *testing.T) {
 	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
