@@ -5,11 +5,13 @@ package netlink_test
 import (
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jsimonetti/rtnetlink/rtnl"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -127,6 +129,72 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 
 	if diff := cmp.Diff(ifName, ifi); diff != "" {
 		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnNetNSImplicit(t *testing.T) {
+	skipUnprivileged(t)
+
+	// Create a network namespace for use within this test.
+	const ns = "nltest0"
+	shell(t, "ip", "netns", "add", ns)
+	defer shell(t, "ip", "netns", "del", ns)
+
+	f, err := os.Open("/var/run/netns/" + ns)
+	if err != nil {
+		t.Fatalf("failed to open namespace file: %v", err)
+	}
+	defer f.Close()
+
+	// Create an interface in the new namespace. We will attempt to find it later.
+	const ifName = "nltestns0"
+	shell(t, "ip", "netns", "exec", ns, "ip", "tuntap", "add", ifName, "mode", "tun")
+	defer shell(t, "ip", "netns", "exec", ns, "ip", "link", "del", ifName)
+
+	// We're going to manipulate the network namespace of this thread, so we
+	// must lock OS thread and keep track of the original namespace for later.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	origNS, err := netlink.GetThreadNetNS()
+	if err != nil {
+		t.Fatalf("failed to get current network namespace: %v", err)
+	}
+
+	defer func() {
+		if err := netlink.SetThreadNetNS(origNS); err != nil {
+			t.Fatalf("failed to restore original network namespace: %v", err)
+		}
+	}()
+
+	if err := netlink.SetThreadNetNS(int(f.Fd())); err != nil {
+		t.Fatalf("failed to enter new network namespace: %v", err)
+	}
+
+	// Any netlink connections created beyond this point should set themselves
+	// into the new namespace automatically as well.
+
+	c, err := rtnl.Dial(nil)
+	if err != nil {
+		t.Fatalf("failed to dial rtnetlink: %v", err)
+	}
+	defer c.Close()
+
+	ifis, err := c.Links()
+	if err != nil {
+		t.Fatalf("failed to list links: %v", err)
+	}
+
+	var found bool
+	for _, ifi := range ifis {
+		if ifi.Name == ifName {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("did not find interface %q in namespace %q", ifName, ns)
 	}
 }
 
