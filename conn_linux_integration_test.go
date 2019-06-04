@@ -482,9 +482,10 @@ func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
 func rtnlDial(t *testing.T, netNS int) *netlink.Conn {
 	t.Helper()
 
-	time.AfterFunc(5*time.Second, func() {
+	timer := time.AfterFunc(10*time.Second, func() {
 		panic("test took too long")
 	})
+	defer timer.Stop()
 
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
 		Groups: 0x1, // RTMGRP_LINK
