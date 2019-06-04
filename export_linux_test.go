@@ -1,3 +1,5 @@
+//+build linux
+
 package netlink
 
 // This file exports certain identifiers for use in tests.
