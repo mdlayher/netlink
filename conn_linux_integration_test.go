@@ -531,9 +531,9 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 }
 
 func skipUnprivileged(t *testing.T) {
-	// Try to set the loopback link up to test if we have permission to
-	// manipulate rtnetlink.
-	shell(t, "ip", "link", "set", "up", "lo")
+	const ifName = "nlprobe0"
+	shell(t, "ip", "tuntap", "add", ifName, "mode", "tun")
+	shell(t, "ip", "link", "del", ifName)
 }
 
 func shell(t *testing.T, name string, arg ...string) {
