@@ -86,11 +86,11 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 	// namespace. We will use these to validate that a namespace was entered
 	// and that an interface creation notification was only visible to the
 	// connection within the namespace.
-	hostC := rtnlDial(t, 0)
-	defer hostC.Close()
+	hostC, hostDone := rtnlDial(t, 0)
+	defer hostDone()
 
-	nsC := rtnlDial(t, int(f.Fd()))
-	defer nsC.Close()
+	nsC, nsDone := rtnlDial(t, int(f.Fd()))
+	defer nsDone()
 
 	var wg sync.WaitGroup
 	wg.Add(1)

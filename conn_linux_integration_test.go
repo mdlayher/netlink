@@ -433,8 +433,8 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 func TestIntegrationConnMulticast(t *testing.T) {
 	skipUnprivileged(t)
 
-	c := rtnlDial(t, 0)
-	defer c.Close()
+	c, done := rtnlDial(t, 0)
+	defer done()
 
 	// Create an interface to trigger a notification, and remove it at the end
 	// of the test.
@@ -479,13 +479,12 @@ func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
 	}
 }
 
-func rtnlDial(t *testing.T, netNS int) *netlink.Conn {
+func rtnlDial(t *testing.T, netNS int) (*netlink.Conn, func()) {
 	t.Helper()
 
 	timer := time.AfterFunc(10*time.Second, func() {
 		panic("test took too long")
 	})
-	defer timer.Stop()
 
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
 		Groups: 0x1, // RTMGRP_LINK
@@ -495,7 +494,14 @@ func rtnlDial(t *testing.T, netNS int) *netlink.Conn {
 		t.Fatalf("failed to dial rtnetlink: %v", err)
 	}
 
-	return c
+	return c, func() {
+		if err := c.Close(); err != nil {
+			t.Fatalf("failed to close rtnetlink connection: %v", err)
+		}
+
+		// Stop the timer to prevent a panic if other tests run for a long time.
+		timer.Stop()
+	}
 }
 
 func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
