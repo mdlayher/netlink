@@ -156,18 +156,19 @@ func TestIntegrationConnNetNSImplicit(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	origNS, err := netlink.GetThreadNetNS()
+	threadNS, err := netlink.ThreadNetNS()
 	if err != nil {
 		t.Fatalf("failed to get current network namespace: %v", err)
 	}
+	defer threadNS.Close()
 
 	defer func() {
-		if err := netlink.SetThreadNetNS(origNS); err != nil {
+		if err := threadNS.Restore(); err != nil {
 			t.Fatalf("failed to restore original network namespace: %v", err)
 		}
 	}()
 
-	if err := netlink.SetThreadNetNS(int(f.Fd())); err != nil {
+	if err := threadNS.Set(int(f.Fd())); err != nil {
 		t.Fatalf("failed to enter new network namespace: %v", err)
 	}
 
