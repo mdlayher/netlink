@@ -9,19 +9,36 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// getThreadNetNS gets the network namespace file descriptor of the thread the current goroutine
-// is running on. Make sure to call runtime.LockOSThread() before this so the goroutine does not
-// get scheduled on another thread in the meantime.
-func getThreadNetNS() (int, error) {
-	file, err := os.Open(fmt.Sprintf("/proc/%d/task/%d/ns/net", unix.Getpid(), unix.Gettid()))
-	if err != nil {
-		return -1, err
-	}
-	return int(file.Fd()), nil
+// A netNS is a handle that can manipulate network namespaces.
+//
+// Operations performed on a netNS must use runtime.LockOSThread before
+// manipulating any network namespaces.
+type netNS struct {
+	f *os.File
 }
 
-// setThreadNetNS sets the network namespace of the thread of the current goroutine to
-// the namespace described by the user-provided file descriptor.
-func setThreadNetNS(fd int) error {
+// threadNetNS constructs a netNS using the network namespace of the calling
+// thread. If the namespace is not the default namespace, runtime.LockOSThread
+// should be invoked first.
+func threadNetNS() (*netNS, error) {
+	f, err := os.Open(fmt.Sprintf("/proc/self/task/%d/ns/net", unix.Gettid()))
+	if err != nil {
+		return nil, err
+	}
+
+	return &netNS{f: f}, nil
+}
+
+// Close releases the handle to a network namespace.
+func (n *netNS) Close() error { return n.f.Close() }
+
+// FD returns a file descriptor which represents the network namespace.
+func (n *netNS) FD() int { return int(n.f.Fd()) }
+
+// Restore restores the original network namespace for the calling thread.
+func (n *netNS) Restore() error { return n.Set(n.FD()) }
+
+// Set sets a new network namespace for the current thread using fd.
+func (n *netNS) Set(fd int) error {
 	return os.NewSyscallError("setns", unix.Setns(fd, unix.CLONE_NEWNET))
 }

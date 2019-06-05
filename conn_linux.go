@@ -622,10 +622,11 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 	// Any bare syscall errors (e.g. setns) should be wrapped with
 	// os.NewSyscallError for the remainder of this function.
 
-	callerNS, err := getThreadNetNS()
+	callerNS, err := threadNetNS()
 	if err != nil {
 		return nil, err
 	}
+	defer callerNS.Close()
 
 	g := &lockedNetNSGoroutine{
 		doneC: make(chan struct{}),
@@ -641,6 +642,10 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		// messages to the wrong places.
 		// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
 		//
+		//
+		// In addition, the OS thread must also remain locked because we attempt
+		// to manipulate the network namespace of the thread within this goroutine.
+		//
 		// The intent is to never unlock the OS thread, so that the thread
 		// will terminate when the goroutine exits starting in Go 1.10:
 		// https://go-review.googlesource.com/c/go/+/46038.
@@ -655,11 +660,12 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		defer g.wg.Done()
 
 		// Get the current namespace of the thread the goroutine is locked to.
-		origNetNS, err := getThreadNetNS()
+		threadNS, err := threadNetNS()
 		if err != nil {
 			errC <- err
 			return
 		}
+		defer threadNS.Close()
 
 		// Attempt to set the network namespace of the current thread to either:
 		// - the namespace referred to by the provided file descriptor from config
@@ -669,12 +675,12 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		explicitNS := true
 		if netNS == 0 {
 			explicitNS = false
-			netNS = callerNS
+			netNS = int(callerNS.FD())
 		}
 
 		// Only return an error if the network namespace was explicitly
 		// configured; implicit configuration by zero value should be ignored.
-		err = setThreadNetNS(netNS)
+		err = threadNS.Set(netNS)
 		switch {
 		case err != nil && explicitNS:
 			errC <- err
@@ -682,7 +688,7 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		case err == nil:
 			// If the thread's namespace has been successfully manipulated,
 			// make sure we change it back when the goroutine returns.
-			defer setThreadNetNS(origNetNS)
+			defer threadNS.Restore()
 		default:
 			// We couldn't successfully set the namespace, but the caller didn't
 			// explicitly ask for it to be set either. Continue.

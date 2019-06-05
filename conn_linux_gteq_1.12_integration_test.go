@@ -156,23 +156,37 @@ func TestIntegrationConnNetNSImplicit(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	origNS, err := netlink.GetThreadNetNS()
+	threadNS, err := netlink.ThreadNetNS()
 	if err != nil {
 		t.Fatalf("failed to get current network namespace: %v", err)
 	}
+	defer threadNS.Close()
 
-	defer func() {
-		if err := netlink.SetThreadNetNS(origNS); err != nil {
-			t.Fatalf("failed to restore original network namespace: %v", err)
-		}
-	}()
-
-	if err := netlink.SetThreadNetNS(int(f.Fd())); err != nil {
+	if err := threadNS.Set(int(f.Fd())); err != nil {
 		t.Fatalf("failed to enter new network namespace: %v", err)
 	}
 
-	// Any netlink connections created beyond this point should set themselves
-	// into the new namespace automatically as well.
+	// A newly created netlink connection should enter the new network namespace
+	// associated with this thread automatically.
+	if !findLink(t, ifName) {
+		t.Fatalf("did not find interface %q in namespace %q", ifName, ns)
+	}
+
+	// Return to the default namespace.
+	//
+	// A newly created netlink connection should NOT find the link because it
+	// is now in the default namespace.
+	if err := threadNS.Restore(); err != nil {
+		t.Fatalf("failed to restore original network namespace: %v", err)
+	}
+
+	if findLink(t, ifName) {
+		t.Fatalf("found interface %q in default namespace", ifName)
+	}
+}
+
+func findLink(t *testing.T, name string) bool {
+	t.Helper()
 
 	c, err := rtnl.Dial(nil)
 	if err != nil {
@@ -187,15 +201,13 @@ func TestIntegrationConnNetNSImplicit(t *testing.T) {
 
 	var found bool
 	for _, ifi := range ifis {
-		if ifi.Name == ifName {
+		if ifi.Name == name {
 			found = true
 			break
 		}
 	}
 
-	if !found {
-		t.Fatalf("did not find interface %q in namespace %q", ifName, ns)
-	}
+	return found
 }
 
 func mustBeTimeoutNetError(t *testing.T, err error) {
