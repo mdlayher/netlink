@@ -372,7 +372,7 @@ func TestLinuxConnSetOption(t *testing.T) {
 		},
 		{
 			name:   "extended ACK reporting",
-			option: ExtendAckReporting,
+			option: ExtendedAcknowledge,
 			enable: true,
 			want: setSockopt{
 				opt:   unix.NETLINK_EXT_ACK,

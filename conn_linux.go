@@ -305,7 +305,7 @@ func linuxOption(o ConnOption) (int, bool) {
 		return unix.NETLINK_LISTEN_ALL_NSID, true
 	case CapAcknowledge:
 		return unix.NETLINK_CAP_ACK, true
-	case ExtendAckReporting:
+	case ExtendedAcknowledge:
 		return unix.NETLINK_EXT_ACK, true
 	default:
 		return 0, false
