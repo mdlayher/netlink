@@ -874,7 +874,6 @@ func TestAttributeEncoderOK(t *testing.T) {
 			ae := NewAttributeEncoder()
 			tt.fn(ae)
 			got, err := ae.Encode()
-
 			if err != nil {
 				t.Fatalf("failed to encode attributes: %v", err)
 			}
