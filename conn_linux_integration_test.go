@@ -86,7 +86,55 @@ func TestIntegrationConn(t *testing.T) {
 	}
 }
 
-func TestIntegrationConnConcurrentRaceFree(t *testing.T) {
+func TestIntegrationConnConcurrentManyConns(t *testing.T) {
+	// Execute many concurrent operations on several netlink.Conns to ensure
+	// messages cannot be sent to the wrong connection.
+	//
+	// See newLockedNetNSGoroutine internally.
+	execN := func(n int) {
+		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+		if err != nil {
+			panicf("failed to dial generic netlink: %v", err)
+		}
+		defer c.Close()
+
+		req := netlink.Message{
+			Header: netlink.Header{
+				Flags: netlink.Request | netlink.Acknowledge,
+			},
+		}
+
+		for i := 0; i < n; i++ {
+			msgs, err := c.Execute(req)
+			if err != nil {
+				panicf("failed to send request: %v", err)
+			}
+
+			if l := len(msgs); l != 1 {
+				panicf("unexpected number of reply messages: %d", l)
+			}
+		}
+	}
+
+	const (
+		workers    = 16
+		iterations = 10000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			execN(iterations)
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestIntegrationConnConcurrentOneConn(t *testing.T) {
+	// Execute many concurrent operations on a single netlink.Conn.
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
