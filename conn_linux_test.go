@@ -500,6 +500,49 @@ func TestLinuxConnConfig(t *testing.T) {
 	}
 }
 
+func Test_newLockedNetNSGoroutineNetNSDisabled(t *testing.T) {
+	tests := []struct {
+		name string
+		ns   int
+		ok   bool
+	}{
+		{
+			// Network namespaces are disabled but none is set: this should
+			// succeed.
+			name: "not set",
+			ok:   true,
+		},
+		{
+			// Network namespaces are disabled but one is set explicitly:
+			// this should fail.
+			name: "set",
+			ns:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g, err := newLockedNetNSGoroutine(tt.ns, func() (*netNS, error) {
+				// Network namespaces should be disabled due to a non-existent
+				// file.
+				return fileNetNS("/netlinktestdoesnotexist")
+			})
+			if err != nil {
+				if tt.ok {
+					t.Fatalf("failed to create goroutine: %v", err)
+				}
+
+				return
+			}
+			defer g.stop()
+
+			if !tt.ok {
+				t.Fatal("expected an error, but none occurred")
+			}
+		})
+	}
+}
+
 func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 	s := &testSocket{}
 	c, _, err := bind(s, config)

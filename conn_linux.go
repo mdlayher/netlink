@@ -338,7 +338,8 @@ type sysSocket struct {
 // newSysSocket creates a sysSocket that optionally locks its internal goroutine
 // to a single thread.
 func newSysSocket(config *Config) (*sysSocket, error) {
-	g, err := newLockedNetNSGoroutine(config.NetNS)
+	// Determine network namespaces using the threadNetNS function.
+	g, err := newLockedNetNSGoroutine(config.NetNS, threadNetNS)
 	if err != nil {
 		return nil, err
 	}
@@ -620,11 +621,14 @@ type lockedNetNSGoroutine struct {
 	funcC chan func()
 }
 
-func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
+// newLockedNetNSGoroutine creates a lockedNetNSGoroutine that will enter the
+// specified network namespace netNS (by file descriptor), and will use the
+// getNS function to produce netNS handles.
+func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error)) (*lockedNetNSGoroutine, error) {
 	// Any bare syscall errors (e.g. setns) should be wrapped with
 	// os.NewSyscallError for the remainder of this function.
 
-	callerNS, err := threadNetNS()
+	callerNS, err := getNS()
 	if err != nil {
 		return nil, err
 	}
@@ -662,7 +666,7 @@ func newLockedNetNSGoroutine(netNS int) (*lockedNetNSGoroutine, error) {
 		defer g.wg.Done()
 
 		// Get the current namespace of the thread the goroutine is locked to.
-		threadNS, err := threadNetNS()
+		threadNS, err := getNS()
 		if err != nil {
 			errC <- err
 			return
