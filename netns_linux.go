@@ -31,7 +31,13 @@ type netNS struct {
 // thread. If the namespace is not the default namespace, runtime.LockOSThread
 // should be invoked first.
 func threadNetNS() (*netNS, error) {
-	f, err := os.Open(fmt.Sprintf("/proc/self/task/%d/ns/net", unix.Gettid()))
+	return fileNetNS(fmt.Sprintf("/proc/self/task/%d/ns/net", unix.Gettid()))
+}
+
+// fileNetNS opens file and creates a netNS. fileNetNS should only be called
+// directly in tests.
+func fileNetNS(file string) (*netNS, error) {
+	f, err := os.Open(file)
 	switch {
 	case err == nil:
 		return &netNS{f: f}, nil
