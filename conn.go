@@ -573,7 +573,8 @@ type Config struct {
 	// If not set (zero), a best-effort attempt will be made to enter the
 	// network namespace of the calling thread: this means that any changes made
 	// to the calling thread's network namespace will also be reflected in Conn.
-	// If this operation fails (due to lack of permissions), Dial will not return
+	// If this operation fails (due to lack of permissions or because network
+	// namespaces are disabled by kernel configuration), Dial will not return
 	// an error, and the Conn will operate in the default network namespace of
 	// the process. This enables non-privileged use of Conn in applications
 	// which do not require elevated privileges.

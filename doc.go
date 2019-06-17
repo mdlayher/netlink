@@ -5,6 +5,14 @@
 // channel!
 //
 //
+// Network namespaces
+//
+// This package is aware of Linux network namespaces, and can enter different
+// network namespaces either implicitly or explicitly, depending on
+// configuration. The Config structure passed to Dial to create a Conn controls
+// these behaviors. See the documentation of Config.NetNS for details.
+//
+//
 // Debugging
 //
 // This package supports rudimentary netlink connection debugging support.
