@@ -671,10 +671,7 @@ func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error), disableThr
 		// https://github.com/golang/go/issues/25128#issuecomment-410764489.
 		//
 		// Locking the thread is not implemented if the caller explicitly asks
-		// for an unlocked thread, since the caller can guarantee that there
-		// is no namespace switching and the master process is running in the
-		// same namespace as the target namespace. In this case, the configuration
-		// must not attempt to switch namespaces explicitly.
+		// for an unlocked thread.
 
 		// Only lock the tread, if the disableThreadLock is not set.
 		if !disableThreadLock {
