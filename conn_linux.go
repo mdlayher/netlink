@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var errInvalidConfiguration = errors.New("Netns cannot be set when disableNSThreadLock is set")
+var errInvalidConfiguration = errors.New("netns cannot be set when disableNSThreadLock is set")
 
 var _ Socket = &conn{}
 
