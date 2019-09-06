@@ -673,8 +673,8 @@ func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error), lockThread
 		// Locking the thread is not implemented if the caller explicitly asks
 		// for an unlocked thread.
 
-		// Only lock the tread, if the disableThreadLock is not set.
-		if !disableThreadLock {
+		// Only lock the tread, if the lockThread is set.
+		if lockThread {
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
 		}
