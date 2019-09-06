@@ -593,7 +593,6 @@ type Config struct {
 	// impact. In these cases, the caller can disable thread locking if performance
 	// considerations are of interest. If disabled, it is the responsibility of
 	// the caller to make sure that all threads are running in the correct namespace.
-	// When DisableNSLockThread is set, the caller cannot set the NetNS value. An error
-	// will be returned.
+	// When DisableNSLockThread is set, the caller cannot set the NetNS value.
 	DisableNSLockThread bool
 }
