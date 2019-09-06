@@ -549,7 +549,7 @@ func Test_newLockedNetNSGoroutineNetNSDisabled(t *testing.T) {
 				// Network namespaces should be disabled due to a non-existent
 				// file.
 				return fileNetNS("/netlinktestdoesnotexist")
-			}, false)
+			}, true)
 			if err != nil {
 				if tt.ok {
 					t.Fatalf("failed to create goroutine: %v", err)
