@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var errInvalidConfiguration = errors.New("netns cannot be set when disableNSThreadLock is set")
+var errNetNSDisabled = errors.New("netns cannot be set when disableNSThreadLock is set")
 
 var _ Socket = &conn{}
 
@@ -342,7 +342,7 @@ type sysSocket struct {
 // to a single thread.
 func newSysSocket(config *Config) (*sysSocket, error) {
 	// Determine network namespaces using the threadNetNS function.
-	g, err := newLockedNetNSGoroutine(config.NetNS, threadNetNS, config.DisableNSLockThread)
+	g, err := newLockedNetNSGoroutine(config.NetNS, threadNetNS, !config.DisableNSLockThread)
 	if err != nil {
 		return nil, err
 	}
@@ -627,14 +627,14 @@ type lockedNetNSGoroutine struct {
 // newLockedNetNSGoroutine creates a lockedNetNSGoroutine that will enter the
 // specified network namespace netNS (by file descriptor), and will use the
 // getNS function to produce netNS handles.
-func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error), disableThreadLock bool) (*lockedNetNSGoroutine, error) {
+func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error), lockThread bool) (*lockedNetNSGoroutine, error) {
 	// Any bare syscall errors (e.g. setns) should be wrapped with
 	// os.NewSyscallError for the remainder of this function.
 
-	// If the disableThreadLock is set and the caller attempts to set a
+	// If the lockThread is set and the caller attempts to set a
 	// namespace, return an error.
-	if disableThreadLock && netNS != 0 {
-		return nil, errInvalidConfiguration
+	if lockThread && netNS != 0 {
+		return nil, errNetNSDisabled
 	}
 
 	callerNS, err := getNS()
