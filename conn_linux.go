@@ -633,7 +633,7 @@ func newLockedNetNSGoroutine(netNS int, getNS func() (*netNS, error), lockThread
 
 	// If the lockThread is set and the caller attempts to set a
 	// namespace, return an error.
-	if lockThread && netNS != 0 {
+	if !lockThread && netNS != 0 {
 		return nil, errNetNSCannotLockThread
 	}
 

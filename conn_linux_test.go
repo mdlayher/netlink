@@ -510,36 +510,38 @@ func TestLinuxConnConfig(t *testing.T) {
 
 func Test_newLockedNetNSGoroutineNetNSDisabled(t *testing.T) {
 	tests := []struct {
-		name                string
-		ns                  int
-		ok                  bool
-		disableNSLockThread bool
+		name       string
+		ns         int
+		ok         bool
+		lockThread bool
 	}{
 		{
 			// Network namespaces are disabled but none is set: this should
 			// succeed.
-			name: "not set",
-			ok:   true,
+			name:       "not set",
+			ok:         true,
+			lockThread: true,
 		},
 		{
 			// Network namespaces are disabled but one is set explicitly:
 			// this should fail.
-			name: "set",
-			ns:   1,
+			name:       "set",
+			ns:         1,
+			lockThread: true,
 		},
 		{
 			// thread locking is disabled but an ns is provided.
 			// this should fail.
-			name:                "disable lock thread with ns defined",
-			ns:                  1,
-			disableNSLockThread: true,
+			name:       "disable lock thread with ns defined",
+			ns:         1,
+			lockThread: false,
 		},
 		{
 			// thread locking is disabled but an ns is not provided.
 			// this should succeed.
-			name:                "disable lock thread without ns defined",
-			disableNSLockThread: true,
-			ok:                  true,
+			name:       "disable lock thread without ns defined",
+			lockThread: false,
+			ok:         true,
 		},
 	}
 
@@ -549,7 +551,7 @@ func Test_newLockedNetNSGoroutineNetNSDisabled(t *testing.T) {
 				// Network namespaces should be disabled due to a non-existent
 				// file.
 				return fileNetNS("/netlinktestdoesnotexist")
-			}, true)
+			}, tt.lockThread)
 			if err != nil {
 				if tt.ok {
 					t.Fatalf("failed to create goroutine: %v", err)
