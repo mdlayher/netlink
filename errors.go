@@ -84,6 +84,11 @@ func (e *OpError) Error() string {
 	return fmt.Sprintf("netlink %s: %v", e.Op, e.Err)
 }
 
+// Unwrap implements errors.Wrapper interface
+func (e *OpError) Unwrap() error {
+	return e.Err
+}
+
 // Portions of this code taken from the Go standard library:
 //
 // Copyright 2009 The Go Authors. All rights reserved.

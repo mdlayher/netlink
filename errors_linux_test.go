@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
+	errors "golang.org/x/xerrors" // for go<1.13
 )
 
 func TestIsNotExistLinux(t *testing.T) {
@@ -65,5 +66,35 @@ func TestIsNotExistLinux(t *testing.T) {
 				t.Fatalf("unexpected result (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+var unwrapTestcases = []struct {
+	err error
+	in  error
+	out bool
+}{
+	{err: os.ErrExist, in: nil, out: false},
+	{err: os.ErrExist, in: &netlink.OpError{Op: "receive", Err: os.ErrExist}, out: true},
+	{err: os.ErrExist, in: &netlink.OpError{Op: "receive", Err: os.ErrPermission}, out: false},
+	{err: os.ErrExist, in: &netlink.OpError{Op: "receive", Err: os.ErrNotExist}, out: false},
+	{err: os.ErrExist, in: os.ErrExist, out: true},
+	{err: os.ErrExist, in: os.ErrPermission, out: false},
+	{err: os.ErrNotExist, in: nil, out: false},
+	{err: os.ErrNotExist, in: &netlink.OpError{Op: "receive", Err: os.ErrExist}, out: false},
+	{err: os.ErrNotExist, in: &netlink.OpError{Op: "receive", Err: os.ErrPermission}, out: false},
+	{err: os.ErrNotExist, in: &netlink.OpError{Op: "receive", Err: os.ErrNotExist}, out: true},
+	{err: os.ErrNotExist, in: os.ErrExist, out: false},
+	{err: os.ErrNotExist, in: os.ErrPermission, out: false},
+	{err: os.ErrNotExist, in: os.ErrNotExist, out: true},
+	{err: os.ErrExist, in: os.ErrNotExist, out: false},
+}
+
+func TestUnwrapLinux(t *testing.T) {
+	for i, tc := range unwrapTestcases {
+		out := errors.Is(tc.in, tc.err)
+		if out != tc.out {
+			t.Errorf("Is(%q, %q) (#%d): expected %#v, got %#v", tc.in, tc.err, i, tc.out, out)
+		}
 	}
 }
