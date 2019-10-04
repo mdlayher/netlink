@@ -1,6 +1,9 @@
+//+build linux,go1.13
+
 package nltest_test
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -14,7 +17,7 @@ func TestLinuxDialError(t *testing.T) {
 		return nltest.Error(int(unix.ENOENT), req)
 	})
 
-	if _, err := c.Execute(netlink.Message{}); !netlink.IsNotExist(err) {
+	if _, err := c.Execute(netlink.Message{}); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected error is not exist, but got: %v", err)
 	}
 }
@@ -25,10 +28,16 @@ func TestLinuxSyscallError(t *testing.T) {
 	})
 
 	_, err := c.Execute(netlink.Message{})
-	if !netlink.IsNotExist(err) {
+	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected error is not exist, but got: %v", err)
 	}
 
 	// Expect raw system call errors to be wrapped.
-	_ = err.(*netlink.OpError).Err.(*os.SyscallError)
+	var serr *os.SyscallError
+	if !errors.As(err, &serr) {
+		t.Fatalf("error did not contain *os.SyscallError")
+	}
+	if serr.Err != unix.ENOENT {
+		t.Fatalf("expected ENOENT, but got: %v", serr.Err)
+	}
 }
