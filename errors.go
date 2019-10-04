@@ -44,6 +44,17 @@ func IsNotExist(err error) bool {
 	}
 }
 
+// IsExist is similar to IsNotExist but checks whether the error is known to report that an object already exists,
+// e.g. an address is already assigned to an interface.
+func IsExist(err error) bool {
+	switch err := err.(type) {
+	case *OpError:
+		return os.IsExist(err.Err)
+	default:
+		return os.IsExist(err)
+	}
+}
+
 var _ error = &OpError{}
 var _ net.Error = &OpError{}
 

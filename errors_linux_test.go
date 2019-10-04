@@ -67,3 +67,24 @@ func TestIsNotExistLinux(t *testing.T) {
 		})
 	}
 }
+
+func TestIsExistLinux(t *testing.T) {
+	var testcases = []struct {
+		in  error
+		out bool
+	}{
+		{in: nil, out: false},
+		{in: &netlink.OpError{Op: "receive", Err: os.ErrExist}, out: true},
+		{in: &netlink.OpError{Op: "receive", Err: os.ErrPermission}, out: false},
+		{in: &netlink.OpError{Op: "receive", Err: os.ErrNotExist}, out: false},
+		{in: os.ErrExist, out: true},
+		{in: os.ErrPermission, out: false},
+		{in: os.ErrNotExist, out: false},
+	}
+	for i, tc := range testcases {
+		out := netlink.IsExist(tc.in)
+		if out != tc.out {
+			t.Errorf("'%v' (#%d): expected %#v, got %#v", tc.in, i, tc.out, out)
+		}
+	}
+}
