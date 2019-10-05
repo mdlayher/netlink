@@ -19,32 +19,19 @@ type decodeOut struct {
 	Nested decodeNested
 }
 
-// decode is an example function used to adapt the ad.Do method to decode an
+// decode is an example function used to adapt the ad.Nested method to decode an
 // arbitrary structure.
-func (n *decodeNested) decode() func(b []byte) error {
-	return func(b []byte) error {
-		// Create an internal netlink.AttributeDecoder that operates on a
-		// nested set of attributes passed by the external decoder.
-		ad, err := netlink.NewAttributeDecoder(b)
-		if err != nil {
-			return fmt.Errorf("failed to create nested attribute decoder: %v", err)
-		}
-
-		// Iterate attributes until completion, checking the type of each
-		// and decoding them as appropriate.
-		for ad.Next() {
-			switch ad.Type() {
-			// A and B are both uint32 values, so decode them as such.
-			case 1:
-				n.A = ad.Uint32()
-			case 2:
-				n.B = ad.Uint32()
-			}
-		}
-
-		// Return any error encountered while decoding.
-		return ad.Err()
+func (n *decodeNested) decode(ad *netlink.AttributeDecoder) error {
+	// Check the type of each attribute and decode them as appropriate.
+	switch ad.Type() {
+	// A and B are both uint32 values, so decode them as such.
+	case 1:
+		n.A = ad.Uint32()
+	case 2:
+		n.B = ad.Uint32()
 	}
+
+	return nil
 }
 
 // This example demonstrates using a netlink.AttributeDecoder to decode packed
@@ -74,7 +61,7 @@ func ExampleAttributeDecoder_decode() {
 		case 3:
 			// Nested is a nested structure, so we will use a method on the
 			// nested type along with ad.Do to decode it in a concise way.
-			ad.Do(out.Nested.decode())
+			ad.Nested(out.Nested.decode)
 		}
 	}
 
