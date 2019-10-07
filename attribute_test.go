@@ -576,6 +576,24 @@ func TestAttributeDecoderOK(t *testing.T) {
 			},
 		},
 		{
+			name: "flag",
+			attrs: []Attribute{{
+				Type: 1,
+			}},
+			fn: func(ad *AttributeDecoder) {
+				var flag bool
+				switch t := ad.Type(); t {
+				case 1:
+					flag = ad.Flag()
+				default:
+					panicf("unhandled attribute type: %d", t)
+				}
+				if flag != true {
+					panicf("unexpected attribute value (-want +got):\n -want: true\n +got: false")
+				}
+			},
+		},
+		{
 			name: "do",
 			attrs: []Attribute{
 				// Arbitrary C-like structure.
@@ -804,6 +822,20 @@ func TestAttributeEncoderOK(t *testing.T) {
 			attrs:  adEndianAttrs(binary.BigEndian),
 			endian: binary.BigEndian,
 			fn:     aeEndianTest(binary.BigEndian),
+		},
+		{
+			name:  "flag true",
+			attrs: []Attribute{{Type: 1}},
+			fn: func(ae *AttributeEncoder) {
+				ae.Flag(1, true)
+			},
+		},
+		{
+			name:  "flag false",
+			attrs: []Attribute{},
+			fn: func(ae *AttributeEncoder) {
+				ae.Flag(1, false)
+			},
 		},
 		{
 			name: "string",

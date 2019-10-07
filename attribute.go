@@ -280,6 +280,15 @@ func (ad *AttributeDecoder) Uint64() uint64 {
 	return ad.ByteOrder.Uint64(b)
 }
 
+// Flag returns a boolean representing the Attribute.
+func (ad *AttributeDecoder) Flag() bool {
+	if ad.err != nil {
+		return false
+	}
+
+	return true
+}
+
 // Do is a general purpose function which allows access to the current data
 // pointed to by the AttributeDecoder.
 //
@@ -382,6 +391,18 @@ func (ae *AttributeEncoder) Uint64(typ uint16, v uint64) {
 		Type: typ,
 		Data: b,
 	})
+}
+
+// Flag encodes a flag into an Attribute specidied by typ.
+func (ae *AttributeEncoder) Flag(typ uint16, v bool) {
+	if ae.err != nil {
+		return
+	}
+	if v == false {
+		return
+	}
+
+	ae.attrs = append(ae.attrs, Attribute{Type: typ})
 }
 
 // String encodes string s as a null-terminated string into an Attribute
