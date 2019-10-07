@@ -322,9 +322,9 @@ func (ad *AttributeDecoder) Do(fn func(b []byte) error) {
 	}
 }
 
-// Nested decodes data into a nested AttributeDecoder and invokes fn repeatedly
-// for each attribute found in the nested data. When calling Nested, the Next
-// and Err methods should not be called on the nested AttributeDecoder.
+// Nested decodes data into a nested AttributeDecoder to handle nested netlink
+// attributes. When calling Nested, the Err method does not need to be called on
+// the nested AttributeDecoder.
 //
 // The nested AttributeDecoder nad inherits the same ByteOrder setting as the
 // top-level AttributeDecoder ad.
@@ -337,11 +337,8 @@ func (ad *AttributeDecoder) Nested(fn func(nad *AttributeDecoder) error) {
 		}
 		nad.ByteOrder = ad.ByteOrder
 
-		// Iterate until no more attributes or nad.Err() != nil.
-		for nad.Next() {
-			if err := fn(nad); err != nil {
-				return err
-			}
+		if err := fn(nad); err != nil {
+			return err
 		}
 
 		return nad.Err()

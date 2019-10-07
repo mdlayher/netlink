@@ -725,25 +725,29 @@ func TestAttributeDecoderOK(t *testing.T) {
 				}
 
 				ad.Nested(func(nad *AttributeDecoder) error {
-					switch t := nad.Type(); t {
-					case 1:
-						if diff := cmp.Diff(uint16(1), nad.Uint16()); diff != "" {
-							panicf("unexpected nested uint16 (-want +got):\n%s", diff)
+					for nad.Next() {
+						switch t := nad.Type(); t {
+						case 1:
+							if diff := cmp.Diff(uint16(1), nad.Uint16()); diff != "" {
+								panicf("unexpected nested uint16 (-want +got):\n%s", diff)
+							}
+						case 2:
+							nad.Nested(func(nnad *AttributeDecoder) error {
+								for nad.Next() {
+									if diff := cmp.Diff(uint16(1), nnad.Type()); diff != "" {
+										panicf("unexpected nested attribute type (-want +got):\n%s", diff)
+									}
+
+									if diff := cmp.Diff(uint32(2), nnad.Uint32()); diff != "" {
+										panicf("unexpected nested uint32 (-want +got):\n%s", diff)
+									}
+								}
+
+								return nil
+							})
+						default:
+							panicf("unhandled nested attribute type: %d", t)
 						}
-					case 2:
-						nad.Nested(func(nnad *AttributeDecoder) error {
-							if diff := cmp.Diff(uint16(1), nnad.Type()); diff != "" {
-								panicf("unexpected nested attribute type (-want +got):\n%s", diff)
-							}
-
-							if diff := cmp.Diff(uint32(2), nnad.Uint32()); diff != "" {
-								panicf("unexpected nested uint32 (-want +got):\n%s", diff)
-							}
-
-							return nil
-						})
-					default:
-						panicf("unhandled nested attribute type: %d", t)
 					}
 
 					return nil

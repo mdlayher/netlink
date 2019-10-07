@@ -22,15 +22,19 @@ type decodeOut struct {
 // decode is an example function used to adapt the ad.Nested method to decode an
 // arbitrary structure.
 func (n *decodeNested) decode(ad *netlink.AttributeDecoder) error {
-	// Check the type of each attribute and decode them as appropriate.
-	switch ad.Type() {
-	// A and B are both uint32 values, so decode them as such.
-	case 1:
-		n.A = ad.Uint32()
-	case 2:
-		n.B = ad.Uint32()
+	// Iterate over the attributes, checking the type of each attribute and
+	// decoding them as appropriate.
+	for ad.Next() {
+		switch ad.Type() {
+		// A and B are both uint32 values, so decode them as such.
+		case 1:
+			n.A = ad.Uint32()
+		case 2:
+			n.B = ad.Uint32()
+		}
 	}
 
+	// No need to call ad.Err directly.
 	return nil
 }
 
