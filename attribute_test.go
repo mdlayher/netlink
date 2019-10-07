@@ -472,6 +472,19 @@ func TestAttributeDecoderError(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "flag",
+			attrs: []Attribute{{
+				Type: 1,
+				// Flag data is not empty.
+				Data: []byte{0xff},
+			}},
+			fn: func(ad *AttributeDecoder) {
+				ad.Flag()
+				ad.Next()
+				ad.Flag()
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -588,8 +601,8 @@ func TestAttributeDecoderOK(t *testing.T) {
 				default:
 					panicf("unhandled attribute type: %d", t)
 				}
-				if flag != true {
-					panicf("unexpected attribute value (-want +got):\n -want: true\n +got: false")
+				if !flag {
+					panic("flag was not set")
 				}
 			},
 		},

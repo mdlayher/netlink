@@ -282,7 +282,17 @@ func (ad *AttributeDecoder) Uint64() uint64 {
 
 // Flag returns a boolean representing the Attribute.
 func (ad *AttributeDecoder) Flag() bool {
-	return ad.err == nil
+	if ad.err != nil {
+		return false
+	}
+
+	b := ad.data()
+	if len(b) != 0 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a flag; length: %d", ad.Type(), len(b))
+		return false
+	}
+
+	return true
 }
 
 // Do is a general purpose function which allows access to the current data
@@ -391,13 +401,12 @@ func (ae *AttributeEncoder) Uint64(typ uint16, v uint64) {
 
 // Flag encodes a flag into an Attribute specidied by typ.
 func (ae *AttributeEncoder) Flag(typ uint16, v bool) {
-	if ae.err != nil {
-		return
-	}
-	if !v {
+	// Only set flag on no previous error or v == true.
+	if ae.err != nil || !v {
 		return
 	}
 
+	// Flags have no length or data fields.
 	ae.attrs = append(ae.attrs, Attribute{Type: typ})
 }
 
