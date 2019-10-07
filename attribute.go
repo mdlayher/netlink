@@ -282,11 +282,7 @@ func (ad *AttributeDecoder) Uint64() uint64 {
 
 // Flag returns a boolean representing the Attribute.
 func (ad *AttributeDecoder) Flag() bool {
-	if ad.err != nil {
-		return false
-	}
-
-	return true
+	return ad.err == nil
 }
 
 // Do is a general purpose function which allows access to the current data
@@ -398,7 +394,7 @@ func (ae *AttributeEncoder) Flag(typ uint16, v bool) {
 	if ae.err != nil {
 		return
 	}
-	if v == false {
+	if !v {
 		return
 	}
 
