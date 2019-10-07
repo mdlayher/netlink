@@ -198,6 +198,9 @@ func (ad *AttributeDecoder) Type() uint16 {
 	return ad.attr().Type & attrTypeMask
 }
 
+// Len returns the number of netlink attributes pointed to by the decoder.
+func (ad *AttributeDecoder) Len() int { return len(ad.attrs) }
+
 // attr returns the current Attribute pointed to by the decoder.
 func (ad *AttributeDecoder) attr() Attribute {
 	return ad.attrs[ad.i-1]

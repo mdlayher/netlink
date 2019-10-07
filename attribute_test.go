@@ -768,6 +768,11 @@ func TestAttributeDecoderOK(t *testing.T) {
 				t.Fatalf("failed to create attribute decoder: %v", err)
 			}
 
+			// Len should always report the same number of input attributes.
+			if diff := cmp.Diff(len(tt.attrs), ad.Len()); diff != "" {
+				t.Fatalf("unexpected  (-want +got):\n%s", diff)
+			}
+
 			for ad.Next() {
 				tt.fn(ad)
 			}
