@@ -20,21 +20,13 @@ type encodeOut struct {
 	Nested encodeNested
 }
 
-// encode is an example function used to adapt the ae.Do method
+// encode is an example function used to adapt the ae.Nested method
 // to encode an arbitrary structure.
-func (n encodeNested) encode() func() ([]byte, error) {
-	return func() ([]byte, error) {
-		// Create an internal, nested netlink.NewAttributeEncoder that
-		// operates on the nested set of attributes.
-		ae := netlink.NewAttributeEncoder()
-
-		// Encode the fields of the nested structure.
-		ae.Uint32(1, n.A)
-		ae.Uint32(2, n.B)
-
-		// Return the encoded attributes, and any error encountered.
-		return ae.Encode()
-	}
+func (n encodeNested) encode(ae *netlink.AttributeEncoder) error {
+	// Encode the fields of the nested structure.
+	ae.Uint32(1, n.A)
+	ae.Uint32(2, n.B)
+	return nil
 }
 
 func ExampleAttributeEncoder_encode() {
@@ -56,8 +48,8 @@ func ExampleAttributeEncoder_encode() {
 	// Encode the String attribute as a string.
 	ae.String(2, o.String)
 	// Nested is a nested structure, so we will use the encodeNested type's
-	// encode method with ae.Do to encode it in a concise way.
-	ae.Do(3, o.Nested.encode())
+	// encode method with ae.Nested to encode it in a concise way.
+	ae.Nested(3, o.Nested.encode)
 
 	// Any errors encountered during encoding (including any errors from
 	// encoding nested attributes) will be returned here.
@@ -66,10 +58,10 @@ func ExampleAttributeEncoder_encode() {
 		log.Fatalf("failed to encode attributes: %v", err)
 	}
 
-	fmt.Printf("Encoded netlink message follows:\n%s", hex.Dump(b))
+	fmt.Printf("netlink attributes:\n%s", hex.Dump(b))
 
-	// Output: Encoded netlink message follows:
+	// Output: netlink attributes:
 	// 00000000  06 00 01 00 01 00 00 00  10 00 02 00 68 65 6c 6c  |............hell|
-	// 00000010  6f 20 77 6f 72 6c 64 00  14 00 03 00 08 00 01 00  |o world.........|
+	// 00000010  6f 20 77 6f 72 6c 64 00  14 00 03 80 08 00 01 00  |o world.........|
 	// 00000020  02 00 00 00 08 00 02 00  03 00 00 00              |............|
 }
