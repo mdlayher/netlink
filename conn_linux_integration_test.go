@@ -21,6 +21,8 @@ import (
 )
 
 func TestIntegrationConn(t *testing.T) {
+	t.Parallel()
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -65,8 +67,10 @@ func TestIntegrationConn(t *testing.T) {
 		t.Fatalf("unexpected header flags:\n- want: %v or %v\n-  got: %v", want, wantAlt, got)
 	}
 
-	// Sequence number not checked because we assign one at random when
-	// a Conn is created.
+	// Sequence number is not checked because we assign one at random when
+	// a Conn is created. PID is not checked because running tests in parallel
+	// results in only the first socket getting assigned the process's PID as
+	// its netlink PID.
 
 	// Skip error code and unmarshal the copy of request sent back by
 	// skipping the success code at bytes 0-4
@@ -78,15 +82,15 @@ func TestIntegrationConn(t *testing.T) {
 	if want, got := req.Header.Flags, reply.Header.Flags; want != got {
 		t.Fatalf("unexpected copy header flags:\n- want: %v\n-  got: %v", want, got)
 	}
-	if want, got := os.Getpid(), int(reply.Header.PID); want != got {
-		t.Fatalf("unexpected copy header PID:\n- want: %v\n-  got: %v", want, got)
-	}
 	if want, got := len(req.Data), len(reply.Data); want != got {
 		t.Fatalf("unexpected copy header data length:\n- want: %v\n-  got: %v", want, got)
 	}
 }
 
 func TestIntegrationConnConcurrentManyConns(t *testing.T) {
+	t.Parallel()
+	skipShort(t)
+
 	// Execute many concurrent operations on several netlink.Conns to ensure
 	// messages cannot be sent to the wrong connection.
 	//
@@ -134,6 +138,9 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 }
 
 func TestIntegrationConnConcurrentOneConn(t *testing.T) {
+	t.Parallel()
+	skipShort(t)
+
 	// Execute many concurrent operations on a single netlink.Conn.
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
@@ -192,6 +199,8 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 }
 
 func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
+	t.Parallel()
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -229,6 +238,9 @@ func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
 }
 
 func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
+	t.Parallel()
+	skipShort(t)
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -269,6 +281,8 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 }
 
 func TestIntegrationConnClosedConn(t *testing.T) {
+	t.Parallel()
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -288,6 +302,8 @@ func TestIntegrationConnClosedConn(t *testing.T) {
 }
 
 func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
+	t.Parallel()
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -349,6 +365,8 @@ func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 }
 
 func TestIntegrationConnSetBPF(t *testing.T) {
+	t.Parallel()
+
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial netlink: %v", err)
@@ -415,7 +433,8 @@ func TestIntegrationConnSetBPF(t *testing.T) {
 	}
 }
 
-func TestIntegration_testBPFProgram(t *testing.T) {
+func Test_testBPFProgram(t *testing.T) {
+	// Verify the validity of our test BPF program.
 	vm, err := bpf.NewVM(testBPFProgram(0xffffffff))
 	if err != nil {
 		t.Fatalf("failed to create BPF VM: %v", err)
@@ -479,6 +498,8 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 }
 
 func TestIntegrationConnMulticast(t *testing.T) {
+	t.Parallel()
+
 	skipUnprivileged(t)
 
 	c, done := rtnlDial(t, 0)
@@ -499,6 +520,8 @@ func TestIntegrationConnMulticast(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
+	t.Parallel()
+
 	u, err := user.Current()
 	if err != nil {
 		t.Fatalf("failed to get user: %v", err)
@@ -582,6 +605,13 @@ func skipUnprivileged(t *testing.T) {
 	const ifName = "nlprobe0"
 	shell(t, "ip", "tuntap", "add", ifName, "mode", "tun")
 	shell(t, "ip", "link", "del", ifName)
+}
+
+func skipShort(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping in short test mode")
+	}
 }
 
 func shell(t *testing.T, name string, arg ...string) {

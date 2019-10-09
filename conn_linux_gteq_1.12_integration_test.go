@@ -17,6 +17,8 @@ import (
 )
 
 func TestIntegrationConnTimeout(t *testing.T) {
+	t.Parallel()
+
 	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
@@ -43,6 +45,8 @@ func TestIntegrationConnTimeout(t *testing.T) {
 }
 
 func TestIntegrationConnExecuteAfterReadDeadline(t *testing.T) {
+	t.Parallel()
+
 	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
@@ -69,6 +73,8 @@ func TestIntegrationConnExecuteAfterReadDeadline(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSExplicit(t *testing.T) {
+	t.Parallel()
+
 	skipUnprivileged(t)
 
 	// Create a network namespace for use within this test.
@@ -133,6 +139,8 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSImplicit(t *testing.T) {
+	t.Parallel()
+
 	skipUnprivileged(t)
 
 	// Create a network namespace for use within this test.
