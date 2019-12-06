@@ -174,7 +174,7 @@ func NewAttributeDecoder(b []byte) (*AttributeDecoder, error) {
 	}
 
 	var err error
-	ad.length, err = ad.count()
+	ad.length, err = ad.available()
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func (ad *AttributeDecoder) Len() int { return ad.length }
 
 // count scans the input slice to count the number of netlink attributes
 // that could be decoded by Next().
-func (ad *AttributeDecoder) count() (int, error) {
+func (ad *AttributeDecoder) available() (int, error) {
 
 	var i, count int
 	for {
