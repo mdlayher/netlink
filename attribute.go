@@ -214,7 +214,7 @@ func (ad *AttributeDecoder) Next() bool {
 // pointed to by the decoder.
 //
 // Type masks off the high bits of the netlink attribute type which may contain
-// the Nested and NetByteOrder flags. These can be obtained by calling TypeFlags().
+// the Nested and NetByteOrder flags. These can be obtained by calling TypeFlags.
 func (ad *AttributeDecoder) Type() uint16 {
 	// Mask off any flags stored in the high bits.
 	return ad.a.Type & attrTypeMask
@@ -224,7 +224,7 @@ func (ad *AttributeDecoder) Type() uint16 {
 // netlink attribute pointed to by the decoder.
 //
 // These bits of the netlink attribute type are used for the Nested and NetByteOrder
-// flags.
+// flags, available as the Nested and NetByteOrder constants in this package.
 func (ad *AttributeDecoder) TypeFlags() uint16 {
 	return ad.a.Type & ^attrTypeMask
 }
