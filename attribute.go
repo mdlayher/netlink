@@ -156,7 +156,7 @@ type AttributeDecoder struct {
 	b []byte
 	i int
 
-	len int
+	length int
 
 	// Any error encountered while decoding attributes.
 	err error
@@ -174,7 +174,7 @@ func NewAttributeDecoder(b []byte) (*AttributeDecoder, error) {
 	}
 
 	var err error
-	ad.len, err = ad.count()
+	ad.length, err = ad.count()
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (ad *AttributeDecoder) TypeFlags() uint16 {
 }
 
 // Len returns the number of netlink attributes pointed to by the decoder.
-func (ad *AttributeDecoder) Len() int { return ad.len }
+func (ad *AttributeDecoder) Len() int { return ad.length }
 
 // count scans the input slice to count the number of netlink attributes
 // that could be decoded by Next().
