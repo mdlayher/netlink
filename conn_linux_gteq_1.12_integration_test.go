@@ -39,7 +39,7 @@ func TestIntegrationConnTimeout(t *testing.T) {
 	select {
 	case err := <-errC:
 		mustBeTimeoutNetError(t, err)
-	case <-time.After(timeout + 1*time.Millisecond):
+	case <-time.After(timeout + 100*time.Millisecond):
 		t.Fatalf("timeout did not fire")
 	}
 }
