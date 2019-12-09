@@ -754,6 +754,22 @@ func TestAttributeDecoderOK(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "typeflags",
+			attrs: []Attribute{{
+				Type: 0xffff,
+			}},
+			fn: func(ad *AttributeDecoder) {
+
+				if diff := cmp.Diff(ad.Type(), uint16(0x3fff)); diff != "" {
+					panicf("unexpected Type (-want +got):\n%s", diff)
+				}
+
+				if diff := cmp.Diff(ad.TypeFlags(), uint16(0xc000)); diff != "" {
+					panicf("unexpected TypeFlags (-want +got):\n%s", diff)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
