@@ -107,7 +107,6 @@ func MarshalAttributes(attrs []Attribute) ([]byte, error) {
 // It is recommend to use the AttributeDecoder type where possible instead of calling
 // UnmarshalAttributes and using package nlenc functions directly.
 func UnmarshalAttributes(b []byte) ([]Attribute, error) {
-
 	ad, err := NewAttributeDecoder(b)
 	if err != nil {
 		return nil, err
@@ -165,7 +164,6 @@ type AttributeDecoder struct {
 // NewAttributeDecoder creates an AttributeDecoder that unpacks Attributes
 // from b and prepares the decoder for iteration.
 func NewAttributeDecoder(b []byte) (*AttributeDecoder, error) {
-
 	ad := &AttributeDecoder{
 		// By default, use native byte order.
 		ByteOrder: nlenc.NativeEndian(),
@@ -235,7 +233,6 @@ func (ad *AttributeDecoder) Len() int { return ad.length }
 // count scans the input slice to count the number of netlink attributes
 // that could be decoded by Next().
 func (ad *AttributeDecoder) available() (int, error) {
-
 	var i, count int
 	for {
 

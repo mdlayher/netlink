@@ -760,7 +760,6 @@ func TestAttributeDecoderOK(t *testing.T) {
 				Type: 0xffff,
 			}},
 			fn: func(ad *AttributeDecoder) {
-
 				if diff := cmp.Diff(ad.Type(), uint16(0x3fff)); diff != "" {
 					panicf("unexpected Type (-want +got):\n%s", diff)
 				}
