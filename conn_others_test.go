@@ -2,7 +2,11 @@
 
 package netlink
 
-import "testing"
+import (
+	"testing"
+
+	"golang.org/x/sys/unix"
+)
 
 func TestOthersConnUnimplemented(t *testing.T) {
 	c := &conn{}
