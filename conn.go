@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/net/bpf"
+	"golang.org/x/sys/unix"
 )
 
 // A Conn is a connection to netlink.  A Conn can be used to send and
@@ -49,7 +50,7 @@ type Socket interface {
 	Send(m Message) error
 	SendMessages(m []Message) error
 	Receive() ([]Message, error)
-	Select() (int, error)
+	Select(tv *unix.Timeval) (int, error)
 }
 
 // Dial dials a connection to netlink, using the specified netlink family.
@@ -321,8 +322,8 @@ func (c *Conn) receive() ([]Message, error) {
 }
 
 // Select allow to check whether netlink messages are available
-func (c *Conn) Select() (int, error) {
-	return c.sock.Select()
+func (c *Conn) Select(tv *unix.Timeval) (int, error) {
+	return c.sock.Select(tv)
 }
 
 // A groupJoinLeaver is a Socket that supports joining and leaving

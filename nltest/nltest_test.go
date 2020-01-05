@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
+	"golang.org/x/sys/unix"
 )
 
 func TestConnSend(t *testing.T) {
@@ -54,7 +55,7 @@ func TestConnReceiveMulticast(t *testing.T) {
 	})
 	defer c.Close()
 
-	n, err := c.Select()
+	n, err := c.Select(&unix.Timeval{})
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestConnReceiveNoMessages(t *testing.T) {
 	})
 	defer c.Close()
 
-	n, err := c.Select()
+	n, err := c.Select(&unix.Timeval{})
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}

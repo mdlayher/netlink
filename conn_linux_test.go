@@ -151,7 +151,7 @@ func TestLinuxConnReceive(t *testing.T) {
 	s.recvmsg.p = resb
 	s.recvmsg.from = from
 
-	n, err := c.Select()
+	n, err := c.Select(&unix.Timeval{})
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestLinuxConnReceiveNoMessage(t *testing.T) {
 
 	c, _ := testLinuxConn(t, nil)
 
-	n, err := c.Select()
+	n, err := c.Select(&unix.Timeval{})
 	if err != nil {
 		t.Fatalf("failed to execute: %v", err)
 	}
@@ -656,7 +656,7 @@ func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
 	return s.getsockname, s.getsocknameErr
 }
 
-func (s *testSocket) Select() (int, error) {
+func (s *testSocket) Select(tv *unix.Timeval) (int, error) {
 	if len(s.recvmsg.p) > 0 {
 		return 1, nil
 	}

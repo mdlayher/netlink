@@ -8,6 +8,7 @@ import (
 
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
+	"golang.org/x/sys/unix"
 )
 
 // PID is the netlink header PID value assigned by nltest.
@@ -204,7 +205,7 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	return msgs, err
 }
 
-func (c *socket) Select() (int, error) {
+func (c *socket) Select(tv *unix.Timeval) (int, error) {
 	msgs, _ := c.fn(nil)
 
 	if len(c.msgs) > 0 || len(msgs) > 0 {

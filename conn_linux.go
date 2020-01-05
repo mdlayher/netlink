@@ -35,7 +35,7 @@ type socket interface {
 	Close() error
 	FD() int
 	File() *os.File
-	Select() (int, error)
+	Select(tv *unix.Timeval) (int, error)
 	Getsockname() (unix.Sockaddr, error)
 	Recvmsg(p, oob []byte, flags int) (n int, oobn int, recvflags int, from unix.Sockaddr, err error)
 	Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error
@@ -186,8 +186,8 @@ func (c *conn) Receive() ([]Message, error) {
 }
 
 // Select allow to check whether netlink messages are available
-func (c *conn) Select() (int, error) {
-	return c.s.Select()
+func (c *conn) Select(tv *unix.Timeval) (int, error) {
+	return c.s.Select(tv)
 }
 
 // Close closes the connection.
@@ -523,13 +523,13 @@ func (s *sysSocket) FD() int { return int(s.fd.Fd()) }
 
 func (s *sysSocket) File() *os.File { return s.fd }
 
-func (s *sysSocket) Select() (int, error) {
+func (s *sysSocket) Select(tv *unix.Timeval) (int, error) {
 
 	var fdSet unix.FdSet
 	fdSet.Zero()
 	fdSet.Set(s.FD())
 
-	n, err := unix.Select(s.FD()+1, &fdSet, nil, nil, &unix.Timeval{})
+	n, err := unix.Select(s.FD()+1, &fdSet, nil, nil, tv)
 
 	return n, err
 }
