@@ -49,6 +49,7 @@ type Socket interface {
 	Send(m Message) error
 	SendMessages(m []Message) error
 	Receive() ([]Message, error)
+	Select() (int, error)
 }
 
 // Dial dials a connection to netlink, using the specified netlink family.
@@ -317,6 +318,11 @@ func (c *Conn) receive() ([]Message, error) {
 			return res, nil
 		}
 	}
+}
+
+// Select allow to check whether netlink messages are available
+func (c *Conn) Select() (int, error) {
+	return c.sock.Select()
 }
 
 // A groupJoinLeaver is a Socket that supports joining and leaving

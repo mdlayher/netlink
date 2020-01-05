@@ -151,6 +151,15 @@ func TestLinuxConnReceive(t *testing.T) {
 	s.recvmsg.p = resb
 	s.recvmsg.from = from
 
+	n, err := c.Select()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if n != 1 {
+		t.Fatalf("expected messages")
+	}
+
 	msgs, err := c.Receive()
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
@@ -183,6 +192,20 @@ func TestLinuxConnReceive(t *testing.T) {
 	if want, got := res, msgs[0]; !reflect.DeepEqual(want, got) {
 		t.Fatalf("unexpected output message:\n- want: %#v\n-  got: %#v",
 			want, got)
+	}
+}
+
+func TestLinuxConnReceiveNoMessage(t *testing.T) {
+
+	c, _ := testLinuxConn(t, nil)
+
+	n, err := c.Select()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if n > 0 {
+		t.Fatalf("expected no messages")
 	}
 }
 
@@ -631,6 +654,14 @@ func (s *testSocket) Getsockname() (unix.Sockaddr, error) {
 	}
 
 	return s.getsockname, s.getsocknameErr
+}
+
+func (s *testSocket) Select() (int, error) {
+	if len(s.recvmsg.p) > 0 {
+		return 1, nil
+	}
+
+	return 0, nil
 }
 
 func (s *testSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
