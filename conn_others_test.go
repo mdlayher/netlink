@@ -37,4 +37,9 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.Close:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+
+	if _, got := c.Select(); want != got {
+		t.Fatalf("unexpected error during c.Select:\n- want: %v\n-  got: %v",
+			want, got)
+	}
 }

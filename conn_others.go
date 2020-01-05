@@ -27,4 +27,4 @@ func (c *conn) Send(_ Message) error           { return errUnimplemented }
 func (c *conn) SendMessages(_ []Message) error { return errUnimplemented }
 func (c *conn) Receive() ([]Message, error)    { return nil, errUnimplemented }
 func (c *conn) Close() error                   { return errUnimplemented }
-func (c *conn) Select() (int, error)           { return -1, errUnimplemented }
+func (c *conn) Select(_ *unix.Timeval) (int, error) { return -1, errUnimplemented }
