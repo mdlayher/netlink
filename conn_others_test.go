@@ -38,7 +38,7 @@ func TestOthersConnUnimplemented(t *testing.T) {
 			want, got)
 	}
 
-	if _, got := c.Select(); want != got {
+	if _, got := c.Select(&unix.Timeval{}); want != got {
 		t.Fatalf("unexpected error during c.Select:\n- want: %v\n-  got: %v",
 			want, got)
 	}
