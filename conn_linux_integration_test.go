@@ -118,6 +118,29 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 				panicf("unexpected number of reply messages: %d", l)
 			}
 		}
+
+		nsel, err := c.Select(&unix.Timeval{})
+		if err != nil {
+			t.Fatalf("failed to execute select: %v", err)
+		}
+
+		if nsel > 0 {
+			t.Fatalf("expected no messages")
+		}
+
+		_, err = c.Send(req)
+		if err != nil {
+			panicf("failed to send request: %v", err)
+		}
+
+		nsel, err = c.Select(&unix.Timeval{})
+		if err != nil {
+			t.Fatalf("failed to execute select: %v", err)
+		}
+
+		if nsel != 1 {
+			t.Fatalf("expected messages got none")
+		}
 	}
 
 	const (
