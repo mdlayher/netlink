@@ -54,6 +54,15 @@ func TestConnReceiveMulticast(t *testing.T) {
 	})
 	defer c.Close()
 
+	n, err := c.Select()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if n != 1 {
+		t.Fatalf("expected messages")
+	}
+
 	got, err := c.Receive()
 	if err != nil {
 		t.Fatalf("failed to receive messages: %v", err)
@@ -70,6 +79,15 @@ func TestConnReceiveNoMessages(t *testing.T) {
 		return nil, io.EOF
 	})
 	defer c.Close()
+
+	n, err := c.Select()
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if n > 0 {
+		t.Fatalf("expected no messages")
+	}
 
 	msgs, err := c.Receive()
 	if err != nil {

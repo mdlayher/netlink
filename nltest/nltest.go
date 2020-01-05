@@ -204,6 +204,16 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	return msgs, err
 }
 
+func (c *socket) Select() (int, error) {
+	msgs, _ := c.fn(nil)
+
+	if len(c.msgs) > 0 || len(msgs) > 0 {
+		return 1, nil
+	}
+
+	return 0, nil
+}
+
 func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
 }
