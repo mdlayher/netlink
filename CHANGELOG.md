@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- n/a
+
+## v1.1.0
+
 - [New API] [#157](https://github.com/mdlayher/netlink/pull/157): the
   `netlink.AttributeDecoder.TypeFlags` method enables retrieval of the type bits
   stored in a netlink attribute's type field, because the existing `Type` method
