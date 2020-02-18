@@ -558,7 +558,7 @@ func rtnlDial(t *testing.T, netNS int) (*netlink.Conn, func()) {
 	})
 
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{
-		Groups: 0x1, // RTMGRP_LINK
+		Groups: unix.RTMGRP_LINK,
 		NetNS:  netNS,
 	})
 	if err != nil {

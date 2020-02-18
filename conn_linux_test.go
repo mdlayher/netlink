@@ -478,21 +478,21 @@ func TestLinuxConnConfig(t *testing.T) {
 		},
 		{
 			name:   "Config with Groups RTMGRP_IPV4_IFADDR",
-			config: &Config{Groups: 0x10},
-			groups: 0x10,
+			config: &Config{Groups: unix.RTMGRP_IPV4_IFADDR},
+			groups: unix.RTMGRP_IPV4_IFADDR,
 		},
 		{
 			name:   "Config with Groups RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE",
-			config: &Config{Groups: 0x10 | 0x40},
-			groups: 0x50,
+			config: &Config{Groups: unix.RTMGRP_IPV4_IFADDR | unix.RTMGRP_IPV4_ROUTE},
+			groups: unix.RTMGRP_IPV4_IFADDR | unix.RTMGRP_IPV4_ROUTE,
 		},
 		{
 			name: "Config with DisableNSLockThread and Groups RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE",
 			config: &Config{
-				Groups:              0x10 | 0x40,
+				Groups:              unix.RTMGRP_IPV4_IFADDR | unix.RTMGRP_IPV4_ROUTE,
 				DisableNSLockThread: true,
 			},
-			groups: 0x50,
+			groups: unix.RTMGRP_IPV4_IFADDR | unix.RTMGRP_IPV4_ROUTE,
 		},
 	}
 
