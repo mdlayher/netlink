@@ -43,6 +43,7 @@ type socket interface {
 	SetWriteDeadline(t time.Time) error
 	SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error
 	SetSockoptInt(level, opt, value int) error
+	GetSockoptInt(level, opt int) (int, error)
 }
 
 // dial is the entry point for Dial.  dial opens a netlink socket using
@@ -311,6 +312,32 @@ func (c *conn) SetWriteBuffer(bytes int) error {
 		))
 	}
 	return err
+}
+
+// GetReadBuffer retrieves the size of the operating system's receive buffer
+// associated with the Conn.
+func (c *conn) GetReadBuffer() (int, error) {
+	value, err := c.s.GetSockoptInt(
+		unix.SOL_SOCKET,
+		unix.SO_RCVBUF,
+	)
+	if err != nil {
+		return value, os.NewSyscallError("getsockopt", err)
+	}
+	return value, err
+}
+
+// GetWriteBuffer retrieves the size of the operating system's transmit buffer
+// associated with the Conn.
+func (c *conn) GetWriteBuffer() (int, error) {
+	value, err := c.s.GetSockoptInt(
+		unix.SOL_SOCKET,
+		unix.SO_SNDBUF,
+	)
+	if err != nil {
+		return value, os.NewSyscallError("getsockopt", err)
+	}
+	return value, err
 }
 
 // linuxOption converts a ConnOption to its Linux value.
@@ -615,6 +642,19 @@ func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	return err
+}
+
+func (s *sysSocket) GetSockoptInt(level, opt int) (int, error) {
+	var value int
+	var err error
+	doErr := s.control(func(fd int) {
+		value, err = unix.GetsockoptInt(fd, level, opt)
+	})
+	if doErr != nil {
+		return value, doErr
+	}
+
+	return value, err
 }
 
 func (s *sysSocket) SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error {
