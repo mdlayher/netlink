@@ -276,21 +276,41 @@ func (c *conn) SetWriteDeadline(t time.Time) error {
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error {
-	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
+	// First try SO_RCVBUFFORCE. Given necessary permissions this syscall ignores limits.
+	err := os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
-		unix.SO_RCVBUF,
+		unix.SO_RCVBUFFORCE,
 		bytes,
 	))
+	if err != nil {
+		// If SO_SNDBUFFORCE fails, try SO_RCVBUF
+		err = os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
+			unix.SOL_SOCKET,
+			unix.SO_RCVBUF,
+			bytes,
+		))
+	}
+	return nil
 }
 
 // SetReadBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error {
-	return os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
+	// First try SO_SNDBUFFORCE. Given necessary permissions this syscall ignores limits.
+	err := os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
-		unix.SO_SNDBUF,
+		unix.SO_SNDBUFFORCE,
 		bytes,
 	))
+	if err != nil {
+		// If SO_SNDBUFFORCE fails, try SO_SNDBUF
+		err = os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
+			unix.SOL_SOCKET,
+			unix.SO_SNDBUF,
+			bytes,
+		))
+	}
+	return err
 }
 
 // linuxOption converts a ConnOption to its Linux value.

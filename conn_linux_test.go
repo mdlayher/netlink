@@ -449,12 +449,12 @@ func TestLinuxConnSetBuffers(t *testing.T) {
 	want := []setSockopt{
 		{
 			level: unix.SOL_SOCKET,
-			opt:   unix.SO_RCVBUF,
+			opt:   unix.SO_RCVBUFFORCE,
 			value: n,
 		},
 		{
 			level: unix.SOL_SOCKET,
-			opt:   unix.SO_SNDBUF,
+			opt:   unix.SO_SNDBUFFORCE,
 			value: n,
 		},
 	}
