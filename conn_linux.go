@@ -291,7 +291,7 @@ func (c *conn) SetReadBuffer(bytes int) error {
 			bytes,
 		))
 	}
-	return nil
+	return err
 }
 
 // SetReadBuffer sets the size of the operating system's transmit buffer
