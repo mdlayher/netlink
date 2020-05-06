@@ -27,6 +27,7 @@ var _ deadlineSetter = &conn{}
 type conn struct {
 	s  socket
 	sa *unix.SockaddrNetlink
+	p  *sync.Pool
 }
 
 // A socket is an interface over socket system calls.
@@ -100,6 +101,12 @@ func bind(s socket, config *Config) (*conn, uint32, error) {
 	return &conn{
 		s:  s,
 		sa: addr,
+		p:  &sync.Pool {
+			New: func()interface{} {
+				b := make([]byte, os.Getpagesize())
+				return &b
+			},
+		},
 	}, pid, nil
 }
 
@@ -138,35 +145,37 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
-	b := make([]byte, os.Getpagesize())
+	b := c.p.Get().(*[]byte)
+	defer c.p.Put(b)
 	for {
 		// Peek at the buffer to see how many bytes are available.
 		//
 		// TODO(mdlayher): deal with OOB message data if available, such as
 		// when PacketInfo ConnOption is true.
-		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
+		n, _, _, _, err := c.s.Recvmsg(*b, nil, unix.MSG_PEEK)
 		if err != nil {
 			return nil, os.NewSyscallError("recvmsg", err)
 		}
 
 		// Break when we can read all messages
-		if n < len(b) {
+		if n < len(*b) {
 			break
 		}
 
 		// Double in size if not enough bytes
-		b = make([]byte, len(b)*2)
+		nb := make([]byte, len(*b)*2)
+		b = &nb
 	}
 
 	// Read out all available messages
-	n, _, _, _, err := c.s.Recvmsg(b, nil, 0)
+	n, _, _, _, err := c.s.Recvmsg(*b, nil, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
 
-	raw, err := syscall.ParseNetlinkMessage(b[:n])
+	raw, err := syscall.ParseNetlinkMessage((*b)[:n])
 	if err != nil {
 		return nil, err
 	}
