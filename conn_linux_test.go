@@ -449,12 +449,12 @@ func TestLinuxConnSetBuffers(t *testing.T) {
 	want := []setSockopt{
 		{
 			level: unix.SOL_SOCKET,
-			opt:   unix.SO_RCVBUF,
+			opt:   unix.SO_RCVBUFFORCE,
 			value: n,
 		},
 		{
 			level: unix.SOL_SOCKET,
-			opt:   unix.SO_SNDBUF,
+			opt:   unix.SO_SNDBUFFORCE,
 			value: n,
 		},
 	}
@@ -677,6 +677,16 @@ func (s *testSocket) SetSockoptInt(level, opt, value int) error {
 	})
 
 	return nil
+}
+
+func (s *testSocket) GetSockoptInt(level, opt int) (int, error) {
+	for i := len(s.setSockopt)-1; i >= 0; i-- {
+		if s.setSockopt[i].level == level && s.setSockopt[i].opt == opt {
+			return s.setSockopt[i].value, nil
+		}
+	}
+
+	return 0, errors.New("getsockopt without preceding setsockopt")
 }
 
 func (s *testSocket) SetSockoptSockFprog(_, _ int, _ *unix.SockFprog) error {
