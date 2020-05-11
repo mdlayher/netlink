@@ -322,9 +322,9 @@ func (c *conn) GetReadBuffer() (int, error) {
 		unix.SO_RCVBUF,
 	)
 	if err != nil {
-		return value, os.NewSyscallError("getsockopt", err)
+		return 0, os.NewSyscallError("getsockopt", err)
 	}
-	return value, err
+	return value, nil
 }
 
 // GetWriteBuffer retrieves the size of the operating system's transmit buffer
@@ -335,9 +335,9 @@ func (c *conn) GetWriteBuffer() (int, error) {
 		unix.SO_SNDBUF,
 	)
 	if err != nil {
-		return value, os.NewSyscallError("getsockopt", err)
+		return 0, os.NewSyscallError("getsockopt", err)
 	}
-	return value, err
+	return value, nil
 }
 
 // linuxOption converts a ConnOption to its Linux value.
@@ -645,13 +645,15 @@ func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
 }
 
 func (s *sysSocket) GetSockoptInt(level, opt int) (int, error) {
-	var value int
-	var err error
+	var (
+		value int
+		err   error
+	)
 	doErr := s.control(func(fd int) {
 		value, err = unix.GetsockoptInt(fd, level, opt)
 	})
 	if doErr != nil {
-		return value, doErr
+		return 0, doErr
 	}
 
 	return value, err
