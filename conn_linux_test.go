@@ -508,66 +508,6 @@ func TestLinuxConnConfig(t *testing.T) {
 	}
 }
 
-func Test_newLockedNetNSGoroutineNetNSDisabled(t *testing.T) {
-	tests := []struct {
-		name       string
-		ns         int
-		ok         bool
-		lockThread bool
-	}{
-		{
-			// Network namespaces are disabled but none is set: this should
-			// succeed.
-			name:       "not set",
-			ok:         true,
-			lockThread: true,
-		},
-		{
-			// Network namespaces are disabled but one is set explicitly:
-			// this should fail.
-			name:       "set",
-			ns:         1,
-			lockThread: true,
-		},
-		{
-			// thread locking is disabled but an ns is provided.
-			// this should fail.
-			name:       "disable lock thread with ns defined",
-			ns:         1,
-			lockThread: false,
-		},
-		{
-			// thread locking is disabled but an ns is not provided.
-			// this should succeed.
-			name:       "disable lock thread without ns defined",
-			lockThread: false,
-			ok:         true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g, err := newLockedNetNSGoroutine(tt.ns, func() (*netNS, error) {
-				// Network namespaces should be disabled due to a non-existent
-				// file.
-				return fileNetNS("/netlinktestdoesnotexist")
-			}, tt.lockThread)
-			if err != nil {
-				if tt.ok {
-					t.Fatalf("failed to create goroutine: %v", err)
-				}
-
-				return
-			}
-			defer g.stop()
-
-			if !tt.ok {
-				t.Fatal("expected an error, but none occurred")
-			}
-		})
-	}
-}
-
 func testLinuxConn(t *testing.T, config *Config) (*conn, *testSocket) {
 	s := &testSocket{}
 	c, _, err := bind(s, config)
@@ -680,7 +620,7 @@ func (s *testSocket) SetSockoptInt(level, opt, value int) error {
 }
 
 func (s *testSocket) GetSockoptInt(level, opt int) (int, error) {
-	for i := len(s.setSockopt)-1; i >= 0; i-- {
+	for i := len(s.setSockopt) - 1; i >= 0; i-- {
 		if s.setSockopt[i].level == level && s.setSockopt[i].opt == opt {
 			return s.setSockopt[i].value, nil
 		}
