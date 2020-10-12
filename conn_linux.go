@@ -403,6 +403,7 @@ var _ socket = &sysSocket{}
 type sysSocket struct {
 	mu     sync.RWMutex
 	fd     *os.File
+	rc     syscall.RawConn
 	closed bool
 }
 
@@ -415,7 +416,9 @@ func (s *sysSocket) read(f func(fd int) bool) error {
 		return syscall.EBADF
 	}
 
-	return fdread(s.fd, f)
+	return s.rc.Read(func(sysfd uintptr) bool {
+		return f(int(sysfd))
+	})
 }
 
 // write executes f, a write function, against the associated file descriptor.
@@ -427,7 +430,9 @@ func (s *sysSocket) write(f func(fd int) bool) error {
 		return syscall.EBADF
 	}
 
-	return fdwrite(s.fd, f)
+	return s.rc.Write(func(sysfd uintptr) bool {
+		return f(int(sysfd))
+	})
 }
 
 // control executes f, a control function, against the associated file descriptor.
@@ -439,7 +444,9 @@ func (s *sysSocket) control(f func(fd int)) error {
 		return syscall.EBADF
 	}
 
-	return fdcontrol(s.fd, f)
+	return s.rc.Control(func(sysfd uintptr) {
+		f(int(sysfd))
+	})
 }
 
 func (s *sysSocket) Socket(family int) error {
@@ -463,11 +470,6 @@ func (s *sysSocket) Socket(family int) error {
 	// For a more thorough explanation, see similar work in the
 	// Go tree: func sysSocket in net/sock_cloexec.go, as well
 	// as the detailed comment in syscall/exec_unix.go.
-	//
-	// TODO(acln): update this to mirror net.sysSocket completely:
-	// use SOCK_NONBLOCK as well, and remove the separate
-	// setBlockingMode step once Go 1.11 support is removed and
-	// we switch to using entirely non-blocking file descriptors.
 	fd, err := unix.Socket(
 		unix.AF_NETLINK,
 		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
@@ -486,17 +488,21 @@ func (s *sysSocket) Socket(family int) error {
 		syscall.ForkLock.RUnlock()
 	}
 
-	if err := setBlockingMode(fd); err != nil {
+	if err := unix.SetNonblock(fd, true); err != nil {
 		return err
 	}
 
-	// When using Go 1.12+, the setBlockingMode call we just did puts the
-	// file descriptor into non-blocking mode. In that case, os.NewFile
-	// registers the file descriptor with the runtime poller, which is
-	// then used for all subsequent operations.
+	// os.NewFile registers the file descriptor with the runtime poller, which
+	// is then used for most subsequent operations except those that require
+	// raw I/O via SyscallConn.
 	//
 	// See also: https://golang.org/pkg/os/#NewFile
 	s.fd = os.NewFile(uintptr(fd), "netlink")
+	s.rc, err = s.fd.SyscallConn()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -516,7 +516,7 @@ func (c *Conn) SyscallConn() (syscall.RawConn, error) {
 		return nil, notSupported("syscall-conn")
 	}
 
-	return newRawConn(fc.File())
+	return fc.File().SyscallConn()
 }
 
 // fixMsg updates the fields of m using the logic specified in Send.
