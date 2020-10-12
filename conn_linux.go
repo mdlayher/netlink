@@ -450,7 +450,6 @@ func (s *sysSocket) control(f func(fd int)) error {
 }
 
 func (s *sysSocket) Socket(family int) error {
-
 	// Mirror what the standard library does when creating file
 	// descriptors: avoid racing a fork/exec with the creation
 	// of new file descriptors, so that child processes do not
@@ -462,17 +461,12 @@ func (s *sysSocket) Socket(family int) error {
 	// older than 2.6.27. In that case, take syscall.ForkLock
 	// and try again without SOCK_CLOEXEC.
 	//
-	// SOCK_NONBLOCK was also added in 2.6.27, but we don't
-	// use SOCK_NONBLOCK here for now, not until we remove support
-	// for Go 1.11, since we still support the old blocking file
-	// descriptor behavior.
-	//
 	// For a more thorough explanation, see similar work in the
 	// Go tree: func sysSocket in net/sock_cloexec.go, as well
 	// as the detailed comment in syscall/exec_unix.go.
 	fd, err := unix.Socket(
 		unix.AF_NETLINK,
-		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
+		unix.SOCK_RAW|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC,
 		family,
 	)
 	if err == unix.EINVAL {
@@ -486,10 +480,10 @@ func (s *sysSocket) Socket(family int) error {
 			unix.CloseOnExec(fd)
 		}
 		syscall.ForkLock.RUnlock()
-	}
 
-	if err := unix.SetNonblock(fd, true); err != nil {
-		return err
+		if err := unix.SetNonblock(fd, true); err != nil {
+			return err
+		}
 	}
 
 	// os.NewFile registers the file descriptor with the runtime poller, which
