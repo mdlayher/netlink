@@ -92,9 +92,10 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 	skipShort(t)
 
 	// Execute many concurrent operations on several netlink.Conns to ensure
-	// messages cannot be sent to the wrong connection.
+	// the kernel is sending and receiving netlink messages to/from the correct
+	// file descriptor.
 	//
-	// See newLockedNetNSGoroutine internally.
+	// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
 	execN := func(n int) {
 		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 		if err != nil {
