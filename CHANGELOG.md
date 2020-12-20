@@ -4,6 +4,21 @@
 
 - n/a
 
+## v1.2.0
+
+**This is the first release of package netlink that only supports Go 1.12+. Users on older versions must use v1.1.1.**
+
+- [Improvement] [#173](https://github.com/mdlayher/netlink/pull/173): support
+  for Go 1.11 and below has been dropped. All users are highly recommended to
+  use a stable and supported release of Go for their applications.
+- [Performance] [#171](https://github.com/mdlayher/netlink/pull/171):
+  `netlink.Conn` no longer requires a locked OS thread for the vast majority of
+  operations, which should result in a significant speedup for highly concurrent
+  callers. Thanks @ti-mo.
+- [Bug Fix] [#169](https://github.com/mdlayher/netlink/pull/169): calls to
+  `netlink.Conn.Close` are now able to unblock concurrent calls to
+  `netlink.Conn.Receive` and other blocking operations.
+
 ## v1.1.1
 
 **This is the last release of package netlink that supports Go 1.11.**
