@@ -202,7 +202,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 	}
 }
 
-func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
+func TestIntegrationConnConcurrentClosePreventsReceive(t *testing.T) {
 	t.Parallel()
 
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
@@ -211,7 +211,7 @@ func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
 	}
 
 	// Verify this test cannot block indefinitely due to Receive hanging after
-	// a call to Close.
+	// a call to Close is completed.
 	timer := time.AfterFunc(10*time.Second, func() {
 		panic("test took too long")
 	})
@@ -221,9 +221,13 @@ func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
 	wg.Add(1)
 	defer wg.Wait()
 
+	// The intent of this test is to schedule Close before Receive can ever
+	// happen, resulting in EBADF. The test below covers the opposite case.
+	sigC := make(chan struct{})
 	go func() {
 		defer wg.Done()
 
+		<-sigC
 		_, err := c.Receive()
 		if err == nil {
 			panicf("expected an error, but none occurred")
@@ -238,6 +242,56 @@ func TestIntegrationConnConcurrentReceiveClose(t *testing.T) {
 
 	if err := c.Close(); err != nil {
 		t.Fatalf("failed to close: %v", err)
+	}
+	close(sigC)
+}
+
+func TestIntegrationConnConcurrentCloseUnblocksReceive(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Verify this test cannot block indefinitely due to Receive hanging after
+	// a call to Close is completed.
+	timer := time.AfterFunc(10*time.Second, func() {
+		panic("test took too long")
+	})
+	defer timer.Stop()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer wg.Wait()
+
+	// Try to enforce that Receive is scheduled before Close.
+	sigC := make(chan struct{})
+	go func() {
+		defer wg.Done()
+
+		// Multiple Close operations should be a no-op.
+		<-sigC
+		for i := 0; i < 5; i++ {
+			time.Sleep(50 * time.Millisecond)
+
+			if err := c.Close(); err != nil {
+				panicf("failed to close: %v", err)
+			}
+		}
+	}()
+
+	close(sigC)
+	_, err = c.Receive()
+	if err == nil {
+		t.Fatalf("expected an error, but none occurred")
+	}
+
+	// Expect an error due to the use of a closed file descriptor. Unfortunately
+	// there doesn't seem to be a typed error for this.
+	serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
+	if diff := cmp.Diff("use of closed file", serr.Error()); diff != "" {
+		t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
 	}
 }
 
