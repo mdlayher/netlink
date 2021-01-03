@@ -7,7 +7,6 @@ import (
 )
 
 func TestNetNSDisabled(t *testing.T) {
-
 	// Attempt to open a non-existent file as a netns descriptor.
 	netns, err := fileNetNS("/netlinktestdoesnotexist")
 	if err != nil {
@@ -30,7 +29,6 @@ func TestNetNSDisabled(t *testing.T) {
 }
 
 func TestThreadNetNS(t *testing.T) {
-
 	netns, err := threadNetNS()
 	if err != nil {
 		t.Fatal("error getting thread's network namespace:", err)
