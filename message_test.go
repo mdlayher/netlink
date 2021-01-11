@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mdlayher/netlink/nlenc"
+	"github.com/josharian/native"
 )
 
 func TestHeaderFlagsString(t *testing.T) {
@@ -475,7 +475,7 @@ func TestValidate(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if nlenc.NativeEndian() == binary.BigEndian {
+	if binary.ByteOrder(native.Endian) == binary.BigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }

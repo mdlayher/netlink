@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/josharian/native"
 	"github.com/mdlayher/netlink/nlenc"
 )
 
@@ -527,8 +528,8 @@ func TestAttributeDecoderOK(t *testing.T) {
 		},
 		{
 			name:  "uint native endian",
-			attrs: adEndianAttrs(nlenc.NativeEndian()),
-			fn:    adEndianTest(nlenc.NativeEndian()),
+			attrs: adEndianAttrs(native.Endian),
+			fn:    adEndianTest(native.Endian),
 		},
 		{
 			name:  "uint little endian",
@@ -909,8 +910,8 @@ func TestAttributeEncoderOK(t *testing.T) {
 		},
 		{
 			name:  "uint native endian",
-			attrs: adEndianAttrs(nlenc.NativeEndian()),
-			fn:    aeEndianTest(nlenc.NativeEndian()),
+			attrs: adEndianAttrs(native.Endian),
+			fn:    aeEndianTest(native.Endian),
 		},
 		{
 			name:   "uint little endian",
