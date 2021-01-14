@@ -245,6 +245,12 @@ func (c *conn) LeaveGroup(group uint32) error {
 
 // SetBPF attaches an assembled BPF program to a conn.
 func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
+	// We can't point to the first instruction in the array if no instructions
+	// are present.
+	if len(filter) == 0 {
+		return os.NewSyscallError("setsockopt", unix.EINVAL)
+	}
+
 	prog := unix.SockFprog{
 		Len:    uint16(len(filter)),
 		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),

@@ -422,6 +422,18 @@ func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 	}
 }
 
+func TestIntegrationConnSetBPFEmpty(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.SetBPF(nil); err == nil {
+		t.Fatal("expected an error, but none occurred")
+	}
+}
+
 func TestIntegrationConnSetBPF(t *testing.T) {
 	t.Parallel()
 
