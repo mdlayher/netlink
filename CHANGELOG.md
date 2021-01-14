@@ -4,6 +4,17 @@
 
 - n/a
 
+## v1.2.1
+
+- [Bug Fix]
+  [commit](https://github.com/mdlayher/netlink/commit/d81418f81b0bfa2465f33790a85624c63d6afe3d):
+  `netlink.SetBPF` will no longer panic if an empty BPF filter is set.
+- [Improvement]
+  [commit](https://github.com/mdlayher/netlink/commit/8014f9a7dbf4fd7b84a1783dd7b470db9113ff36):
+  the library now uses https://github.com/josharian/native to provide the
+  system's native endianness at compile time, rather than re-computing it many
+  times at runtime.
+
 ## v1.2.0
 
 **This is the first release of package netlink that only supports Go 1.12+. Users on older versions must use v1.1.1.**
