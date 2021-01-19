@@ -379,6 +379,15 @@ func TestLinuxConnSetOption(t *testing.T) {
 				value: 1,
 			},
 		},
+		{
+			name:   "get strict check",
+			option: GetStrictCheck,
+			enable: true,
+			want: setSockopt{
+				opt:   unix.NETLINK_GET_STRICT_CHK,
+				value: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {

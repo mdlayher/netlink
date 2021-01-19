@@ -386,6 +386,8 @@ func linuxOption(o ConnOption) (int, bool) {
 		return unix.NETLINK_CAP_ACK, true
 	case ExtendedAcknowledge:
 		return unix.NETLINK_EXT_ACK, true
+	case GetStrictCheck:
+		return unix.NETLINK_GET_STRICT_CHK, true
 	default:
 		return 0, false
 	}

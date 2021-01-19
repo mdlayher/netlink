@@ -432,6 +432,7 @@ const (
 	ListenAllNSID
 	CapAcknowledge
 	ExtendedAcknowledge
+	GetStrictCheck
 )
 
 // An optionSetter is a Socket that supports setting netlink options.
