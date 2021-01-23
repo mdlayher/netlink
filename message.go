@@ -3,6 +3,7 @@ package netlink
 import (
 	"errors"
 	"fmt"
+	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -81,6 +82,16 @@ const (
 
 	// Append indicates request adds to the end of the object list.
 	Append HeaderFlags = 0x800
+
+	// Flags for extended acknowledgements.
+
+	// Capped indicates the size of a request was capped in an extended
+	// acknowledgement.
+	Capped HeaderFlags = 0x100
+
+	// AcknowledgeTLVs indicates the presence of netlink extended
+	// acknowledgement TLVs in a response.
+	AcknowledgeTLVs HeaderFlags = 0x200
 )
 
 // String returns the string representation of a HeaderFlags.
@@ -162,6 +173,8 @@ func (t HeaderType) String() string {
 // exactly the same.  Cannot reorder, change data type, add, or remove fields.
 // Named types of the same size (e.g. HeaderFlags is a uint16) are okay.
 
+const sizeofHeader = int(unsafe.Sizeof(Header{}))
+
 // A Header is a netlink header.  A Header is sent and received with each
 // Message to indicate metadata regarding a Message.
 type Header struct {
@@ -240,8 +253,6 @@ func checkMessage(m Message) error {
 	// OpError in order to maintain the appropriate contract with callers of
 	// this package.
 
-	const success = 0
-
 	// Per libnl documentation, only messages that indicate type error can
 	// contain error codes:
 	// https://www.infradead.org/~tgr/libnl/doc/core.html#core_errmsg.
@@ -255,16 +266,60 @@ func checkMessage(m Message) error {
 		return nil
 	}
 
-	if len(m.Data) < 4 {
+	// The location where the nlmsghdr occurs after the uint32 error code. We
+	// may need to parse the Header in order to read extended acknowledgement
+	// TLVs.
+	const headerOffset = 4
+
+	if len(m.Data) < headerOffset {
 		return newOpError("receive", errShortErrorMessage)
 	}
 
-	if c := nlenc.Int32(m.Data[0:4]); c != success {
+	c := nlenc.Int32(m.Data[:headerOffset])
+	if c == 0 {
+		// 0 indicates no error.
+		return nil
+	}
+
+	oerr := &OpError{
+		Op: "receive",
 		// Error code is a negative integer, convert it into an OS-specific raw
 		// system call error, but do not wrap with os.NewSyscallError to signify
 		// that this error was produced by a netlink message; not a system call.
-		return newOpError("receive", newError(-1*int(c)))
+		Err: newError(-1 * int(c)),
 	}
 
-	return nil
+	// TODO(mdlayher): investigate the Capped flag.
+
+	if m.Header.Flags&AcknowledgeTLVs == 0 {
+		// No extended acknowledgement.
+		return oerr
+	}
+
+	if len(m.Data) < headerOffset+sizeofHeader {
+		return newOpError("receive", errShortErrorMessage)
+	}
+
+	// The flags indicate an extended acknowledgement, which means the TLVs
+	// should be at the offset indicated by the nlmsghdr.length, plus the offset
+	// where the header began.
+	h := *(*Header)(unsafe.Pointer(&m.Data[headerOffset]))
+	ad, err := NewAttributeDecoder(m.Data[headerOffset+h.Length:])
+	if err != nil {
+		// Malformed TLVs, just return the OpError with the info we have.
+		return oerr
+	}
+
+	for ad.Next() {
+		switch ad.Type() {
+		case 1: // unix.NLMSGERR_ATTR_MSG
+			oerr.Message = ad.String()
+		case 2: // unix.NLMSGERR_ATTR_OFFS
+			oerr.Offset = int(ad.Uint32())
+		}
+	}
+
+	// Explicitly ignore ad.Err: malformed TLVs, just return the OpError with
+	// the info we have.
+	return oerr
 }
