@@ -155,7 +155,7 @@ func TestConnReceiveNoMessages(t *testing.T) {
 	}
 }
 
-func TestConnReceiveShortErrorMessage(t *testing.T) {
+func TestConnReceiveShortErrorNumber(t *testing.T) {
 	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return []netlink.Message{{
 			Header: netlink.Header{
@@ -163,6 +163,30 @@ func TestConnReceiveShortErrorMessage(t *testing.T) {
 				Type:   netlink.Error,
 			},
 			Data: []byte{0x01},
+		}}, nil
+	})
+	defer c.Close()
+
+	_, err := c.Receive()
+	if !strings.Contains(err.Error(), "not enough data") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConnReceiveShortErrorAcknowledgementHeader(t *testing.T) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
+		return []netlink.Message{{
+			Header: netlink.Header{
+				Length: 20,
+				Type:   netlink.Error,
+				Flags:  netlink.AcknowledgeTLVs,
+			},
+			Data: []byte{
+				// errno.
+				0x01, 0x00, 0x00, 0x00,
+				// nlmsghdr
+				0xff,
+			},
 		}}, nil
 	})
 	defer c.Close()
