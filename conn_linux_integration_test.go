@@ -678,7 +678,11 @@ func TestIntegrationEthtoolExtendedAcknowledge(t *testing.T) {
 	// all of netlink.OpError's fields when unwrapped.
 	c, err := ethtool.New()
 	if err != nil {
-		t.Fatalf("failed to open ethtool netlink: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skip("skipping, ethtool genetlink not available on this system")
+		}
+
+		t.Fatalf("failed to open ethtool genetlink: %v", err)
 	}
 
 	_, err = c.LinkInfo(ethtool.Interface{Name: "notexist0"})
