@@ -1,8 +1,18 @@
 # CHANGELOG
 
-## Unreleased
+## v1.3.0
 
-- n/a
+- [New API] [#176](https://github.com/mdlayher/netlink/pull/176):
+  `netlink.OpError` now has `Message` and `Offset` fields which are populated
+  when the kernel returns netlink extended acknowledgement data along with an
+  error code. The caller can turn on this option by using
+  `netlink.Conn.SetOption(netlink.ExtendedAcknowledge, true)`.
+- [New API]
+  [commit](https://github.com/mdlayher/netlink/commit/beba85e0372133b6d57221191d2c557727cd1499):
+  the `netlink.GetStrictCheck` option can be used to tell the kernel to be more
+  strict when parsing requests. This enables more safety checks and can allow
+  the kernel to perform more advanced request filtering in subsystems such as
+  route netlink.
 
 ## v1.2.1
 
