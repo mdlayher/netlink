@@ -10,7 +10,6 @@ import (
 	"os/user"
 	"runtime"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -909,10 +908,8 @@ func shell(t *testing.T, name string, arg ...string) {
 	}
 
 	if err := cmd.Wait(); err != nil {
-		// TODO(mdlayher): switch back to cmd.ProcessState.ExitCode() when we
-		// drop support for Go 1.11.x.
 		// Shell operations in these tests require elevated privileges.
-		if cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus() == int(unix.EPERM) {
+		if cmd.ProcessState.ExitCode() == int(unix.EPERM) {
 			t.Skipf("skipping, permission denied: %v", err)
 		}
 
