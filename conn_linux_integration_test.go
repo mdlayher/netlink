@@ -3,7 +3,6 @@
 package netlink_test
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jsimonetti/rtnetlink"
 	"github.com/jsimonetti/rtnetlink/rtnl"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
@@ -862,14 +862,19 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 	t.Helper()
 
 	// Receive messages in goroutine.
-	msgC := make(chan netlink.Message)
+	msgC := make(chan rtnetlink.LinkMessage)
 	go func() {
 		msgs, err := c.Receive()
 		if err != nil {
-			panicf("failed to receive rtnetlink messages: %s", err)
+			panicf("failed to receive rtnetlink messages: %v", err)
 		}
 
-		msgC <- msgs[0]
+		var rtmsg rtnetlink.LinkMessage
+		if err := rtmsg.UnmarshalBinary(msgs[0].Data); err != nil {
+			panicf("failed to unmarshal rtnetlink message: %v", err)
+		}
+
+		msgC <- rtmsg
 	}()
 
 	// Execute the function which will generate messages, and then wait for
@@ -877,11 +882,7 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 	do()
 	m := <-msgC
 
-	// Find the interface name in the rtnetlink message and parse it directly,
-	// cutting up until the first NULL byte. This is probably a bit fragile
-	// but it seems to work.
-	i := bytes.Index(m.Data[20:], []byte{0x00})
-	return string(m.Data[20 : 20+i])
+	return m.Attributes.Name
 }
 
 func skipUnprivileged(t *testing.T) {
