@@ -591,13 +591,7 @@ func TestIntegrationConnMulticast(t *testing.T) {
 func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
 	t.Parallel()
 
-	u, err := user.Current()
-	if err != nil {
-		t.Fatalf("failed to get user: %v", err)
-	}
-	if u.Uid == "0" {
-		t.Skip("skipping, test must be run as non-root user")
-	}
+	skipPrivileged(t)
 
 	// Created in CI build environment.
 	const ns = "unpriv0"
@@ -882,6 +876,16 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 	m := <-msgC
 
 	return m.Attributes.Name
+}
+
+func skipPrivileged(t *testing.T) {
+	u, err := user.Current()
+	if err != nil {
+		t.Fatalf("failed to get user: %v", err)
+	}
+	if u.Uid == "0" {
+		t.Skip("skipping, test must be run as non-root user")
+	}
 }
 
 func skipUnprivileged(t *testing.T) {
