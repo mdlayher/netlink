@@ -253,29 +253,38 @@ func checkMessage(m Message) error {
 	// OpError in order to maintain the appropriate contract with callers of
 	// this package.
 
-	// Per libnl documentation, only messages that indicate type error can
+	// The libnl documentation indicates that type error can
 	// contain error codes:
 	// https://www.infradead.org/~tgr/libnl/doc/core.html#core_errmsg.
 	//
-	// However, at one point, this package checked both done and error for
-	// error codes.  Because there was no issue associated with the change,
-	// it is unknown whether this change was correct or not.  If you run into
-	// a problem with your application because of this change, please file
-	// an issue.
-	if m.Header.Type != Error {
+	// However, rtnetlink at least seems to also allow errors to occur at the
+	// end of a multipart message with done/multi and an error number.
+	var hasHeader bool
+	switch {
+	case m.Header.Type == Error:
+		// Error code followed by nlmsghdr/ext ack attributes.
+		hasHeader = true
+	case m.Header.Type == Done && m.Header.Flags&Multi != 0:
+		// If no data, there must be no error number so just  exit early. Some
+		// of the unit tests hard-coded this but I don't actually know if this
+		// case occurs in the wild.
+		if len(m.Data) == 0 {
+			return nil
+		}
+
+		// Done|Multi potentially followed by ext ack attributes.
+	default:
+		// Neither, nothing to do.
 		return nil
 	}
 
-	// The location where the nlmsghdr occurs after the uint32 error code. We
-	// may need to parse the Header in order to read extended acknowledgement
-	// TLVs.
-	const headerOffset = 4
-
-	if len(m.Data) < headerOffset {
+	// Errno occupies 4 bytes.
+	const endErrno = 4
+	if len(m.Data) < endErrno {
 		return newOpError("receive", errShortErrorMessage)
 	}
 
-	c := nlenc.Int32(m.Data[:headerOffset])
+	c := nlenc.Int32(m.Data[:endErrno])
 	if c == 0 {
 		// 0 indicates no error.
 		return nil
@@ -296,15 +305,30 @@ func checkMessage(m Message) error {
 		return oerr
 	}
 
-	if len(m.Data) < headerOffset+sizeofHeader {
-		return newOpError("receive", errShortErrorMessage)
+	// Flags indicate an extended acknowledgement. The type/flags combination
+	// checked above determines the offset where the TLVs occur.
+	var off int
+	if hasHeader {
+		// There is an nlmsghdr preceding the TLVs.
+		if len(m.Data) < endErrno+sizeofHeader {
+			return newOpError("receive", errShortErrorMessage)
+		}
+
+		// The TLVs should be at the offset indicated by the nlmsghdr.length,
+		// plus the offset where the header began. But make sure the calculated
+		// offset is still in-bounds.
+		h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+sizeofHeader][0]))
+		off = endErrno + int(h.Length)
+
+		if len(m.Data) < off {
+			return newOpError("receive", errShortErrorMessage)
+		}
+	} else {
+		// There is no nlmsghdr preceding the TLVs, parse them directly.
+		off = endErrno
 	}
 
-	// The flags indicate an extended acknowledgement, which means the TLVs
-	// should be at the offset indicated by the nlmsghdr.length, plus the offset
-	// where the header began.
-	h := *(*Header)(unsafe.Pointer(&m.Data[headerOffset]))
-	ad, err := NewAttributeDecoder(m.Data[headerOffset+h.Length:])
+	ad, err := NewAttributeDecoder(m.Data[off:])
 	if err != nil {
 		// Malformed TLVs, just return the OpError with the info we have.
 		return oerr

@@ -713,6 +713,66 @@ func TestIntegrationEthtoolExtendedAcknowledge(t *testing.T) {
 	}
 }
 
+func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_ROUTE, nil)
+	if err != nil {
+		t.Fatalf("failed to open rtnetlink socket: %s", err)
+	}
+	defer c.Close()
+
+	// Turn on extended acknowledgements and strict checking so rtnetlink
+	// reports detailed error information regarding our invalid dump request.
+	if err := c.SetOption(netlink.ExtendedAcknowledge, true); err != nil {
+		t.Fatalf("failed to set extended acknowledge option: %v", err)
+	}
+
+	if err := c.SetOption(netlink.GetStrictCheck, true); err != nil {
+		oerr, ok := err.(*netlink.OpError)
+		if !ok {
+			t.Fatalf("expected *netlink.OpError, but got: %T", err)
+		}
+
+		if oerr.Err == unix.ENOPROTOOPT {
+			t.Skipf("skipping, netlink strict checking is not supported on this kernel")
+		}
+
+		t.Fatalf("failed to set strict check option: %v", err)
+	}
+
+	// The kernel will complain that this field isn't valid for a filtered dump
+	// request.
+	b, err := (&rtnetlink.RouteMessage{SrcLength: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	_, err = c.Execute(netlink.Message{
+		Header: netlink.Header{
+			Type:  unix.RTM_GETROUTE,
+			Flags: netlink.Request | netlink.Dump,
+		},
+		Data: b,
+	})
+
+	oerr, ok := err.(*netlink.OpError)
+	if !ok {
+		t.Fatalf("expected *netlink.OpError, but got: %T", err)
+	}
+
+	// Assume the message contents will be relatively static but don't hardcode
+	// offset just in case things change.
+
+	want := &netlink.OpError{
+		Op:      "receive",
+		Err:     unix.EINVAL,
+		Message: "Invalid values in header for FIB dump request",
+	}
+
+	if diff := cmp.Diff(want, oerr); diff != "" {
+		t.Fatalf("unexpected *netlink.OpError (-want +got):\n%s", diff)
+	}
+}
+
 func TestIntegrationConnNetNSExplicit(t *testing.T) {
 	t.Parallel()
 

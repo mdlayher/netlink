@@ -56,7 +56,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 			},
 		},
 		{
-			name: "multipart done without error attached",
+			name: "multipart done without error",
 			msgs: []netlink.Message{
 				{
 					Header: netlink.Header{
@@ -69,6 +69,28 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 						Flags: netlink.Multi,
 					},
 				},
+			},
+		},
+		{
+			name: "multipart done with error",
+			msgs: []netlink.Message{
+				{
+					Header: netlink.Header{
+						Flags: netlink.Multi,
+					},
+				},
+				{
+					Header: netlink.Header{
+						Type:  netlink.Done,
+						Flags: netlink.Multi,
+					},
+					// -2, little endian (ENOENT)
+					Data: []byte{0xfe, 0xff, 0xff, 0xff},
+				},
+			},
+			want: &netlink.OpError{
+				Op:  "receive",
+				Err: unix.ENOENT,
 			},
 		},
 	}

@@ -53,58 +53,104 @@ func TestHeaderMemoryLayoutLinux(t *testing.T) {
 }
 
 func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
-	got := checkMessage(Message{
-		Header: Header{
-			Type: Error,
-			// Indicate the use of extended acknowledgement.
-			Flags: AcknowledgeTLVs,
+	tests := []struct {
+		name string
+		m    Message
+		err  *OpError
+	}{
+		{
+			name: "error",
+			m: Message{
+				Header: Header{
+					Type: Error,
+					// Indicate the use of extended acknowledgement.
+					Flags: AcknowledgeTLVs,
+				},
+				Data: packExtACK(
+					-1,
+					// The caller's request message with arbitrary bytes that we
+					// skip over when parsing the TLVs.
+					&Message{
+						Header: Header{Length: 4},
+						Data:   []byte{0xff, 0xff, 0xff, 0xff},
+					},
+					// The actual extended acknowledgement TLVs.
+					[]Attribute{
+						{
+							Type: 1,
+							Data: nlenc.Bytes("bad request"),
+						},
+						{
+							Type: 2,
+							Data: nlenc.Uint32Bytes(2),
+						},
+					},
+				),
+			},
+			err: &OpError{
+				Op:      "receive",
+				Err:     unix.Errno(1),
+				Message: "bad request",
+				Offset:  2,
+			},
 		},
-		Data: packExtACK(
-			-1,
-			// The caller's request message with arbitrary bytes that we skip
-			// over when parsing the TLVs.
-			Message{
-				Header: Header{Length: 4},
-				Data:   []byte{0xff, 0xff, 0xff, 0xff},
-			},
-			// The actual extended acknowledgement TLVs.
-			[]Attribute{
-				{
-					Type: 1,
-					Data: nlenc.Bytes("bad request"),
+		{
+			name: "done multi",
+			m: Message{
+				Header: Header{
+					Type: Done,
+					// Indicate the use of extended acknowledgement.
+					Flags: Multi | AcknowledgeTLVs,
 				},
-				{
-					Type: 2,
-					Data: nlenc.Uint32Bytes(2),
-				},
+				Data: packExtACK(
+					-1,
+					// No message, straight to TLVs.
+					nil,
+					[]Attribute{
+						{
+							Type: 1,
+							Data: nlenc.Bytes("bad request"),
+						},
+						{
+							Type: 2,
+							Data: nlenc.Uint32Bytes(2),
+						},
+					},
+				),
 			},
-		),
-	})
-
-	want := &OpError{
-		Op:      "receive",
-		Err:     unix.Errno(1),
-		Message: "bad request",
-		Offset:  2,
+			err: &OpError{
+				Op:      "receive",
+				Err:     unix.Errno(1),
+				Message: "bad request",
+				Offset:  2,
+			},
+		},
 	}
 
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("unexpected OpError (-want +got):\n%s", diff)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if diff := cmp.Diff(tt.err, checkMessage(tt.m)); diff != "" {
+				t.Fatalf("unexpected OpError (-want +got):\n%s", diff)
+			}
+		})
 	}
+
 }
 
 // packExtACK packs an extended acknowledgement response.
-func packExtACK(errno int32, m Message, tlvs []Attribute) []byte {
+func packExtACK(errno int32, m *Message, tlvs []Attribute) []byte {
 	b := nlenc.Int32Bytes(errno)
 
-	// Copy the header length logic from Conn.
-	m.Header.Length = uint32(nlmsgAlign(nlmsgLength(len(m.Data))))
-	mb, err := m.MarshalBinary()
-	if err != nil {
-		panicf("failed to marshal message: %v", err)
-	}
+	if m != nil {
+		// Copy the header length logic from Conn.
+		m.Header.Length = uint32(nlmsgAlign(nlmsgLength(len(m.Data))))
+		mb, err := m.MarshalBinary()
+		if err != nil {
+			panicf("failed to marshal message: %v", err)
+		}
 
-	b = append(b, mb...)
+		b = append(b, mb...)
+	}
 
 	ab, err := MarshalAttributes(tlvs)
 	if err != nil {
