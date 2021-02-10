@@ -1,6 +1,6 @@
 // +build linux,go1.13
 
-package netlink
+package netlink_test
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ func TestOpErrorUnwrapLinux(t *testing.T) {
 		},
 		{
 			name: "OpError ENOBUFS",
-			err: &OpError{
+			err: &netlink.OpError{
 				Op:  "receive",
 				Err: unix.ENOBUFS,
 			},
@@ -35,7 +35,7 @@ func TestOpErrorUnwrapLinux(t *testing.T) {
 		},
 		{
 			name: "OpError os.SyscallError ENOBUFS",
-			err: &OpError{
+			err: &netlink.OpError{
 				Op:  "receive",
 				Err: os.NewSyscallError("recvmsg", unix.ENOBUFS),
 			},
@@ -49,7 +49,7 @@ func TestOpErrorUnwrapLinux(t *testing.T) {
 		},
 		{
 			name: "OpError ENOENT",
-			err: &OpError{
+			err: &netlink.OpError{
 				Op:  "receive",
 				Err: unix.ENOENT,
 			},
@@ -58,7 +58,7 @@ func TestOpErrorUnwrapLinux(t *testing.T) {
 		},
 		{
 			name: "OpError os.SyscallError ENOENT",
-			err: &OpError{
+			err: &netlink.OpError{
 				Op:  "receive",
 				Err: os.NewSyscallError("recvmsg", unix.ENOENT),
 			},
@@ -67,7 +67,7 @@ func TestOpErrorUnwrapLinux(t *testing.T) {
 		},
 		{
 			name: "OpError os.SyscallError EEXIST",
-			err: &OpError{
+			err: &netlink.OpError{
 				Op:  "receive",
 				Err: os.NewSyscallError("recvmsg", unix.EEXIST),
 			},
