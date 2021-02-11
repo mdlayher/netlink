@@ -1,7 +1,6 @@
 package netlink
 
 import (
-	"errors"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -148,15 +147,8 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for idx, m := range messages {
-		ml := nlmsgLength(len(m.Data))
-
-		// TODO(mdlayher): fine-tune this limit.
-		if ml > (1024 * 32) {
-			return nil, errors.New("netlink message data too large")
-		}
-
-		c.fixMsg(&messages[idx], ml)
+	for i := range messages {
+		c.fixMsg(&messages[i], nlmsgLength(len(messages[i].Data)))
 	}
 
 	c.debug(func(d *debugger) {
@@ -201,14 +193,7 @@ func (c *Conn) Send(message Message) (Message, error) {
 // We rely on the kernel to deal with concurrent reads and writes to the netlink
 // socket itself.
 func (c *Conn) lockedSend(message Message) (Message, error) {
-	ml := nlmsgLength(len(message.Data))
-
-	// TODO(mdlayher): fine-tune this limit.
-	if ml > (1024 * 32) {
-		return Message{}, errors.New("netlink message data too large")
-	}
-
-	c.fixMsg(&message, ml)
+	c.fixMsg(&message, nlmsgLength(len(message.Data)))
 
 	c.debug(func(d *debugger) {
 		d.debugf(1, "send: %+v", message)
