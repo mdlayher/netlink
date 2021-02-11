@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jsimonetti/rtnetlink"
-	"github.com/jsimonetti/rtnetlink/rtnl"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/net/bpf"
@@ -966,26 +965,8 @@ func TestIntegrationConnNetNSImplicit(t *testing.T) {
 func findLink(t *testing.T, name string) bool {
 	t.Helper()
 
-	c, err := rtnl.Dial(nil)
-	if err != nil {
-		t.Fatalf("failed to dial rtnetlink: %v", err)
-	}
-	defer c.Close()
-
-	ifis, err := c.Links()
-	if err != nil {
-		t.Fatalf("failed to list links: %v", err)
-	}
-
-	var found bool
-	for _, ifi := range ifis {
-		if ifi.Name == name {
-			found = true
-			break
-		}
-	}
-
-	return found
+	_, err := net.InterfaceByName(name)
+	return err == nil
 }
 
 func mustBeTimeoutNetError(t *testing.T, err error) {
