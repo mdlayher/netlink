@@ -548,8 +548,6 @@ func testBPFProgram(allowSequence uint32) []bpf.Instruction {
 }
 
 func TestIntegrationConnMulticast(t *testing.T) {
-	t.Parallel()
-
 	skipUnprivileged(t)
 
 	c, done := rtnlDial(t, 0)
@@ -708,8 +706,6 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 }
 
 func TestIntegrationRTNetlinkRouteManipulation(t *testing.T) {
-	t.Parallel()
-
 	skipUnprivileged(t)
 
 	c, err := netlink.Dial(unix.NETLINK_ROUTE, nil)
@@ -851,9 +847,6 @@ func TestIntegrationRTNetlinkRouteManipulation(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSExplicit(t *testing.T) {
-	// Don't call t.Parallel in the network namespace tests or they will
-	// sometimes flake with permission denied, even as root.
-
 	skipUnprivileged(t)
 
 	// Create a network namespace for use within this test.
@@ -918,9 +911,6 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSImplicit(t *testing.T) {
-	// Don't call t.Parallel in the network namespace tests or they will
-	// sometimes flake with permission denied, even as root.
-
 	skipUnprivileged(t)
 
 	// Create a network namespace for use within this test.
