@@ -21,13 +21,15 @@ import (
 // Linux network namespace, but special care must be taken when doing so. See
 // the documentation of Config for details.
 type Conn struct {
+	// Atomics must come first.
+	//
+	// seq is an atomically incremented integer used to provide sequence
+	// numbers when Conn.Send is called.
+	seq uint32
+
 	// sock is the operating system-specific implementation of
 	// a netlink sockets connection.
 	sock Socket
-
-	// seq is an atomically incremented integer used to provide sequence
-	// numbers when Conn.Send is called.
-	seq *uint32
 
 	// pid is the PID assigned by netlink.
 	pid uint32
@@ -79,8 +81,8 @@ func NewConn(sock Socket, pid uint32) *Conn {
 	}
 
 	return &Conn{
+		seq:  seq,
 		sock: sock,
-		seq:  &seq,
 		pid:  pid,
 		d:    d,
 	}
@@ -116,48 +118,48 @@ func (c *Conn) Close() error {
 //
 // See the documentation of Send, Receive, and Validate for details about
 // each function.
-func (c *Conn) Execute(message Message) ([]Message, error) {
+func (c *Conn) Execute(m Message) ([]Message, error) {
 	// Acquire the write lock and invoke the internal implementations of Send
 	// and Receive which require the lock already be held.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	req, err := c.lockedSend(message)
+	req, err := c.lockedSend(m)
 	if err != nil {
 		return nil, err
 	}
 
-	replies, err := c.lockedReceive()
+	res, err := c.lockedReceive()
 	if err != nil {
 		return nil, err
 	}
 
-	if err := Validate(req, replies); err != nil {
+	if err := Validate(req, res); err != nil {
 		return nil, err
 	}
 
-	return replies, nil
+	return res, nil
 }
 
 // SendMessages sends multiple Messages to netlink. The handling of
 // a Header's Length, Sequence and PID fields is the same as when
 // calling Send.
-func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
+func (c *Conn) SendMessages(msgs []Message) ([]Message, error) {
 	// Wait for any concurrent calls to Execute to finish before proceeding.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for i := range messages {
-		c.fixMsg(&messages[i], nlmsgLength(len(messages[i].Data)))
+	for i := range msgs {
+		c.fixMsg(&msgs[i], nlmsgLength(len(msgs[i].Data)))
 	}
 
 	c.debug(func(d *debugger) {
-		for _, m := range messages {
+		for _, m := range msgs {
 			d.debugf(1, "send msgs: %+v", m)
 		}
 	})
 
-	if err := c.sock.SendMessages(messages); err != nil {
+	if err := c.sock.SendMessages(msgs); err != nil {
 		c.debug(func(d *debugger) {
 			d.debugf(1, "send msgs: err: %v", err)
 		})
@@ -165,7 +167,7 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 		return nil, newOpError("send-messages", err)
 	}
 
-	return messages, nil
+	return msgs, nil
 }
 
 // Send sends a single Message to netlink.  In most cases, a Header's Length,
@@ -181,25 +183,25 @@ func (c *Conn) SendMessages(messages []Message) ([]Message, error) {
 //
 // If Header.PID is 0, it will be automatically populated using a PID
 // assigned by netlink.
-func (c *Conn) Send(message Message) (Message, error) {
+func (c *Conn) Send(m Message) (Message, error) {
 	// Wait for any concurrent calls to Execute to finish before proceeding.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.lockedSend(message)
+	return c.lockedSend(m)
 }
 
 // lockedSend implements Send, but must be called with c.mu acquired for reading.
 // We rely on the kernel to deal with concurrent reads and writes to the netlink
 // socket itself.
-func (c *Conn) lockedSend(message Message) (Message, error) {
-	c.fixMsg(&message, nlmsgLength(len(message.Data)))
+func (c *Conn) lockedSend(m Message) (Message, error) {
+	c.fixMsg(&m, nlmsgLength(len(m.Data)))
 
 	c.debug(func(d *debugger) {
-		d.debugf(1, "send: %+v", message)
+		d.debugf(1, "send: %+v", m)
 	})
 
-	if err := c.sock.Send(message); err != nil {
+	if err := c.sock.Send(m); err != nil {
 		c.debug(func(d *debugger) {
 			d.debugf(1, "send: err: %v", err)
 		})
@@ -207,7 +209,7 @@ func (c *Conn) lockedSend(message Message) (Message, error) {
 		return Message{}, newOpError("send", err)
 	}
 
-	return message, nil
+	return m, nil
 }
 
 // Receive receives one or more messages from netlink.  Multi-part messages are
@@ -511,7 +513,7 @@ func (c *Conn) fixMsg(m *Message, ml int) {
 // nextSequence atomically increments Conn's sequence number and returns
 // the incremented value.
 func (c *Conn) nextSequence() uint32 {
-	return atomic.AddUint32(c.seq, 1)
+	return atomic.AddUint32(&c.seq, 1)
 }
 
 // Validate validates one or more reply Messages against a request Message,
