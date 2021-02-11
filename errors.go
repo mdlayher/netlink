@@ -38,8 +38,6 @@ func notSupported(op string) error {
 func IsNotExist(err error) bool {
 	switch err := err.(type) {
 	case *OpError:
-		// TODO(mdlayher): more error handling logic?
-
 		// Unwrap the inner error and use the stdlib's logic.
 		return os.IsNotExist(err.Err)
 	default:
@@ -66,7 +64,8 @@ type OpError struct {
 	// *os.SyscallError. If Err was produced by an error code in a netlink
 	// message, Err will contain a raw error value type such as a unix.Errno.
 	//
-	// Most callers should inspect Err using a helper such as IsNotExist.
+	// Most callers should inspect Err using errors.Is from the standard
+	// library.
 	Err error
 
 	// Message and Offset contain additional error information provided by the
