@@ -3,6 +3,7 @@
 package netlink_test
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/net/bpf"
+	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
 )
 
@@ -666,21 +668,9 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 
 	// Turn on extended acknowledgements and strict checking so rtnetlink
 	// reports detailed error information regarding our invalid dump request.
+	setStrictCheck(t, c)
 	if err := c.SetOption(netlink.ExtendedAcknowledge, true); err != nil {
 		t.Fatalf("failed to set extended acknowledge option: %v", err)
-	}
-
-	if err := c.SetOption(netlink.GetStrictCheck, true); err != nil {
-		oerr, ok := err.(*netlink.OpError)
-		if !ok {
-			t.Fatalf("expected *netlink.OpError, but got: %T", err)
-		}
-
-		if oerr.Err == unix.ENOPROTOOPT {
-			t.Skipf("skipping, netlink strict checking is not supported on this kernel")
-		}
-
-		t.Fatalf("failed to set strict check option: %v", err)
 	}
 
 	// The kernel will complain that this field isn't valid for a filtered dump
@@ -714,6 +704,149 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 
 	if diff := cmp.Diff(want, oerr); diff != "" {
 		t.Fatalf("unexpected *netlink.OpError (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationRTNetlinkRouteManipulation(t *testing.T) {
+	t.Parallel()
+
+	skipUnprivileged(t)
+
+	c, err := netlink.Dial(unix.NETLINK_ROUTE, nil)
+	if err != nil {
+		t.Fatalf("failed to open rtnetlink socket: %s", err)
+	}
+	defer c.Close()
+
+	// Required for kernel route dump filtering.
+	setStrictCheck(t, c)
+
+	lo, err := nettest.LoopbackInterface()
+	if err != nil {
+		t.Fatalf("failed to get loopback: %v", err)
+	}
+
+	// Install synthetic routes in documentation ranges into a non-default table
+	// which we will later dump.
+	const (
+		table   = 100
+		ip4Mask = 32
+		ip6Mask = 128
+	)
+
+	var (
+		ip4 = &net.IPNet{
+			IP:   net.IPv4(192, 2, 2, 1),
+			Mask: net.CIDRMask(ip4Mask, ip4Mask),
+		}
+
+		ip6 = &net.IPNet{
+			IP:   net.ParseIP("2001:db8::1"),
+			Mask: net.CIDRMask(ip6Mask, ip6Mask),
+		}
+
+		want = []*net.IPNet{ip4, ip6}
+	)
+
+	rtmsgs := []rtnetlink.RouteMessage{
+		{
+			Family:    unix.AF_INET,
+			DstLength: ip4Mask,
+			Protocol:  unix.RTPROT_STATIC,
+			Scope:     unix.RT_SCOPE_UNIVERSE,
+			Type:      unix.RTN_UNICAST,
+			Attributes: rtnetlink.RouteAttributes{
+				Dst:      ip4.IP,
+				OutIface: uint32(lo.Index),
+				Table:    table,
+			},
+		},
+		{
+			Family:    unix.AF_INET6,
+			DstLength: ip6Mask,
+			Protocol:  unix.RTPROT_STATIC,
+			Scope:     unix.RT_SCOPE_UNIVERSE,
+			Type:      unix.RTN_UNICAST,
+			Attributes: rtnetlink.RouteAttributes{
+				Dst:      ip6.IP,
+				OutIface: uint32(lo.Index),
+				Table:    table,
+			},
+		},
+	}
+
+	// Verify we can send a batch of updates in one syscall.
+	var msgs []netlink.Message
+	for _, m := range rtmsgs {
+		b, err := m.MarshalBinary()
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+
+		msgs = append(msgs, netlink.Message{
+			Header: netlink.Header{
+				Type:  unix.RTM_NEWROUTE,
+				Flags: netlink.Request | netlink.Create | netlink.Replace,
+			},
+			Data: b,
+		})
+	}
+
+	if _, err := c.SendMessages(msgs); err != nil {
+		t.Fatalf("failed to add routes: %v", err)
+	}
+
+	// Only dump routes from the specified table.
+	b, err := (&rtnetlink.RouteMessage{
+		Attributes: rtnetlink.RouteAttributes{Table: table},
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	routes, err := c.Execute(
+		netlink.Message{
+			Header: netlink.Header{
+				Type:  unix.RTM_GETROUTE,
+				Flags: netlink.Request | netlink.Dump,
+			},
+			Data: b,
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to dump routes: %v", err)
+	}
+
+	// Parse the routes back to Go structures.
+	got := make([]*net.IPNet, 0, len(routes))
+	for _, r := range routes {
+		var rtm rtnetlink.RouteMessage
+		if err := rtm.UnmarshalBinary(r.Data); err != nil {
+			t.Fatalf("failed to unmarshal route: %v", err)
+		}
+
+		got = append(got, &net.IPNet{
+			IP:   rtm.Attributes.Dst,
+			Mask: net.CIDRMask(int(rtm.DstLength), int(rtm.DstLength)),
+		})
+	}
+
+	// Now clear the routes and verify they're removed before ensuring we got
+	// the expected routes.
+	for i := range msgs {
+		msgs[i].Header.Type = unix.RTM_DELROUTE
+		msgs[i].Header.Flags = netlink.Request | netlink.Acknowledge
+	}
+
+	if _, err := c.SendMessages(msgs); err != nil {
+		t.Fatalf("failed to send: %v", err)
+	}
+	if _, err := c.Receive(); err != nil {
+		t.Fatalf("failed to receive: %v", err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected routes (-want +got):\n%s", diff)
 	}
 }
 
@@ -927,6 +1060,16 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 	m := <-msgC
 
 	return m.Attributes.Name
+}
+
+func setStrictCheck(t *testing.T, c *netlink.Conn) {
+	if err := c.SetOption(netlink.GetStrictCheck, true); err != nil {
+		if errors.Is(err, unix.ENOPROTOOPT) {
+			t.Skipf("skipping, netlink strict checking is not supported on this kernel")
+		}
+
+		t.Fatalf("failed to set strict check option: %v", err)
+	}
 }
 
 func skipPrivileged(t *testing.T) {
