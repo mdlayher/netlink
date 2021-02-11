@@ -3,7 +3,6 @@
 package netlink_test
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -1055,7 +1054,8 @@ func rtnlReceive(t *testing.T, c *netlink.Conn, do func()) string {
 
 func setStrictCheck(t *testing.T, c *netlink.Conn) {
 	if err := c.SetOption(netlink.GetStrictCheck, true); err != nil {
-		if errors.Is(err, unix.ENOPROTOOPT) {
+		// TODO(mdlayher): use errors.Is when we drop support for Go 1.12.
+		if err.(*netlink.OpError).Err == unix.ENOPROTOOPT {
 			t.Skipf("skipping, netlink strict checking is not supported on this kernel")
 		}
 
