@@ -134,7 +134,6 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 // packExtACK packs an extended acknowledgement response.
