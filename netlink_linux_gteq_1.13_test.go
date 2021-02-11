@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/mdlayher/ethtool"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
@@ -125,5 +126,60 @@ func TestIntegrationEthtoolExtendedAcknowledge(t *testing.T) {
 
 	if diff := cmp.Diff(want, oerr); diff != "" {
 		t.Fatalf("unexpected *netlink.OpError (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnClosedConn(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Close the connection immediately and ensure that future calls get EBADF.
+	if err := c.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "receive",
+			fn: func() error {
+				_, err := c.Receive()
+				return err
+			},
+		},
+		{
+			name: "send",
+			fn: func() error {
+				_, err := c.Send(netlink.Message{})
+				return err
+			},
+		},
+		{
+			name: "set option",
+			fn: func() error {
+				return c.SetOption(netlink.ExtendedAcknowledge, true)
+			},
+		},
+		{
+			name: "syscall conn",
+			fn: func() error {
+				_, err := c.SyscallConn()
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if diff := cmp.Diff(unix.EBADF, tt.fn(), cmpopts.EquateErrors()); diff != "" {
+				t.Fatalf("unexpected error (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

@@ -337,27 +337,6 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 	}
 }
 
-func TestIntegrationConnClosedConn(t *testing.T) {
-	t.Parallel()
-
-	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-	if err != nil {
-		t.Fatalf("failed to dial netlink: %v", err)
-	}
-
-	// Close the connection immediately and ensure that future calls get EBADF.
-	if err := c.Close(); err != nil {
-		t.Fatalf("failed to close: %v", err)
-	}
-
-	_, err = c.Receive()
-
-	serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
-	if diff := cmp.Diff(unix.EBADF, serr); diff != "" {
-		t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
-	}
-}
-
 func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 	t.Parallel()
 
@@ -613,59 +592,68 @@ func TestIntegrationConnNetNSUnprivileged(t *testing.T) {
 	}
 }
 
-func TestIntegrationConnTimeout(t *testing.T) {
+func TestIntegrationConnSendTimeout(t *testing.T) {
 	t.Parallel()
 
-	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
-	defer conn.Close()
+	defer c.Close()
 
-	timeout := 1 * time.Millisecond
-	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+	if err := c.SetWriteDeadline(time.Unix(0, 1)); err != nil {
 		t.Fatalf("failed to set deadline: %v", err)
 	}
 
-	errC := make(chan error)
-	go func() {
-		_, err := conn.Receive()
-		errC <- err
-	}()
-
-	select {
-	case err := <-errC:
-		mustBeTimeoutNetError(t, err)
-	case <-time.After(timeout + 100*time.Millisecond):
-		t.Fatalf("timeout did not fire")
-	}
+	_, err = c.Send(netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+	})
+	mustBeTimeoutNetError(t, err)
 }
 
-func TestIntegrationConnExecuteAfterReadDeadline(t *testing.T) {
+func TestIntegrationConnReceiveTimeout(t *testing.T) {
 	t.Parallel()
 
-	conn, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
-	defer conn.Close()
+	defer c.Close()
 
-	timeout := 1 * time.Millisecond
-	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+	if err := c.SetReadDeadline(time.Unix(0, 1)); err != nil {
 		t.Fatalf("failed to set deadline: %v", err)
 	}
-	time.Sleep(2 * timeout)
+
+	_, err = c.Receive()
+	mustBeTimeoutNetError(t, err)
+}
+
+func TestIntegrationConnExecuteTimeout(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.SetDeadline(time.Unix(0, 1)); err != nil {
+		t.Fatalf("failed to set deadline: %v", err)
+	}
 
 	req := netlink.Message{
 		Header: netlink.Header{
-			Flags:    netlink.Request | netlink.Acknowledge,
-			Sequence: 1,
+			Flags: netlink.Request | netlink.Acknowledge,
 		},
 	}
-	got, err := conn.Execute(req)
+
+	_, err = c.Execute(req)
 	if err == nil {
-		t.Fatalf("Execute succeeded: got %v", got)
+		t.Fatal("expected an error, but none occurred")
 	}
+
 	mustBeTimeoutNetError(t, err)
 }
 
@@ -730,7 +718,8 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSExplicit(t *testing.T) {
-	t.Parallel()
+	// Don't call t.Parallel in the network namespace tests or they will
+	// sometimes flake with permission denied, even as root.
 
 	skipUnprivileged(t)
 
@@ -796,7 +785,8 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 }
 
 func TestIntegrationConnNetNSImplicit(t *testing.T) {
-	t.Parallel()
+	// Don't call t.Parallel in the network namespace tests or they will
+	// sometimes flake with permission denied, even as root.
 
 	skipUnprivileged(t)
 
@@ -877,12 +867,13 @@ func findLink(t *testing.T, name string) bool {
 
 func mustBeTimeoutNetError(t *testing.T, err error) {
 	t.Helper()
-	ne, ok := err.(net.Error)
+
+	nerr, ok := err.(net.Error)
 	if !ok {
-		t.Fatalf("didn't get a net.Error: got a %T instead", err)
+		t.Fatalf("expected net.Error, but got: %T", err)
 	}
-	if !ne.Timeout() {
-		t.Fatalf("didn't get a timeout")
+	if !nerr.Timeout() {
+		t.Fatalf("error did not indicate a timeout")
 	}
 }
 

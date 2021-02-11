@@ -3,7 +3,6 @@ package netlink
 import (
 	"errors"
 	"math/rand"
-	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -480,16 +479,13 @@ func (c *Conn) SetWriteBuffer(bytes int) error {
 	return newOpError("set-write-buffer", conn.SetWriteBuffer(bytes))
 }
 
-// A filer is a Socket that supports retrieving its associated *os.File.
-type filer interface {
+// A syscallConner is a Socket that supports syscall.Conn.
+type syscallConner interface {
 	Socket
-	File() *os.File
+	syscall.Conn
 }
 
 var _ syscall.Conn = &Conn{}
-
-// TODO(mdlayher): mutex or similar to enforce syscall.RawConn contract of
-// FD remaining valid for duration of calls?
 
 // SyscallConn returns a raw network connection. This implements the
 // syscall.Conn interface.
@@ -506,12 +502,15 @@ var _ syscall.Conn = &Conn{}
 // performed using Conn and the syscall.RawConn do not conflict with
 // each other.
 func (c *Conn) SyscallConn() (syscall.RawConn, error) {
-	fc, ok := c.sock.(filer)
+	sc, ok := c.sock.(syscallConner)
 	if !ok {
 		return nil, notSupported("syscall-conn")
 	}
 
-	return fc.File().SyscallConn()
+	// TODO(mdlayher): mutex or similar to enforce syscall.RawConn contract of
+	// FD remaining valid for duration of calls?
+
+	return sc.SyscallConn()
 }
 
 // fixMsg updates the fields of m using the logic specified in Send.

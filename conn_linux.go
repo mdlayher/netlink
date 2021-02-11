@@ -17,32 +17,13 @@ import (
 
 var _ Socket = &conn{}
 
-var _ deadlineSetter = &conn{}
-
 // A conn is the Linux implementation of a netlink sockets connection.
 //
 // All conn methods must wrap system call errors with os.NewSyscallError to
 // enable more intelligible error messages in OpError.
 type conn struct {
-	s  socket
+	s  *socket
 	sa *unix.SockaddrNetlink
-}
-
-// A socket is an interface over socket system calls.
-type socket interface {
-	Bind(sa unix.Sockaddr) error
-	Close() error
-	FD() int
-	File() *os.File
-	Getsockname() (unix.Sockaddr, error)
-	Recvmsg(p, oob []byte, flags int) (n int, oobn int, recvflags int, from unix.Sockaddr, err error)
-	Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error
-	SetDeadline(t time.Time) error
-	SetReadDeadline(t time.Time) error
-	SetWriteDeadline(t time.Time) error
-	SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error
-	SetSockoptInt(level, opt, value int) error
-	GetSockoptInt(level, opt int) (int, error)
 }
 
 // dial is the entry point for Dial. dial opens a netlink socket using
@@ -60,7 +41,6 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 	// The caller has indicated it wants the netlink socket to be created
 	// inside another network namespace.
 	if config.NetNS != 0 {
-
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 
@@ -86,18 +66,17 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 		defer threadNS.Restore()
 	}
 
-	// Socket will establish the internal state of the sysSocket structure.
-	sock := &sysSocket{}
-	if err := sock.Socket(family); err != nil {
+	// Socket will establish the internal state of the socket structure.
+	s, err := newSocket(family)
+	if err != nil {
 		return nil, 0, os.NewSyscallError("socket", err)
 	}
 
-	return bind(sock, config)
+	return newConn(s, config)
 }
 
-// bind binds a connection to netlink using the input socket, which may be
-// a system call implementation or a mocked one for tests.
-func bind(s socket, config *Config) (*conn, uint32, error) {
+// newConn binds a connection to netlink using the input socket.
+func newConn(s *socket, config *Config) (*conn, uint32, error) {
 	if config == nil {
 		config = &Config{}
 	}
@@ -121,13 +100,14 @@ func bind(s socket, config *Config) (*conn, uint32, error) {
 		return nil, 0, os.NewSyscallError("getsockname", err)
 	}
 
-	pid := sa.(*unix.SockaddrNetlink).Pid
-
 	return &conn{
 		s:  s,
 		sa: addr,
-	}, pid, nil
+	}, sa.(*unix.SockaddrNetlink).Pid, nil
 }
+
+// saNetlink is the sockaddr used in sendmsg calls.
+var saNetlink = &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
 
 // SendMessages serializes multiple Messages and sends them to netlink.
 func (c *conn) SendMessages(messages []Message) error {
@@ -141,11 +121,7 @@ func (c *conn) SendMessages(messages []Message) error {
 		buf = append(buf, b...)
 	}
 
-	addr := &unix.SockaddrNetlink{
-		Family: unix.AF_NETLINK,
-	}
-
-	return os.NewSyscallError("sendmsg", c.s.Sendmsg(buf, nil, addr, 0))
+	return os.NewSyscallError("sendmsg", c.s.Sendmsg(buf, nil, saNetlink, 0))
 }
 
 // Send sends a single Message to netlink.
@@ -155,11 +131,7 @@ func (c *conn) Send(m Message) error {
 		return err
 	}
 
-	addr := &unix.SockaddrNetlink{
-		Family: unix.AF_NETLINK,
-	}
-
-	return os.NewSyscallError("sendmsg", c.s.Sendmsg(b, nil, addr, 0))
+	return os.NewSyscallError("sendmsg", c.s.Sendmsg(b, nil, saNetlink, 0))
 }
 
 // Receive receives one or more Messages from netlink.
@@ -190,9 +162,7 @@ func (c *conn) Receive() ([]Message, error) {
 		return nil, os.NewSyscallError("recvmsg", err)
 	}
 
-	n = nlmsgAlign(n)
-
-	raw, err := syscall.ParseNetlinkMessage(b[:n])
+	raw, err := syscall.ParseNetlinkMessage(b[:nlmsgAlign(n)])
 	if err != nil {
 		return nil, err
 	}
@@ -213,16 +183,6 @@ func (c *conn) Receive() ([]Message, error) {
 // Close closes the connection.
 func (c *conn) Close() error {
 	return os.NewSyscallError("close", c.s.Close())
-}
-
-// FD retrieves the file descriptor of the Conn.
-func (c *conn) FD() int {
-	return c.s.FD()
-}
-
-// File retrieves the *os.File associated with the Conn.
-func (c *conn) File() *os.File {
-	return c.s.File()
 }
 
 // JoinGroup joins a multicast group by ID.
@@ -308,14 +268,14 @@ func (c *conn) SetWriteDeadline(t time.Time) error {
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error {
-	// First try SO_RCVBUFFORCE. Given necessary permissions this syscall ignores limits.
+	// First try SO_RCVBUFFORCE. Given necessary permissions this syscall
+	// ignores limits. Fall back to the non-force version.
 	err := os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_RCVBUFFORCE,
 		bytes,
 	))
 	if err != nil {
-		// If SO_SNDBUFFORCE fails, try SO_RCVBUF
 		err = os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 			unix.SOL_SOCKET,
 			unix.SO_RCVBUF,
@@ -328,14 +288,14 @@ func (c *conn) SetReadBuffer(bytes int) error {
 // SetReadBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error {
-	// First try SO_SNDBUFFORCE. Given necessary permissions this syscall ignores limits.
+	// First try SO_SNDBUFFORCE. Given necessary permissions this syscall
+	// ignores limits. Fall back to the non-force version.
 	err := os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 		unix.SOL_SOCKET,
 		unix.SO_SNDBUFFORCE,
 		bytes,
 	))
 	if err != nil {
-		// If SO_SNDBUFFORCE fails, try SO_SNDBUF
 		err = os.NewSyscallError("setsockopt", c.s.SetSockoptInt(
 			unix.SOL_SOCKET,
 			unix.SO_SNDBUF,
@@ -345,31 +305,7 @@ func (c *conn) SetWriteBuffer(bytes int) error {
 	return err
 }
 
-// GetReadBuffer retrieves the size of the operating system's receive buffer
-// associated with the Conn.
-func (c *conn) GetReadBuffer() (int, error) {
-	value, err := c.s.GetSockoptInt(
-		unix.SOL_SOCKET,
-		unix.SO_RCVBUF,
-	)
-	if err != nil {
-		return 0, os.NewSyscallError("getsockopt", err)
-	}
-	return value, nil
-}
-
-// GetWriteBuffer retrieves the size of the operating system's transmit buffer
-// associated with the Conn.
-func (c *conn) GetWriteBuffer() (int, error) {
-	value, err := c.s.GetSockoptInt(
-		unix.SOL_SOCKET,
-		unix.SO_SNDBUF,
-	)
-	if err != nil {
-		return 0, os.NewSyscallError("getsockopt", err)
-	}
-	return value, nil
-}
+func (c *conn) SyscallConn() (syscall.RawConn, error) { return c.s.SyscallConn() }
 
 // linuxOption converts a ConnOption to its Linux value.
 func linuxOption(o ConnOption) (int, bool) {
@@ -406,20 +342,17 @@ func newError(errno int) error {
 	return syscall.Errno(errno)
 }
 
-var _ socket = &sysSocket{}
-
-// A sysSocket is a socket which uses system calls for socket operations.
-type sysSocket struct {
+// A socket wraps system call operations.
+type socket struct {
 	// Atomics must come first.
 	closed uint32
 
-	// Established when calling Socket.
 	fd *os.File
 	rc syscall.RawConn
 }
 
 // read executes f, a read function, against the associated file descriptor.
-func (s *sysSocket) read(f func(fd int) bool) error {
+func (s *socket) read(f func(fd int) bool) error {
 	if atomic.LoadUint32(&s.closed) != 0 {
 		return syscall.EBADF
 	}
@@ -430,7 +363,7 @@ func (s *sysSocket) read(f func(fd int) bool) error {
 }
 
 // write executes f, a write function, against the associated file descriptor.
-func (s *sysSocket) write(f func(fd int) bool) error {
+func (s *socket) write(f func(fd int) bool) error {
 	if atomic.LoadUint32(&s.closed) != 0 {
 		return syscall.EBADF
 	}
@@ -441,7 +374,7 @@ func (s *sysSocket) write(f func(fd int) bool) error {
 }
 
 // control executes f, a control function, against the associated file descriptor.
-func (s *sysSocket) control(f func(fd int)) error {
+func (s *socket) control(f func(fd int)) error {
 	if atomic.LoadUint32(&s.closed) != 0 {
 		return syscall.EBADF
 	}
@@ -451,7 +384,15 @@ func (s *sysSocket) control(f func(fd int)) error {
 	})
 }
 
-func (s *sysSocket) Socket(family int) error {
+func (s *socket) SyscallConn() (syscall.RawConn, error) {
+	if atomic.LoadUint32(&s.closed) != 0 {
+		return nil, syscall.EBADF
+	}
+
+	return s.rc, nil
+}
+
+func newSocket(family int) (*socket, error) {
 	// Mirror what the standard library does when creating file
 	// descriptors: avoid racing a fork/exec with the creation
 	// of new file descriptors, so that child processes do not
@@ -484,7 +425,7 @@ func (s *sysSocket) Socket(family int) error {
 		syscall.ForkLock.RUnlock()
 
 		if err := unix.SetNonblock(fd, true); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -493,16 +434,19 @@ func (s *sysSocket) Socket(family int) error {
 	// raw I/O via SyscallConn.
 	//
 	// See also: https://golang.org/pkg/os/#NewFile
-	s.fd = os.NewFile(uintptr(fd), "netlink")
-	s.rc, err = s.fd.SyscallConn()
+	f := os.NewFile(uintptr(fd), "netlink")
+	rc, err := f.SyscallConn()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &socket{
+		fd: f,
+		rc: rc,
+	}, nil
 }
 
-func (s *sysSocket) Bind(sa unix.Sockaddr) error {
+func (s *socket) Bind(sa unix.Sockaddr) error {
 	var err error
 	doErr := s.control(func(fd int) {
 		err = unix.Bind(fd, sa)
@@ -514,7 +458,7 @@ func (s *sysSocket) Bind(sa unix.Sockaddr) error {
 	return err
 }
 
-func (s *sysSocket) Close() error {
+func (s *socket) Close() error {
 	// The caller has expressed an intent to close the socket, so immediately
 	// increment s.closed to force further calls to result in EBADF before also
 	// closing the file descriptor to unblock any outstanding operations.
@@ -529,11 +473,7 @@ func (s *sysSocket) Close() error {
 	return s.fd.Close()
 }
 
-func (s *sysSocket) FD() int { return int(s.fd.Fd()) }
-
-func (s *sysSocket) File() *os.File { return s.fd }
-
-func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
+func (s *socket) Getsockname() (unix.Sockaddr, error) {
 	var (
 		sa  unix.Sockaddr
 		err error
@@ -549,7 +489,7 @@ func (s *sysSocket) Getsockname() (unix.Sockaddr, error) {
 	return sa, err
 }
 
-func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+func (s *socket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
 	var (
 		n, oobn, recvflags int
 		from               unix.Sockaddr
@@ -569,7 +509,7 @@ func (s *sysSocket) Recvmsg(p, oob []byte, flags int) (int, int, int, unix.Socka
 	return n, oobn, recvflags, from, err
 }
 
-func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
+func (s *socket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	var err error
 	doErr := s.write(func(fd int) bool {
 		err = unix.Sendmsg(fd, p, oob, to, flags)
@@ -584,19 +524,11 @@ func (s *sysSocket) Sendmsg(p, oob []byte, to unix.Sockaddr, flags int) error {
 	return err
 }
 
-func (s *sysSocket) SetDeadline(t time.Time) error {
-	return s.fd.SetDeadline(t)
-}
+func (s *socket) SetDeadline(t time.Time) error      { return s.fd.SetDeadline(t) }
+func (s *socket) SetReadDeadline(t time.Time) error  { return s.fd.SetReadDeadline(t) }
+func (s *socket) SetWriteDeadline(t time.Time) error { return s.fd.SetWriteDeadline(t) }
 
-func (s *sysSocket) SetReadDeadline(t time.Time) error {
-	return s.fd.SetReadDeadline(t)
-}
-
-func (s *sysSocket) SetWriteDeadline(t time.Time) error {
-	return s.fd.SetWriteDeadline(t)
-}
-
-func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
+func (s *socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
 	if value < math.MinInt32 || value > math.MaxInt32 {
 		return unix.EINVAL
@@ -613,22 +545,7 @@ func (s *sysSocket) SetSockoptInt(level, opt, value int) error {
 	return err
 }
 
-func (s *sysSocket) GetSockoptInt(level, opt int) (int, error) {
-	var (
-		value int
-		err   error
-	)
-	doErr := s.control(func(fd int) {
-		value, err = unix.GetsockoptInt(fd, level, opt)
-	})
-	if doErr != nil {
-		return 0, doErr
-	}
-
-	return value, err
-}
-
-func (s *sysSocket) SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error {
+func (s *socket) SetSockoptSockFprog(level, opt int, fprog *unix.SockFprog) error {
 	var err error
 	doErr := s.control(func(fd int) {
 		err = unix.SetsockoptSockFprog(fd, level, opt, fprog)
