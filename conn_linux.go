@@ -22,8 +22,7 @@ var _ Socket = &conn{}
 // All conn methods must wrap system call errors with os.NewSyscallError to
 // enable more intelligible error messages in OpError.
 type conn struct {
-	s  *socket
-	sa *unix.SockaddrNetlink
+	s *socket
 }
 
 // dial is the entry point for Dial. dial opens a netlink socket using
@@ -101,8 +100,7 @@ func newConn(s *socket, config *Config) (*conn, uint32, error) {
 	}
 
 	return &conn{
-		s:  s,
-		sa: addr,
+		s: s,
 	}, sa.(*unix.SockaddrNetlink).Pid, nil
 }
 
