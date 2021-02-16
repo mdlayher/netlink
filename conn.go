@@ -27,6 +27,10 @@ type Conn struct {
 	// numbers when Conn.Send is called.
 	seq uint32
 
+	// mu serializes access to the netlink socket for the request/response
+	// transaction within Execute.
+	mu sync.RWMutex
+
 	// sock is the operating system-specific implementation of
 	// a netlink sockets connection.
 	sock Socket
@@ -36,10 +40,6 @@ type Conn struct {
 
 	// d provides debugging capabilities for a Conn if not nil.
 	d *debugger
-
-	// mu serializes access to the netlink socket for the request/response
-	// transaction within Execute.
-	mu sync.RWMutex
 }
 
 // A Socket is an operating-system specific implementation of netlink
@@ -275,8 +275,8 @@ func (c *Conn) receive() ([]Message, error) {
 			return nil, newOpError("receive", err)
 		}
 
-		// If this message is multi-part, we will need to perform an recursive call
-		// to continue draining the socket
+		// If this message is multi-part, we will need to continue looping to
+		// drain all the messages from the socket.
 		var multi bool
 
 		for _, m := range msgs {
@@ -368,9 +368,6 @@ type deadlineSetter interface {
 }
 
 // SetDeadline sets the read and write deadlines associated with the connection.
-//
-// Deadline functionality is only supported on Go 1.12+. Calling this function
-// on older versions of Go will result in an error.
 func (c *Conn) SetDeadline(t time.Time) error {
 	conn, ok := c.sock.(deadlineSetter)
 	if !ok {
@@ -381,9 +378,6 @@ func (c *Conn) SetDeadline(t time.Time) error {
 }
 
 // SetReadDeadline sets the read deadline associated with the connection.
-//
-// Deadline functionality is only supported on Go 1.12+. Calling this function
-// on older versions of Go will result in an error.
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	conn, ok := c.sock.(deadlineSetter)
 	if !ok {
@@ -394,9 +388,6 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 }
 
 // SetWriteDeadline sets the write deadline associated with the connection.
-//
-// Deadline functionality is only supported on Go 1.12+. Calling this function
-// on older versions of Go will result in an error.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	conn, ok := c.sock.(deadlineSetter)
 	if !ok {

@@ -173,8 +173,6 @@ func (t HeaderType) String() string {
 // exactly the same.  Cannot reorder, change data type, add, or remove fields.
 // Named types of the same size (e.g. HeaderFlags is a uint16) are okay.
 
-const sizeofHeader = int(unsafe.Sizeof(Header{}))
-
 // A Header is a netlink header.  A Header is sent and received with each
 // Message to indicate metadata regarding a Message.
 type Header struct {
@@ -310,14 +308,14 @@ func checkMessage(m Message) error {
 	var off int
 	if hasHeader {
 		// There is an nlmsghdr preceding the TLVs.
-		if len(m.Data) < endErrno+sizeofHeader {
+		if len(m.Data) < endErrno+nlmsgHeaderLen {
 			return newOpError("receive", errShortErrorMessage)
 		}
 
 		// The TLVs should be at the offset indicated by the nlmsghdr.length,
 		// plus the offset where the header began. But make sure the calculated
 		// offset is still in-bounds.
-		h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+sizeofHeader][0]))
+		h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+nlmsgHeaderLen][0]))
 		off = endErrno + int(h.Length)
 
 		if len(m.Data) < off {

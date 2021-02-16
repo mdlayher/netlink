@@ -252,17 +252,9 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 	))
 }
 
-func (c *conn) SetDeadline(t time.Time) error {
-	return c.s.SetDeadline(t)
-}
-
-func (c *conn) SetReadDeadline(t time.Time) error {
-	return c.s.SetReadDeadline(t)
-}
-
-func (c *conn) SetWriteDeadline(t time.Time) error {
-	return c.s.SetWriteDeadline(t)
-}
+func (c *conn) SetDeadline(t time.Time) error      { return c.s.SetDeadline(t) }
+func (c *conn) SetReadDeadline(t time.Time) error  { return c.s.SetReadDeadline(t) }
+func (c *conn) SetWriteDeadline(t time.Time) error { return c.s.SetWriteDeadline(t) }
 
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
