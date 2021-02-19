@@ -536,17 +536,17 @@ func TestAttributeDecoderOK(t *testing.T) {
 			},
 		},
 		{
-			name:  "uint native endian",
+			name:  "uint-int32 native endian",
 			attrs: adEndianAttrs(native.Endian),
 			fn:    adEndianTest(native.Endian),
 		},
 		{
-			name:  "uint little endian",
+			name:  "uint-int32 little endian",
 			attrs: adEndianAttrs(binary.LittleEndian),
 			fn:    adEndianTest(binary.LittleEndian),
 		},
 		{
-			name:  "uint big endian",
+			name:  "uint-int32 big endian",
 			attrs: adEndianAttrs(binary.BigEndian),
 			fn:    adEndianTest(binary.BigEndian),
 		},
@@ -845,7 +845,7 @@ func adEndianAttrs(order binary.ByteOrder) []Attribute {
 			Type: 7,
 			Data: func() []byte {
 				b := make([]byte, 4)
-				nlenc.PutInt32(b, int32(7))
+				order.PutUint32(b, uint32(int32(7)))
 				return b
 			}(),
 		},
@@ -928,18 +928,18 @@ func TestAttributeEncoderOK(t *testing.T) {
 			},
 		},
 		{
-			name:  "uint native endian",
+			name:  "uint-int32 native endian",
 			attrs: adEndianAttrs(native.Endian),
 			fn:    aeEndianTest(native.Endian),
 		},
 		{
-			name:   "uint little endian",
+			name:   "uint-int32 little endian",
 			attrs:  adEndianAttrs(binary.LittleEndian),
 			endian: binary.LittleEndian,
 			fn:     aeEndianTest(binary.LittleEndian),
 		},
 		{
-			name:   "uint big endian",
+			name:   "uint-int32 big endian",
 			attrs:  adEndianAttrs(binary.BigEndian),
 			endian: binary.BigEndian,
 			fn:     aeEndianTest(binary.BigEndian),
@@ -1090,5 +1090,6 @@ func aeEndianTest(order binary.ByteOrder) func(ae *AttributeEncoder) {
 		ae.Uint16(2, uint16(2))
 		ae.Uint32(3, uint32(3))
 		ae.Uint64(4, uint64(4))
+		ae.Int32(7, int32(7))
 	}
 }
