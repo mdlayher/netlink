@@ -359,6 +359,21 @@ func (ad *AttributeDecoder) Uint64() uint64 {
 	return ad.ByteOrder.Uint64(b)
 }
 
+// Int32 returns the Int32 representation of the current Attribute's data.
+func (ad *AttributeDecoder) Int32() int32 {
+	if ad.err != nil {
+		return 0
+	}
+
+	b := ad.data()
+	if len(b) != 4 {
+		ad.err = fmt.Errorf("netlink: attribute %d is not a uint32; length: %d", ad.Type(), len(b))
+		return 0
+	}
+
+	return int32(ad.ByteOrder.Uint32(b))
+}
+
 // Flag returns a boolean representing the Attribute.
 func (ad *AttributeDecoder) Flag() bool {
 	if ad.err != nil {
@@ -494,6 +509,21 @@ func (ae *AttributeEncoder) Uint64(typ uint16, v uint64) {
 
 	b := make([]byte, 8)
 	ae.ByteOrder.PutUint64(b, v)
+
+	ae.attrs = append(ae.attrs, Attribute{
+		Type: typ,
+		Data: b,
+	})
+}
+
+// Int32 encodes int32 data into an Attribute specified by typ.
+func (ae *AttributeEncoder) Int32(typ uint16, v int32) {
+	if ae.err != nil {
+		return
+	}
+
+	b := make([]byte, 4)
+	ae.ByteOrder.PutUint32(b,uint32(v))
 
 	ae.attrs = append(ae.attrs, Attribute{
 		Type: typ,

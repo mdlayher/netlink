@@ -462,6 +462,15 @@ func TestAttributeDecoderError(t *testing.T) {
 			},
 		},
 		{
+			name:  "int32",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Int32()
+				ad.Next()
+				ad.Int32()
+			},
+		},
+		{
 			name:  "do",
 			attrs: bad,
 			fn: func(ad *AttributeDecoder) {
@@ -832,6 +841,14 @@ func adEndianAttrs(order binary.ByteOrder) []Attribute {
 				return b
 			}(),
 		},
+		{
+			Type: 7,
+			Data: func() []byte {
+				b := make([]byte, 4)
+				nlenc.PutInt32(b, int32(7))
+				return b
+			}(),
+		},
 	}
 }
 
@@ -853,6 +870,8 @@ func adEndianTest(order binary.ByteOrder) func(ad *AttributeDecoder) {
 			v = int(ad.Uint32())
 		case 4:
 			v = int(ad.Uint64())
+		case 7:
+			v = int(ad.Int32())
 		default:
 			panicf("unhandled attribute type: %d", t)
 		}
