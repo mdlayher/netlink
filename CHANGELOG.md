@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.3.1
+
+- [Improvement]: many internal cleanups and simplifications. The library is now
+  slimmer and features less internal indirection. There are no user-facing
+  changes in this release.
+
 ## v1.3.0
 
 - [New API] [#176](https://github.com/mdlayher/netlink/pull/176):
