@@ -1,3 +1,5 @@
+//+build gofuzz
+
 package netlink
 
 import "testing"
