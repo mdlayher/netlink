@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.3.2
+
+- [Improvement]
+  [commit](https://github.com/mdlayher/netlink/commit/ebc6e2e28bcf1a0671411288423d8116ff924d6d):
+  `github.com/google/go-cmp` is no longer a (non-test) dependency of this module.
+
 ## v1.3.1
 
 - [Improvement]: many internal cleanups and simplifications. The library is now
