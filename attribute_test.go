@@ -462,6 +462,42 @@ func TestAttributeDecoderError(t *testing.T) {
 			},
 		},
 		{
+			name:  "int8",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Int8()
+				ad.Next()
+				ad.Int8()
+			},
+		},
+		{
+			name:  "int16",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Int16()
+				ad.Next()
+				ad.Int16()
+			},
+		},
+		{
+			name:  "int32",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Int32()
+				ad.Next()
+				ad.Int32()
+			},
+		},
+		{
+			name:  "int64",
+			attrs: bad,
+			fn: func(ad *AttributeDecoder) {
+				ad.Int64()
+				ad.Next()
+				ad.Int64()
+			},
+		},
+		{
 			name:  "do",
 			attrs: bad,
 			fn: func(ad *AttributeDecoder) {
@@ -527,17 +563,17 @@ func TestAttributeDecoderOK(t *testing.T) {
 			},
 		},
 		{
-			name:  "uint native endian",
+			name:  "uint-int native endian",
 			attrs: adEndianAttrs(native.Endian),
 			fn:    adEndianTest(native.Endian),
 		},
 		{
-			name:  "uint little endian",
+			name:  "uint-int little endian",
 			attrs: adEndianAttrs(binary.LittleEndian),
 			fn:    adEndianTest(binary.LittleEndian),
 		},
 		{
-			name:  "uint big endian",
+			name:  "uint-int big endian",
 			attrs: adEndianAttrs(binary.BigEndian),
 			fn:    adEndianTest(binary.BigEndian),
 		},
@@ -832,6 +868,36 @@ func adEndianAttrs(order binary.ByteOrder) []Attribute {
 				return b
 			}(),
 		},
+		{
+			Type: 5,
+			Data: func() []byte {
+				return []byte{uint8(int8(5))}
+			}(),
+		},
+		{
+			Type: 6,
+			Data: func() []byte {
+				b := make([]byte, 2)
+				order.PutUint16(b, uint16(int16(6)))
+				return b
+			}(),
+		},
+		{
+			Type: 7,
+			Data: func() []byte {
+				b := make([]byte, 4)
+				order.PutUint32(b, uint32(int32(7)))
+				return b
+			}(),
+		},
+		{
+			Type: 8,
+			Data: func() []byte {
+				b := make([]byte, 8)
+				order.PutUint64(b, uint64(int64(8)))
+				return b
+			}(),
+		},
 	}
 }
 
@@ -853,6 +919,14 @@ func adEndianTest(order binary.ByteOrder) func(ad *AttributeDecoder) {
 			v = int(ad.Uint32())
 		case 4:
 			v = int(ad.Uint64())
+		case 5:
+			v = int(ad.Int8())
+		case 6:
+			v = int(ad.Int16())
+		case 7:
+			v = int(ad.Int32())
+		case 8:
+			v = int(ad.Int64())
 		default:
 			panicf("unhandled attribute type: %d", t)
 		}
@@ -909,18 +983,18 @@ func TestAttributeEncoderOK(t *testing.T) {
 			},
 		},
 		{
-			name:  "uint native endian",
+			name:  "uint-int native endian",
 			attrs: adEndianAttrs(native.Endian),
 			fn:    aeEndianTest(native.Endian),
 		},
 		{
-			name:   "uint little endian",
+			name:   "uint-int little endian",
 			attrs:  adEndianAttrs(binary.LittleEndian),
 			endian: binary.LittleEndian,
 			fn:     aeEndianTest(binary.LittleEndian),
 		},
 		{
-			name:   "uint big endian",
+			name:   "uint-int big endian",
 			attrs:  adEndianAttrs(binary.BigEndian),
 			endian: binary.BigEndian,
 			fn:     aeEndianTest(binary.BigEndian),
@@ -1071,5 +1145,9 @@ func aeEndianTest(order binary.ByteOrder) func(ae *AttributeEncoder) {
 		ae.Uint16(2, uint16(2))
 		ae.Uint32(3, uint32(3))
 		ae.Uint64(4, uint64(4))
+		ae.Int8(5, int8(5))
+		ae.Int16(6, int16(6))
+		ae.Int32(7, int32(7))
+		ae.Int64(8, int64(8))
 	}
 }

@@ -126,10 +126,24 @@ func TestUintPanic(t *testing.T) {
 			},
 		},
 		{
+			name: "short put signed 32",
+			b:    make([]byte, 3),
+			fn: func(b []byte) {
+				PutInt32(b, 0)
+			},
+		},
+		{
 			name: "short get signed 32",
 			b:    make([]byte, 3),
 			fn: func(b []byte) {
 				Int32(b)
+			},
+		},
+		{
+			name: "long put signed 32",
+			b:    make([]byte, 5),
+			fn: func(b []byte) {
+				PutInt32(b, 0)
 			},
 		},
 		{
