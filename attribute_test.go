@@ -983,18 +983,18 @@ func TestAttributeEncoderOK(t *testing.T) {
 			},
 		},
 		{
-			name:  "uint-int32 native endian",
+			name:  "uint-int native endian",
 			attrs: adEndianAttrs(native.Endian),
 			fn:    aeEndianTest(native.Endian),
 		},
 		{
-			name:   "uint-int32 little endian",
+			name:   "uint-int little endian",
 			attrs:  adEndianAttrs(binary.LittleEndian),
 			endian: binary.LittleEndian,
 			fn:     aeEndianTest(binary.LittleEndian),
 		},
 		{
-			name:   "uint-int32 big endian",
+			name:   "uint-int big endian",
 			attrs:  adEndianAttrs(binary.BigEndian),
 			endian: binary.BigEndian,
 			fn:     aeEndianTest(binary.BigEndian),

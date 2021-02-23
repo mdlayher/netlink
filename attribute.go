@@ -580,7 +580,7 @@ func (ae *AttributeEncoder) Int16(typ uint16, v int16) {
 	}
 
 	b := make([]byte, 2)
-	ae.ByteOrder.PutUint16(b,uint16(v))
+	ae.ByteOrder.PutUint16(b, uint16(v))
 
 	ae.attrs = append(ae.attrs, Attribute{
 		Type: typ,
@@ -595,7 +595,7 @@ func (ae *AttributeEncoder) Int32(typ uint16, v int32) {
 	}
 
 	b := make([]byte, 4)
-	ae.ByteOrder.PutUint32(b,uint32(v))
+	ae.ByteOrder.PutUint32(b, uint32(v))
 
 	ae.attrs = append(ae.attrs, Attribute{
 		Type: typ,
@@ -610,7 +610,7 @@ func (ae *AttributeEncoder) Int64(typ uint16, v int64) {
 	}
 
 	b := make([]byte, 8)
-	ae.ByteOrder.PutUint64(b,uint64(v))
+	ae.ByteOrder.PutUint64(b, uint64(v))
 
 	ae.attrs = append(ae.attrs, Attribute{
 		Type: typ,
