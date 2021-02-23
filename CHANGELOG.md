@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v1.4.0
+
+- [New API] [#185](https://github.com/mdlayher/netlink/pull/185): the
+  `netlink.AttributeDecoder` and `netlink.AttributeEncoder` types now have
+  methods for dealing with signed integers: `Int8`, `Int16`, `Int32`, and
+  `Int64`. These are necessary for working with rtnetlink's XDP APIs. Thanks
+  @fbegyn.
+
 ## v1.3.2
 
 - [Improvement]
