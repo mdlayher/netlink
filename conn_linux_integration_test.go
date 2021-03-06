@@ -288,7 +288,11 @@ func TestIntegrationConnConcurrentCloseUnblocksReceive(t *testing.T) {
 
 	// Expect an error due to the use of a closed file descriptor. Unfortunately
 	// there doesn't seem to be a typed error for this.
-	serr := err.(*netlink.OpError).Err.(*os.SyscallError).Err
+	//
+	// Previous versions of this code would wrap the internal/poll error which
+	// *os.SyscallError which technically was incorrect. If necessary, revert
+	// this behavior.
+	serr := err.(*netlink.OpError).Err
 	if diff := cmp.Diff("use of closed file", serr.Error()); diff != "" {
 		t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
 	}
