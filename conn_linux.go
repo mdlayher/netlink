@@ -182,26 +182,10 @@ func (c *conn) LeaveGroup(group uint32) error {
 }
 
 // SetBPF attaches an assembled BPF program to a conn.
-func (c *conn) SetBPF(filter []bpf.RawInstruction) error {
-	// We can't point to the first instruction in the array if no instructions
-	// are present.
-	if len(filter) == 0 {
-		return os.NewSyscallError("setsockopt", unix.EINVAL)
-	}
-
-	prog := unix.SockFprog{
-		Len:    uint16(len(filter)),
-		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),
-	}
-
-	return c.s.SetsockoptSockFprog(unix.SOL_SOCKET, unix.SO_ATTACH_FILTER, &prog)
-}
+func (c *conn) SetBPF(filter []bpf.RawInstruction) error { return c.s.SetBPF(filter) }
 
 // RemoveBPF removes a BPF filter from a conn.
-func (c *conn) RemoveBPF() error {
-	// 0 argument is ignored by SO_DETACH_FILTER.
-	return c.s.SetsockoptInt(unix.SOL_SOCKET, unix.SO_DETACH_FILTER, 0)
-}
+func (c *conn) RemoveBPF() error { return c.s.RemoveBPF() }
 
 // SetOption enables or disables a netlink socket option for the Conn.
 func (c *conn) SetOption(option ConnOption, enable bool) error {
@@ -225,28 +209,13 @@ func (c *conn) SetWriteDeadline(t time.Time) error { return c.s.SetWriteDeadline
 
 // SetReadBuffer sets the size of the operating system's receive buffer
 // associated with the Conn.
-func (c *conn) SetReadBuffer(bytes int) error {
-	// First try SO_RCVBUFFORCE. Given necessary permissions this syscall
-	// ignores limits. Fall back to the non-force version.
-	err := c.s.SetsockoptInt(unix.SOL_SOCKET, unix.SO_RCVBUFFORCE, bytes)
-	if err != nil {
-		err = c.s.SetsockoptInt(unix.SOL_SOCKET, unix.SO_RCVBUF, bytes)
-	}
-	return err
-}
+func (c *conn) SetReadBuffer(bytes int) error { return c.s.SetReadBuffer(bytes) }
 
 // SetReadBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
-func (c *conn) SetWriteBuffer(bytes int) error {
-	// First try SO_SNDBUFFORCE. Given necessary permissions this syscall
-	// ignores limits. Fall back to the non-force version.
-	err := c.s.SetsockoptInt(unix.SOL_SOCKET, unix.SO_SNDBUFFORCE, bytes)
-	if err != nil {
-		err = c.s.SetsockoptInt(unix.SOL_SOCKET, unix.SO_SNDBUF, bytes)
-	}
-	return err
-}
+func (c *conn) SetWriteBuffer(bytes int) error { return c.s.SetWriteBuffer(bytes) }
 
+// SyscallConn returns a raw network connection.
 func (c *conn) SyscallConn() (syscall.RawConn, error) { return c.s.SyscallConn() }
 
 // linuxOption converts a ConnOption to its Linux value.
