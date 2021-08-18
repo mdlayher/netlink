@@ -558,4 +558,8 @@ type Config struct {
 
 	// DisableNSLockThread is deprecated and has no effect.
 	DisableNSLockThread bool
+
+	// the unicast address of netlink socket. If set it to 0,
+	// the kernel takes care of assigning it.
+	Pid uint32
 }
