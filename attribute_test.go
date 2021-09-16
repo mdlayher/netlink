@@ -649,7 +649,14 @@ func TestAttributeDecoderOK(t *testing.T) {
 				// Arbitrary C-like structure.
 				{
 					Type: 1,
-					Data: []byte{0xde, 0xad, 0xbe},
+					Data: []byte{
+						// uint16
+						0xde, 0xad,
+						// uint8
+						0xbe,
+						// padding
+						0x00,
+					},
 				},
 				// Nested attributes.
 				{
@@ -682,14 +689,12 @@ func TestAttributeDecoderOK(t *testing.T) {
 					}
 
 					ad.Do(func(b []byte) error {
-						// Make a copy to avoid an error on macOS unit tests:
-						//
-						// fatal error: checkptr: converted pointer straddles
-						// multiple allocations
-						buf := make([]byte, len(b))
-						copy(buf, b)
+						// unsafe invariant check.
+						if want, got := int(unsafe.Sizeof(cstruct{})), len(b); want != got {
+							panicf("unexpected struct size: want: %d, got: %d", want, got)
+						}
 
-						got := *(*cstruct)(unsafe.Pointer(&buf[0]))
+						got := *(*cstruct)(unsafe.Pointer(&b[0]))
 
 						if diff := cmp.Diff(want, got); diff != "" {
 							panicf("unexpected struct (-want +got):\n%s", diff)
