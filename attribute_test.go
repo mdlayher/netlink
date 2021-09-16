@@ -682,7 +682,14 @@ func TestAttributeDecoderOK(t *testing.T) {
 					}
 
 					ad.Do(func(b []byte) error {
-						got := *(*cstruct)(unsafe.Pointer(&b[0]))
+						// Make a copy to avoid an error on macOS unit tests:
+						//
+						// fatal error: checkptr: converted pointer straddles
+						// multiple allocations
+						buf := make([]byte, len(b))
+						copy(buf, b)
+
+						got := *(*cstruct)(unsafe.Pointer(&buf[0]))
 
 						if diff := cmp.Diff(want, got); diff != "" {
 							panicf("unexpected struct (-want +got):\n%s", diff)
