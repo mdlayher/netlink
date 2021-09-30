@@ -10,4 +10,5 @@ require (
 	github.com/mdlayher/socket v0.0.0-20210624160740-9dbe287ded84
 	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8
 	golang.org/x/sys v0.0.0-20210915083310-ed5796bab164
+	honnef.co/go/tools v0.2.1
 )
