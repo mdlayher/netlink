@@ -121,8 +121,8 @@ func UnmarshalAttributes(b []byte) ([]Attribute, error) {
 	attrs := make([]Attribute, 0, ad.Len())
 
 	for ad.Next() {
-		if ad.attr().Length != 0 {
-			attrs = append(attrs, ad.attr())
+		if ad.a.Length != 0 {
+			attrs = append(attrs, ad.a)
 		}
 	}
 
@@ -234,14 +234,8 @@ func (ad *AttributeDecoder) Len() int { return ad.length }
 // count scans the input slice to count the number of netlink attributes
 // that could be decoded by Next().
 func (ad *AttributeDecoder) available() (int, error) {
-	var i, count int
-	for {
-
-		// No more data to read.
-		if i >= len(ad.b) {
-			break
-		}
-
+	var count int
+	for i := 0; i < len(ad.b); {
 		// Make sure there's at least a header's worth
 		// of data to read on each iteration.
 		if len(ad.b[i:]) < nlaHeaderLen {
@@ -267,20 +261,11 @@ func (ad *AttributeDecoder) available() (int, error) {
 	return count, nil
 }
 
-// attr returns the current Attribute pointed to by the decoder.
-func (ad *AttributeDecoder) attr() Attribute {
-	return ad.a
-}
-
 // data returns the Data field of the current Attribute pointed to by the decoder.
-func (ad *AttributeDecoder) data() []byte {
-	return ad.a.Data
-}
+func (ad *AttributeDecoder) data() []byte { return ad.a.Data }
 
 // Err returns the first error encountered by the decoder.
-func (ad *AttributeDecoder) Err() error {
-	return ad.err
-}
+func (ad *AttributeDecoder) Err() error { return ad.err }
 
 // Bytes returns the raw bytes of the current Attribute's data.
 func (ad *AttributeDecoder) Bytes() []byte {
@@ -499,9 +484,7 @@ type AttributeEncoder struct {
 
 // NewAttributeEncoder creates an AttributeEncoder that encodes Attributes.
 func NewAttributeEncoder() *AttributeEncoder {
-	return &AttributeEncoder{
-		ByteOrder: native.Endian,
-	}
+	return &AttributeEncoder{ByteOrder: native.Endian}
 }
 
 // Uint8 encodes uint8 data into an Attribute specified by typ.
@@ -618,7 +601,7 @@ func (ae *AttributeEncoder) Int64(typ uint16, v int64) {
 	})
 }
 
-// Flag encodes a flag into an Attribute specidied by typ.
+// Flag encodes a flag into an Attribute specified by typ.
 func (ae *AttributeEncoder) Flag(typ uint16, v bool) {
 	// Only set flag on no previous error or v == true.
 	if ae.err != nil || !v {
