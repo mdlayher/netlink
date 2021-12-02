@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -957,7 +958,27 @@ func TestAttributeEncoderError(t *testing.T) {
 		fn   func(ae *AttributeEncoder)
 	}{
 		{
-			name: "do",
+			name: "bytes length",
+			fn: func(ae *AttributeEncoder) {
+				ae.Bytes(1, make([]byte, math.MaxUint16))
+			},
+		},
+		{
+			name: "string length",
+			fn: func(ae *AttributeEncoder) {
+				ae.String(1, string(make([]byte, math.MaxUint16)))
+			},
+		},
+		{
+			name: "do length",
+			fn: func(ae *AttributeEncoder) {
+				ae.Do(1, func() ([]byte, error) {
+					return make([]byte, math.MaxUint16), nil
+				})
+			},
+		},
+		{
+			name: "do function",
 			fn: func(ae *AttributeEncoder) {
 				ae.Do(1, func() ([]byte, error) {
 					return nil, errors.New("testing error")

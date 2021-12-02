@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/josharian/native"
 	"github.com/mdlayher/netlink/nlenc"
@@ -619,6 +620,12 @@ func (ae *AttributeEncoder) String(typ uint16, s string) {
 		return
 	}
 
+	// Length checking, thanks ubiquitousbyte on GitHub.
+	if len(s) > math.MaxUint16-nlaHeaderLen {
+		ae.err = errors.New("string is too large to fit in a netlink attribute")
+		return
+	}
+
 	ae.attrs = append(ae.attrs, Attribute{
 		Type: typ,
 		Data: nlenc.Bytes(s),
@@ -628,6 +635,11 @@ func (ae *AttributeEncoder) String(typ uint16, s string) {
 // Bytes embeds raw byte data into an Attribute specified by typ.
 func (ae *AttributeEncoder) Bytes(typ uint16, b []byte) {
 	if ae.err != nil {
+		return
+	}
+
+	if len(b) > math.MaxUint16-nlaHeaderLen {
+		ae.err = errors.New("byte slice is too large to fit in a netlink attribute")
 		return
 	}
 
@@ -651,6 +663,11 @@ func (ae *AttributeEncoder) Do(typ uint16, fn func() ([]byte, error)) {
 	b, err := fn()
 	if err != nil {
 		ae.err = err
+		return
+	}
+
+	if len(b) > math.MaxUint16-nlaHeaderLen {
+		ae.err = errors.New("byte slice produced by Do is too large to fit in a netlink attribute")
 		return
 	}
 
