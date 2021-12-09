@@ -561,4 +561,12 @@ type Config struct {
 	// Deprecated: internal changes have made this option obsolete and it has no
 	// effect. Do not use.
 	DisableNSLockThread bool
+
+	// PID specifies the port ID used to bind the netlink socket. If set to 0,
+	// the kernel will assign a port ID on the caller's behalf.
+	//
+	// Most callers should leave this field set to 0. This option is intended
+	// for advanced use cases where the kernel expects a fixed unicast address
+	// destination for netlink messages.
+	PID uint32
 }

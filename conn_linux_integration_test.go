@@ -5,6 +5,8 @@ package netlink_test
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -587,6 +589,45 @@ func TestIntegrationConnMulticast(t *testing.T) {
 
 	if diff := cmp.Diff(ifName, ifi); diff != "" {
 		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnExplicitPID(t *testing.T) {
+	t.Parallel()
+
+	// Compute a random uint32 PID and explicitly bind using it. We expect this
+	// PID will be used in messages that are sent to and received from the
+	// kernel.
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	pid := uint32(rng.Intn(math.MaxUint32))
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, &netlink.Config{PID: pid})
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+	}
+
+	msg, err := c.Send(req)
+	if err != nil {
+		t.Fatalf("failed to send message: %v", err)
+	}
+
+	msgs, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	// Verify both the request and response messages contain the same PID.
+	for _, m := range append([]netlink.Message{msg}, msgs...) {
+		if diff := cmp.Diff(pid, m.Header.PID); diff != "" {
+			t.Fatalf("unexpected message PID (-want +got):\n%s", diff)
+		}
 	}
 }
 

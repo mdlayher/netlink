@@ -75,6 +75,7 @@ func newConn(s *socket.Conn, config *Config) (*conn, uint32, error) {
 	addr := &unix.SockaddrNetlink{
 		Family: unix.AF_NETLINK,
 		Groups: config.Groups,
+		Pid:    config.PID,
 	}
 
 	// Socket must be closed in the event of any system call errors, to avoid
