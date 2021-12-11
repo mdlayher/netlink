@@ -5,7 +5,6 @@ package netlink
 
 import (
 	"os"
-	"runtime"
 	"syscall"
 	"time"
 	"unsafe"
@@ -29,36 +28,14 @@ func dial(family int, config *Config) (*conn, uint32, error) {
 		config = &Config{}
 	}
 
-	// The caller has indicated it wants the netlink socket to be created
-	// inside another network namespace.
-	if config.NetNS != 0 {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
-		// Retrieve and store the calling OS thread's network namespace so
-		// the thread can be reassigned to it after creating a socket in another
-		// network namespace.
-		threadNS, err := threadNetNS()
-		if err != nil {
-			return nil, 0, err
-		}
-		// Always close the netns handle created above.
-		defer threadNS.Close()
-
-		// Assign the current OS thread the goroutine is locked to to the given
-		// network namespace.
-		if err := threadNS.Set(config.NetNS); err != nil {
-			return nil, 0, err
-		}
-
-		// Thread's namespace has been successfully set. Return the thread
-		// back to its original namespace after attempting to create the
-		// netlink socket.
-		defer threadNS.Restore()
-	}
-
 	// Prepare the netlink socket.
-	s, err := socket.Socket(unix.AF_NETLINK, unix.SOCK_RAW, family, "netlink")
+	s, err := socket.Socket(
+		unix.AF_NETLINK,
+		unix.SOCK_RAW,
+		family,
+		"netlink",
+		&socket.Config{NetNS: config.NetNS},
+	)
 	if err != nil {
 		return nil, 0, err
 	}

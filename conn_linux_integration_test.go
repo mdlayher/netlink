@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -972,66 +971,6 @@ func TestIntegrationConnNetNSExplicit(t *testing.T) {
 	if diff := cmp.Diff(ifName, ifi); diff != "" {
 		t.Fatalf("unexpected interface name (-want +got):\n%s", diff)
 	}
-}
-
-func TestIntegrationConnNetNSImplicit(t *testing.T) {
-	skipUnprivileged(t)
-
-	// Create a network namespace for use within this test.
-	const ns = "nltest0"
-	shell(t, "ip", "netns", "add", ns)
-	defer shell(t, "ip", "netns", "del", ns)
-
-	f, err := os.Open("/var/run/netns/" + ns)
-	if err != nil {
-		t.Fatalf("failed to open namespace file: %v", err)
-	}
-	defer f.Close()
-
-	// Create an interface in the new namespace. We will attempt to find it later.
-	const ifName = "nltestns0"
-	shell(t, "ip", "netns", "exec", ns, "ip", "tuntap", "add", ifName, "mode", "tun")
-	defer shell(t, "ip", "netns", "exec", ns, "ip", "link", "del", ifName)
-
-	// We're going to manipulate the network namespace of this thread, so we
-	// must lock OS thread and keep track of the original namespace for later.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	threadNS, err := netlink.ThreadNetNS()
-	if err != nil {
-		t.Fatalf("failed to get current network namespace: %v", err)
-	}
-	defer threadNS.Close()
-
-	if err := threadNS.Set(int(f.Fd())); err != nil {
-		t.Fatalf("failed to enter new network namespace: %v", err)
-	}
-
-	// A newly created netlink connection should enter the new network namespace
-	// associated with this thread automatically.
-	if !findLink(t, ifName) {
-		t.Fatalf("did not find interface %q in namespace %q", ifName, ns)
-	}
-
-	// Return to the default namespace.
-	//
-	// A newly created netlink connection should NOT find the link because it
-	// is now in the default namespace.
-	if err := threadNS.Restore(); err != nil {
-		t.Fatalf("failed to restore original network namespace: %v", err)
-	}
-
-	if findLink(t, ifName) {
-		t.Fatalf("found interface %q in default namespace", ifName)
-	}
-}
-
-func findLink(t *testing.T, name string) bool {
-	t.Helper()
-
-	_, err := net.InterfaceByName(name)
-	return err == nil
 }
 
 func mustBeTimeoutNetError(t *testing.T, err error) {
