@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## v1.5.0
+
+- [New API] [commit](https://github.com/mdlayher/netlink/commit/53a1c10065e51077659ceedf921c8f0807abe8c0):
+  the `netlink.Config.PID` field can be used to specify an explicit port ID when
+  binding the netlink socket. This is intended for advanced use cases and most
+  callers should leave this field set to 0.
+- [Improvement]: more low-level functionality ported to
+  `github.com/mdlayher/socket`, reducing package complexity.
+
 ## v1.4.2
 
 - [Documentation] [commit](https://github.com/mdlayher/netlink/commit/177e6364fb170d465d681c7c8a6283417a6d3e49):
