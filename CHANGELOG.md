@@ -9,7 +9,8 @@ Users on older versions must use v1.5.0.**
   apply a more strict default set of options to a `netlink.Conn`. This is
   recommended for applications running on modern Linux kernels, but cannot be
   enabled by default because the options may require a more recent kernel than
-  Go supports. See the documentation for details.
+  the minimum kernel version that Go supports. See the documentation for
+  details.
 
 ## v1.5.0
 
