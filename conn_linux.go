@@ -24,6 +24,10 @@ type conn struct {
 // dial is the entry point for Dial. dial opens a netlink socket using
 // system calls, and returns its PID.
 func dial(family int, config *Config) (*conn, uint32, error) {
+	if config == nil {
+		config = &Config{}
+	}
+
 	// Prepare the netlink socket.
 	s, err := socket.Socket(
 		unix.AF_NETLINK,
@@ -65,9 +69,24 @@ func newConn(s *socket.Conn, config *Config) (*conn, uint32, error) {
 		return nil, 0, err
 	}
 
-	return &conn{
-		s: s,
-	}, sa.(*unix.SockaddrNetlink).Pid, nil
+	c := &conn{s: s}
+	if config.Strict {
+		// The caller has requested the strict option set. Historically we have
+		// recommended checking for ENOPROTOOPT if the kernel does not support
+		// the option in question, but that may result in a silent failure and
+		// unexpected behavior for the user.
+		//
+		// Treat any error here as a fatal error, and require the caller to deal
+		// with it.
+		for _, o := range []ConnOption{ExtendedAcknowledge, GetStrictCheck} {
+			if err := c.SetOption(o, true); err != nil {
+				_ = c.Close()
+				return nil, 0, err
+			}
+		}
+	}
+
+	return c, sa.(*unix.SockaddrNetlink).Pid, nil
 }
 
 // SendMessages serializes multiple Messages and sends them to netlink.

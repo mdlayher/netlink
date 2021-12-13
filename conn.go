@@ -55,32 +55,12 @@ type Socket interface {
 // Config specifies optional configuration for Conn. If config is nil, a default
 // configuration will be used.
 func Dial(family int, config *Config) (*Conn, error) {
-	if config == nil {
-		config = &Config{}
-	}
-
 	// TODO(mdlayher): plumb in netlink.OpError wrapping?
 
 	// Use OS-specific dial() to create Socket.
 	c, pid, err := dial(family, config)
 	if err != nil {
 		return nil, err
-	}
-
-	if config.Strict {
-		// The caller has requested the strict option set. Historically we have
-		// recommended checking for ENOPROTOOPT if the kernel does not support
-		// the option in question, but that may result in a silent failure and
-		// unexpected behavior for the user.
-		//
-		// Treat any error here as a fatal error, and require the caller to deal
-		// with it.
-		for _, o := range []ConnOption{ExtendedAcknowledge, GetStrictCheck} {
-			if err := c.SetOption(o, true); err != nil {
-				_ = c.Close()
-				return nil, err
-			}
-		}
 	}
 
 	return NewConn(c, pid), nil
