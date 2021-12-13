@@ -3,7 +3,7 @@
 ## Unreleased
 
 **This is the first release of package netlink that only supports Go 1.13+.
-Users on older versions must use v1.5.0.**
+Users on older versions of Go must use v1.5.0.**
 
 - [New API] [commit](https://github.com/mdlayher/netlink/commit/ad9e2c41caa993e3f4b68831d6cb2cb05818275d):
   the `netlink.Config.Strict` field can be used to apply a more strict default
@@ -89,7 +89,8 @@ Users on older versions must use v1.5.0.**
 
 ## v1.2.0
 
-**This is the first release of package netlink that only supports Go 1.12+. Users on older versions must use v1.1.1.**
+**This is the first release of package netlink that only supports Go 1.12+.
+Users on older versions of Go must use v1.1.1.**
 
 - [Improvement] [#173](https://github.com/mdlayher/netlink/pull/173): support
   for Go 1.11 and below has been dropped. All users are highly recommended to
