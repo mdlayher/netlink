@@ -1,6 +1,19 @@
 # CHANGELOG
 
+## Unreleased
+
+**This is the first release of package netlink that only supports Go 1.13+.
+Users on older versions must use v1.5.0.**
+
+- [New API] [commit TODO]: the `netlink.Config.Strict` field can be used to
+  apply a more strict default set of options to a `netlink.Conn`. This is
+  recommended for applications running on modern Linux kernels, but cannot be
+  enabled by default because the options may require a more recent kernel than
+  Go supports. See the documentation for details.
+
 ## v1.5.0
+
+**This is the last release of package netlink that supports Go 1.12.**
 
 - [New API] [commit](https://github.com/mdlayher/netlink/commit/53a1c10065e51077659ceedf921c8f0807abe8c0):
   the `netlink.Config.PID` field can be used to specify an explicit port ID when

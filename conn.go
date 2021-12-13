@@ -52,13 +52,35 @@ type Socket interface {
 }
 
 // Dial dials a connection to netlink, using the specified netlink family.
-// Config specifies optional configuration for Conn.  If config is nil, a default
+// Config specifies optional configuration for Conn. If config is nil, a default
 // configuration will be used.
 func Dial(family int, config *Config) (*Conn, error) {
-	// Use OS-specific dial() to create Socket
+	if config == nil {
+		config = &Config{}
+	}
+
+	// TODO(mdlayher): plumb in netlink.OpError wrapping?
+
+	// Use OS-specific dial() to create Socket.
 	c, pid, err := dial(family, config)
 	if err != nil {
 		return nil, err
+	}
+
+	if config.Strict {
+		// The caller has requested the strict option set. Historically we have
+		// recommended checking for ENOPROTOOPT if the kernel does not support
+		// the option in question, but that may result in a silent failure and
+		// unexpected behavior for the user.
+		//
+		// Treat any error here as a fatal error, and require the caller to deal
+		// with it.
+		for _, o := range []ConnOption{ExtendedAcknowledge, GetStrictCheck} {
+			if err := c.SetOption(o, true); err != nil {
+				_ = c.Close()
+				return nil, err
+			}
+		}
 	}
 
 	return NewConn(c, pid), nil
@@ -569,4 +591,19 @@ type Config struct {
 	// for advanced use cases where the kernel expects a fixed unicast address
 	// destination for netlink messages.
 	PID uint32
+
+	// Strict applies a more strict default set of options to the Conn,
+	// including:
+	//   - ExtendedAcknowledge: true
+	//     - provides more useful error messages when supported by the kernel
+	//   - GetStrictCheck: true
+	//     - more strictly enforces request validation for some families such
+	//       as rtnetlink which were historically misused
+	//
+	// If any of the options specified by Strict cannot be configured due to an
+	// outdated kernel or similar, an error will be returned.
+	//
+	// When possible, setting Strict to true is recommended for applications
+	// running on modern Linux kernels.
+	Strict bool
 }

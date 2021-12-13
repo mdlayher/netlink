@@ -24,10 +24,6 @@ type conn struct {
 // dial is the entry point for Dial. dial opens a netlink socket using
 // system calls, and returns its PID.
 func dial(family int, config *Config) (*conn, uint32, error) {
-	if config == nil {
-		config = &Config{}
-	}
-
 	// Prepare the netlink socket.
 	s, err := socket.Socket(
 		unix.AF_NETLINK,

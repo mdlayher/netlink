@@ -184,3 +184,46 @@ func TestIntegrationConnClosedConn(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegrationConnStrict(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, &netlink.Config{Strict: true})
+	if err != nil {
+		if errors.Is(err, unix.ENOPROTOOPT) {
+			t.Skipf("skipping, strict options not supported by this kernel: %v", err)
+		}
+
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	sc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatalf("failed to open syscall conn: %v", err)
+	}
+
+	// Strict mode applies a series of socket options. Check each applied option
+	// and update the map to true if we found it set to true. Any options which
+	// were not applied as expected will result in the test failing.
+	opts := map[int]bool{
+		unix.NETLINK_EXT_ACK:        false,
+		unix.NETLINK_GET_STRICT_CHK: false,
+	}
+
+	err = sc.Control(func(fd uintptr) {
+		for k := range opts {
+			// The kernel uses 0 for false and 1 for true.
+			if v, err := unix.GetsockoptInt(int(fd), unix.SOL_NETLINK, k); err == nil && v == 1 {
+				opts[k] = true
+			}
+		}
+	})
+	if err != nil {
+		t.Fatalf("failed to call control: %v", err)
+	}
+
+	for k, v := range opts {
+		if !v {
+			t.Errorf("socket option %d was not set to true", k)
+		}
+	}
+}
