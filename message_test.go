@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -456,9 +457,9 @@ func TestValidate(t *testing.T) {
 				return
 			}
 
-			oerr, ok := err.(*OpError)
-			if !ok {
-				t.Fatalf("unexpected validate error type: %#v", err)
+			var oerr *OpError
+			if !errors.As(err, &oerr) {
+				t.Fatalf("unexpected validate error type: %T", err)
 			}
 
 			if want, got := "validate", oerr.Op; want != got {
