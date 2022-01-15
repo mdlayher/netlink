@@ -6,7 +6,6 @@ package netlink_test
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -601,7 +600,7 @@ func TestIntegrationConnExplicitPID(t *testing.T) {
 	// PID will be used in messages that are sent to and received from the
 	// kernel.
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	pid := uint32(rng.Intn(math.MaxUint32))
+	pid := rng.Uint32()
 
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, &netlink.Config{PID: pid})
 	if err != nil {
