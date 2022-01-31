@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.6.0
+
 **This is the first release of package netlink that only supports Go 1.13+.
 Users on older versions of Go must use v1.5.0.**
 
@@ -11,6 +13,8 @@ Users on older versions of Go must use v1.5.0.**
   running on modern Linux kernels, but cannot be enabled by default because the
   options may require a more recent kernel than the minimum kernel version that
   Go supports. See the documentation for details.
+- [Improvement]: broke some integration tests into a separate Go module so the
+  default `go.mod` for package `netlink` has fewer dependencies.
 
 ## v1.5.0
 
