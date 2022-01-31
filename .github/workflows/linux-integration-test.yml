@@ -28,8 +28,16 @@ jobs:
     - name: Create a network namespace for privileged tests
       run: sudo ip netns add unpriv0
 
-    - name: Build test binary for privileged tests
+    - name: Build netlink test binary for privileged tests
       run: go test -c -race .
 
-    - name: Run privileged tests
+    - name: Run privileged netlink tests
       run: sudo ./netlink.test -test.v -test.run TestIntegration*
+
+    - name: Build integration test binary for privileged tests
+      working-directory: ./internal/integration
+      run: go test -c -race .
+
+    - name: Run privileged integration tests
+      working-directory: ./internal/integration
+      run: sudo ./integration.test -test.v
