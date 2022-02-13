@@ -3,7 +3,7 @@ name: Static Analysis
 on:
   push:
     branches:
-      - main
+      - '*'
   pull_request:
     branches:
       - '*'
