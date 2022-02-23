@@ -32,5 +32,3 @@
 //
 //   level=N: specify the debugging level (only "1" is currently supported)
 package netlink
-
-//go:generate dot netlink.dot -T svg -o netlink.svg

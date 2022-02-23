@@ -48,4 +48,85 @@ various netlink families, such as `NETLINK_GENERIC` or `NETLINK_ROUTE`.
 
 To have your package included in this diagram, please send a pull request!
 
-![netlink ecosystem](./netlink.svg)
+``` mermaid
+flowchart LR
+    netlink["https://github.com/mdlayher/netlink"]
+
+    subgraph "NETLINK_CONNECTOR"
+        direction LR
+
+        garlic["github.com/fearful-symmetry/garlic"]
+    end
+
+    subgraph "NETLINK_CRYPTO"
+        direction LR
+
+        cryptonl["github.com/fearful-symmetry/garlic"]
+    end
+
+    subgraph "NETLINK_GENERIC"
+        direction LR
+
+        genetlink["github.com/mdlayher/genetlink"]
+
+        devlink["github.com/mdlayher/devlink"]
+        ethtool["github.com/mdlayher/ethtool"]
+        go-openvswitch["github.com/digitalocean/go-openvswitch"]
+        ipvs["github.com/cloudflare/ipvs"]
+        l2tp["github.com/axatrax/l2tp"]
+        ndb["github.com/Merovius/nbd"]
+        quota["github.com/mdlayher/quota"]
+        router7["github.com/rtr7/router7"]
+        taskstats["github.com/mdlayher/taskstats"]
+        u-bmc["github.com/u-root/u-bmc"]
+        wgctl["golang.zx2c4.com/wireguard/wgctrl"]
+        wifi["github.com/mdlayher/wifi"]
+
+        devlink & ethtool & go-openvswitch & ipvs --> genetlink
+        l2tp & ndb & quota & router7 & taskstats --> genetlink
+        u-bmc & wgctl & wifi --> genetlink
+    end
+
+    subgraph "NETLINK_KOBJECT_UEVENT"
+        direction LR
+
+        kobject["github.com/mdlayher/kobject"]
+    end
+
+    subgraph "NETLINK_NETFILTER"
+        direction LR
+
+        go-conntrack["github.com/florianl/go-conntrack"]
+        go-nflog["github.com/florianl/go-nflog"]
+        go-nfqueue["github.com/florianl/go-nfqueue"]
+        netfilter["github.com/ti-mo/netfilter"]
+        nftables["github.com/google/nftables"]
+
+        conntrack["github.com/ti-mo/conntrack"]
+
+        conntrack --> netfilter
+    end
+
+    subgraph "NETLINK_ROUTE"
+        direction LR
+
+        go-tc["github.com/florianl/go-tc"]
+        qdisc["github.com/ema/qdisc"]
+        rtnetlink["github.com/jsimonetti/rtnetlink"]
+        rtnl["gitlab.com/mergetb/tech/rtnl"]
+    end
+
+    subgraph "NETLINK_W1"
+        direction LR
+
+        go-onewire["github.com/SpComb/go-onewire"]
+    end
+
+    NETLINK_CONNECTOR --> netlink
+    NETLINK_CRYPTO --> netlink
+    NETLINK_GENERIC --> netlink
+    NETLINK_KOBJECT_UEVENT --> netlink
+    NETLINK_NETFILTER --> netlink
+    NETLINK_ROUTE --> netlink
+    NETLINK_W1 --> netlink
+```
