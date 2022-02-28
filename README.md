@@ -1,7 +1,7 @@
 # netlink [![Test Status](https://github.com/mdlayher/netlink/workflows/Linux%20Test/badge.svg)](https://github.com/mdlayher/netlink/actions) [![Go Reference](https://pkg.go.dev/badge/github.com/mdlayher/netlink.svg)](https://pkg.go.dev/github.com/mdlayher/netlink)  [![Go Report Card](https://goreportcard.com/badge/github.com/mdlayher/netlink)](https://goreportcard.com/report/github.com/mdlayher/netlink)
 
-Package `netlink` provides low-level access to Linux netlink sockets.
-MIT Licensed.
+Package `netlink` provides low-level access to Linux netlink sockets
+(`AF_NETLINK`). MIT Licensed.
 
 For more information about how netlink works, check out my blog series
 on [Linux, Netlink, and Go](https://mdlayher.com/blog/linux-netlink-and-go-part-1-netlink/).

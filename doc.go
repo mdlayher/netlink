@@ -1,4 +1,5 @@
-// Package netlink provides low-level access to Linux netlink sockets.
+// Package netlink provides low-level access to Linux netlink sockets
+// (AF_NETLINK).
 //
 // If you have any questions or you'd like some guidance, please join us on
 // Gophers Slack (https://invite.slack.golangbridge.org) in the #networking
@@ -15,8 +16,8 @@
 //
 // Debugging
 //
-// This package supports rudimentary netlink connection debugging support.
-// To enable this, run your binary with the NLDEBUG environment variable set.
+// This package supports rudimentary netlink connection debugging support. To
+// enable this, run your binary with the NLDEBUG environment variable set.
 // Debugging information will be output to stderr with a prefix of "nl:".
 //
 // To use the debugging defaults, use:
