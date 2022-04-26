@@ -126,8 +126,6 @@ func CheckRequest(types []netlink.HeaderType, flags []netlink.HeaderFlags, fn Fu
 	}
 }
 
-var _ netlink.Socket = &socket{}
-
 // A socket is a netlink.Socket used for testing.
 type socket struct {
 	fn Func
