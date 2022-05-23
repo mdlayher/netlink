@@ -3,18 +3,15 @@ module github.com/mdlayher/netlink/internal/integration
 go 1.13
 
 require (
-	github.com/google/go-cmp v0.5.7
-	github.com/jsimonetti/rtnetlink v1.0.0
-	github.com/mdlayher/ethtool v0.0.0-20211214014908-bc8fdcf6e99c
-	github.com/mdlayher/netlink v1.5.0
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
-	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
+	github.com/google/go-cmp v0.5.8
+	github.com/jsimonetti/rtnetlink v1.2.0
+	github.com/mdlayher/ethtool v0.0.0-20220213132912-856bd6cb8a38
+	github.com/mdlayher/netlink v1.6.0
+	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2
+	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 )
 
 require (
-	github.com/BurntSushi/toml v1.0.0 // indirect
-	github.com/josharian/native v1.0.0 // indirect
-	github.com/mdlayher/genetlink v1.1.0 // indirect
-	github.com/mdlayher/socket v0.1.1 // indirect
-	golang.org/x/tools v0.1.9 // indirect
+	github.com/mdlayher/socket v0.2.3 // indirect
+	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29 // indirect
 )
