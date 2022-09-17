@@ -805,6 +805,72 @@ func TestAttributeDecoderOK(t *testing.T) {
 			},
 		},
 		{
+			name: "nested array",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: mustMarshal([]Attribute{
+					{
+						Type: 1,
+						Data: mustMarshal([]Attribute{
+							{
+								Type: 1,
+								Data: nlenc.Uint32Bytes(1),
+							},
+							{
+								Type: 2,
+								Data: nlenc.Bytes("foo"),
+							},
+						}),
+					},
+					{
+						Type: 2,
+						Data: mustMarshal([]Attribute{
+							{
+								Type: 1,
+								Data: nlenc.Uint32Bytes(2),
+							},
+							{
+								Type: 2,
+								Data: nlenc.Bytes("bar"),
+							},
+						}),
+					},
+				}),
+			}},
+			fn: func(ad *AttributeDecoder) {
+				type value struct {
+					ID      uint32
+					Message string
+				}
+
+				var got []value
+				ad.NestedArray(func(nad *AttributeDecoder) error {
+					var v value
+					for nad.Next() {
+						switch t := nad.Type(); t {
+						case 1:
+							v.ID = nad.Uint32()
+						case 2:
+							v.Message = nad.String()
+						default:
+							panicf("unhandled nested attribute type: %d", t)
+						}
+					}
+					got = append(got, v)
+					return nil
+				})
+
+				want := []value{
+					{ID: 1, Message: "foo"},
+					{ID: 2, Message: "bar"},
+				}
+
+				if diff := cmp.Diff(want, got); diff != "" {
+					panicf("unexpected values (-want +got):\n%s", diff)
+				}
+			},
+		},
+		{
 			name: "typeflags",
 			attrs: []Attribute{{
 				Type: 0xffff,
@@ -1183,4 +1249,13 @@ func aeEndianTest(order binary.ByteOrder) func(ae *AttributeEncoder) {
 		ae.Int32(7, int32(7))
 		ae.Int64(8, int64(8))
 	}
+}
+
+func mustMarshal(as []Attribute) []byte {
+	b, err := MarshalAttributes(as)
+	if err != nil {
+		panicf("failed to marshal attributes: %v", err)
+	}
+
+	return b
 }
