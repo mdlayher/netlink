@@ -464,22 +464,6 @@ func (ad *AttributeDecoder) Nested(fn func(nad *AttributeDecoder) error) {
 	})
 }
 
-// NestedArray decodes data into a nested AttributeDecoder to handle a netlink
-// nested attribute array. When calling NestedArray, the Err method does not
-// need to be called on the nested AttributeDecoder.
-//
-// The nested AttributeDecoder nad inherits the same ByteOrder setting as the
-// top-level AttributeDecoder ad.
-func (ad *AttributeDecoder) NestedArray(fn func(nad *AttributeDecoder) error) {
-	ad.Nested(func(nad *AttributeDecoder) error {
-		for nad.Next() {
-			nad.Nested(fn)
-		}
-
-		return nad.Err()
-	})
-}
-
 // An AttributeEncoder provides a safe way to encode attributes.
 //
 // It is recommended to use an AttributeEncoder where possible instead of
