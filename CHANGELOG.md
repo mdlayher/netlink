@@ -6,7 +6,7 @@
 
 - [Deprecation] [commit](https://github.com/mdlayher/netlink/commit/d1b69ea8697d721415c259ef8513ab699c6d3e96): 
   the `netlink.Socket` interface has been marked as deprecated. The abstraction
-  is awkward to use properly and dsiables much of the functionality of the Conn
+  is awkward to use properly and disables much of the functionality of the Conn
   type when the basic interface is implemented. Do not use.
 
 ## v1.6.0
