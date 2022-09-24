@@ -1,6 +1,3 @@
-//go:build linux && go1.13
-// +build linux,go1.13
-
 package nltest_test
 
 import (
