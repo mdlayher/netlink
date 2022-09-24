@@ -7,7 +7,7 @@ require (
 	github.com/josharian/native v1.0.0
 	github.com/mdlayher/socket v0.2.3
 	golang.org/x/net v0.0.0-20220923203811-8be639271d50
-	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 )
 
 require golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 // indirect
