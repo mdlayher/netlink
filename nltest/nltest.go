@@ -148,7 +148,7 @@ func (c *socket) Send(m netlink.Message) error {
 	return nil
 }
 
-func (c *socket) Receive() ([]netlink.Message, error) {
+func (c *socket) ReceiveBuffer(fn netlink.BufferAllocationFunc) ([]netlink.Message, error) {
 	// No messages set by Send means that we are emulating a
 	// multicast response or an error occurred.
 	if len(c.msgs) == 0 {
@@ -200,6 +200,10 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	c.msgs, c.err = nil, nil
 
 	return msgs, err
+}
+
+func (c *socket) Receive() ([]netlink.Message, error) {
+	return c.ReceiveBuffer(nil)
 }
 
 func panicf(format string, a ...interface{}) {

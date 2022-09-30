@@ -4,6 +4,7 @@
 package netlink
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -116,30 +117,19 @@ func (c *conn) Send(m Message) error {
 	return c.s.Sendmsg(b, nil, sa, 0)
 }
 
-// Receive receives one or more Messages from netlink.
-func (c *conn) Receive() ([]Message, error) {
-	b := make([]byte, os.Getpagesize())
-	for {
-		// Peek at the buffer to see how many bytes are available.
-		//
-		// TODO(mdlayher): deal with OOB message data if available, such as
-		// when PacketInfo ConnOption is true.
-		n, _, _, _, err := c.s.Recvmsg(b, nil, unix.MSG_PEEK)
-		if err != nil {
-			return nil, err
-		}
-
-		// Break when we can read all messages
-		if n < len(b) {
-			break
-		}
-
-		// Double in size if not enough bytes
-		b = make([]byte, len(b)*2)
+// ReceiveBuffer receives one or more Messages from netlink.
+// Requires buffer allocation function in order to allocate socket buffer.
+func (c *conn) ReceiveBuffer(fn BufferAllocationFunc) ([]Message, error) {
+	if fn == nil {
+		fn = c.bufferAllocation
+	}
+	b, err := fn()
+	if err != nil {
+		return nil, err
 	}
 
 	// Read out all available messages
-	n, _, _, _, err := c.s.Recvmsg(b, nil, 0)
+	n, _, _, _, err := c.recvENoBufsAware(b, nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +150,12 @@ func (c *conn) Receive() ([]Message, error) {
 	}
 
 	return msgs, nil
+}
+
+// Receive receives one or more Messages from netlink.
+// Uses default BufferAllocation() func for buffer allocation.
+func (c *conn) Receive() ([]Message, error) {
+	return c.ReceiveBuffer(nil)
 }
 
 // Close closes the connection.
@@ -209,8 +205,72 @@ func (c *conn) SetReadBuffer(bytes int) error { return c.s.SetReadBuffer(bytes) 
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error { return c.s.SetWriteBuffer(bytes) }
 
+// ReadBuffer returns the size of the operating system's receive buffer
+// associated with the Conn.
+func (c *conn) ReadBuffer() (int, error) { return c.s.ReadBuffer() }
+
+// WriteBuffer returns the size of the operating system's transmit buffer
+// associated with the Conn.
+func (c *conn) WriteBuffer() (int, error) { return c.s.WriteBuffer() }
+
 // SyscallConn returns a raw network connection.
 func (c *conn) SyscallConn() (syscall.RawConn, error) { return c.s.SyscallConn() }
+
+// Allocates buffer by peeking into the socket buffer and
+// extending it in case there is not enough space.
+// In case of ENOBUFS error extends socket read and write
+// buffers for subsequent requests.
+func (c *conn) bufferAllocation() ([]byte, error) {
+	b := make([]byte, os.Getpagesize())
+	for {
+		// Peek at the buffer to see how many bytes are available.
+		//
+		// TODO(mdlayher): deal with OOB message data if available, such as
+		// when PacketInfo ConnOption is true.
+		n, _, _, _, err := c.recvENoBufsAware(b, nil, unix.MSG_PEEK)
+		if err != nil {
+			return nil, err
+		}
+
+		// Break when we can read all messages
+		if n < len(b) {
+			break
+		}
+
+		// Double in size if not enough bytes
+		b = make([]byte, len(b)*2)
+	}
+	return b, nil
+}
+
+// recvENoBufsAware wraps (*socket.Conn).Recvmsg to extend socket read and write
+// buffers if recvmsg call returns the ENOBUFS error
+func (c *conn) recvENoBufsAware(p, oob []byte, flags int) (n, oobn, recvflags int, from unix.Sockaddr, recvErr error) {
+	n, oobn, recvflags, from, recvErr = c.s.Recvmsg(p, oob, flags)
+	if recvErr != nil {
+		var syscallErr syscall.Errno
+		if !errors.As(recvErr, &syscallErr) {
+			return
+		}
+
+		if !errors.Is(syscallErr, syscall.ENOBUFS) {
+			return
+		}
+
+		rbLen, err := c.s.ReadBuffer()
+		if err != nil {
+			return
+		}
+		c.SetReadBuffer(rbLen * 2)
+
+		wbLen, err := c.s.WriteBuffer()
+		if err != nil {
+			return
+		}
+		c.SetWriteBuffer(wbLen * 2)
+	}
+	return
+}
 
 // linuxOption converts a ConnOption to its Linux value.
 func linuxOption(o ConnOption) (int, bool) {
