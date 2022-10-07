@@ -1,7 +1,6 @@
 package netlink_test
 
 import (
-	"encoding/hex"
 	"fmt"
 	"log"
 
@@ -58,10 +57,40 @@ func ExampleAttributeEncoder_encode() {
 		log.Fatalf("failed to encode attributes: %v", err)
 	}
 
-	fmt.Printf("netlink attributes:\n%s", hex.Dump(b))
+	// Now decode the attributes again to verify the contents.
+	ad, err := netlink.NewAttributeDecoder(b)
+	if err != nil {
+		log.Fatalf("failed to decode attributes: %v", err)
+	}
 
-	// Output: netlink attributes:
-	// 00000000  06 00 01 00 01 00 00 00  10 00 02 00 68 65 6c 6c  |............hell|
-	// 00000010  6f 20 77 6f 72 6c 64 00  14 00 03 80 08 00 01 00  |o world.........|
-	// 00000020  02 00 00 00 08 00 02 00  03 00 00 00              |............|
+	// Walk the attributes and print each out.
+	for ad.Next() {
+		switch ad.Type() {
+		case 1:
+			fmt.Println("uint16:", ad.Uint16())
+		case 2:
+			fmt.Println("string:", ad.String())
+		case 3:
+			fmt.Println("nested:")
+
+			// Nested attributes use their own nested decoder.
+			ad.Nested(func(nad *netlink.AttributeDecoder) error {
+				for nad.Next() {
+					switch nad.Type() {
+					case 1:
+						fmt.Println("  - A:", nad.Uint32())
+					case 2:
+						fmt.Println("  - B:", nad.Uint32())
+					}
+				}
+				return nil
+			})
+		}
+	}
+
+	// Output: uint16: 1
+	// string: hello world
+	// nested:
+	//   - A: 2
+	//   - B: 3
 }
