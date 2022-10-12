@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/user"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -339,6 +340,72 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 			defer wg.Done()
 			execN(iterations)
 		}()
+	}
+}
+
+func TestIntegrationConnExtendBuffers(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.SetReadBuffer(8); err != nil {
+		t.Fatalf("failed resizing buffer")
+	}
+
+	initRBuf, err := c.ReadBuffer()
+	if err != nil {
+		t.Fatalf("failed to fetch initial read buffer size: %v", err)
+	}
+	initWBuf, err := c.WriteBuffer()
+	if err != nil {
+		t.Fatalf("failed to fetch initial write buffer size: %v", err)
+	}
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+	}
+	const recordLen = 50
+	msgs := make([]netlink.Message, recordLen)
+	for i := 0; i < recordLen; i++ {
+		msgs[i] = req
+	}
+	if _, err := c.SendMessages(msgs); err != nil {
+		t.Fatalf("failed to send message: %v", err)
+	}
+
+	_, err = c.Receive()
+	if err == nil {
+		t.Skipf("execute succeeded, buffer is large enough? buffer %d, data %d", initRBuf, len(req.Data))
+	}
+
+	var syscallErr syscall.Errno
+	if !errors.As(err, &syscallErr) {
+		t.Fatalf("got error on execute: %v", err)
+	}
+
+	if !errors.Is(syscallErr, syscall.ENOBUFS) {
+		t.Fatalf("syscall error is not ENOBUFS: %v", syscallErr)
+	}
+
+	rbuf, err := c.ReadBuffer()
+	if err != nil {
+		t.Fatalf("failed to fetch read buffer size: %v", err)
+	}
+	wbuf, err := c.WriteBuffer()
+	if err != nil {
+		t.Fatalf("failed to fetch write buffer size: %v", err)
+	}
+
+	if initRBuf >= rbuf {
+		t.Errorf("current rbuf %d is not bigger than initial %d", rbuf, initRBuf)
+	}
+
+	if initWBuf >= wbuf {
+		t.Errorf("current wbuf %d is not bigger than initial %d", wbuf, initWBuf)
 	}
 }
 

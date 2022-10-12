@@ -10,6 +10,8 @@ import (
 	"golang.org/x/net/bpf"
 )
 
+type BufferAllocationFunc func() ([]byte, error)
+
 // A Conn is a connection to netlink.  A Conn can be used to send and
 // receives messages to and from netlink.
 //
@@ -53,6 +55,7 @@ type Socket interface {
 	Send(m Message) error
 	SendMessages(m []Message) error
 	Receive() ([]Message, error)
+	ReceiveBuffer(fn BufferAllocationFunc) ([]Message, error)
 }
 
 // Dial dials a connection to netlink, using the specified netlink family.
@@ -114,6 +117,42 @@ func (c *Conn) Close() error {
 	return newOpError("close", c.sock.Close())
 }
 
+// ExecuteBuffer sends a single Message to netlink using Send, receives one or more
+// replies using Receive, and then checks the validity of the replies against
+// the request using Validate.
+//
+// ExecuteBuffer uses the BufferAllocationFunc to execute buffer allocation
+// for data coming from the underlying socket.
+//
+// Execute acquires a lock for the duration of the function call which blocks
+// concurrent calls to Send, SendMessages, and Receive, in order to ensure
+// consistency between netlink request/reply messages.
+//
+// See the documentation of Send, Receive, and Validate for details about
+// each function.
+func (c *Conn) ExecuteBuffer(m Message, fn BufferAllocationFunc) ([]Message, error) {
+	// Acquire the write lock and invoke the internal implementations of Send
+	// and Receive which require the lock already be held.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req, err := c.lockedSend(m)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := c.lockedReceive(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := Validate(req, res); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
 // Execute sends a single Message to netlink using Send, receives one or more
 // replies using Receive, and then checks the validity of the replies against
 // the request using Validate.
@@ -125,26 +164,7 @@ func (c *Conn) Close() error {
 // See the documentation of Send, Receive, and Validate for details about
 // each function.
 func (c *Conn) Execute(m Message) ([]Message, error) {
-	// Acquire the write lock and invoke the internal implementations of Send
-	// and Receive which require the lock already be held.
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	req, err := c.lockedSend(m)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := c.lockedReceive()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := Validate(req, res); err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return c.ExecuteBuffer(m, nil)
 }
 
 // SendMessages sends multiple Messages to netlink. The handling of
@@ -218,24 +238,36 @@ func (c *Conn) lockedSend(m Message) (Message, error) {
 	return m, nil
 }
 
+// ReceiveBuffer receives one or more messages from netlink.  Multi-part messages
+// are handled transparently and returned as a single slice of Messages, with the
+// final empty "multi-part done" message removed.
+//
+// ReceiveBuffer uses BufferAllocationFunc to execute buffer allocation for the
+// underlying socket receiving data.
+//
+// If any of the messages indicate a netlink error, that error will be returned.
+func (c *Conn) ReceiveBuffer(fn BufferAllocationFunc) ([]Message, error) {
+	// Wait for any concurrent calls to Execute to finish before proceeding.
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.lockedReceive(fn)
+}
+
 // Receive receives one or more messages from netlink.  Multi-part messages are
 // handled transparently and returned as a single slice of Messages, with the
 // final empty "multi-part done" message removed.
 //
 // If any of the messages indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
-	// Wait for any concurrent calls to Execute to finish before proceeding.
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.lockedReceive()
+	return c.ReceiveBuffer(nil)
 }
 
 // lockedReceive implements Receive, but must be called with c.mu acquired for reading.
 // We rely on the kernel to deal with concurrent reads and writes to the netlink
 // socket itself.
-func (c *Conn) lockedReceive() ([]Message, error) {
-	msgs, err := c.receive()
+func (c *Conn) lockedReceive(fn BufferAllocationFunc) ([]Message, error) {
+	msgs, err := c.receive(fn)
 	if err != nil {
 		c.debug(func(d *debugger) {
 			d.debugf(1, "recv: err: %v", err)
@@ -266,7 +298,7 @@ func (c *Conn) lockedReceive() ([]Message, error) {
 
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
-func (c *Conn) receive() ([]Message, error) {
+func (c *Conn) receive(fn BufferAllocationFunc) ([]Message, error) {
 	// NB: All non-nil errors returned from this function *must* be of type
 	// OpError in order to maintain the appropriate contract with callers of
 	// this package.
@@ -276,7 +308,7 @@ func (c *Conn) receive() ([]Message, error) {
 
 	var res []Message
 	for {
-		msgs, err := c.sock.Receive()
+		msgs, err := c.sock.ReceiveBuffer(fn)
 		if err != nil {
 			return nil, newOpError("receive", err)
 		}
@@ -461,6 +493,37 @@ func (c *Conn) SetWriteBuffer(bytes int) error {
 	}
 
 	return newOpError("set-write-buffer", conn.SetWriteBuffer(bytes))
+}
+
+// A bufferGetter is a Socket that supports retrieving connection buffer sizes.
+type bufferGetter interface {
+	Socket
+	ReadBuffer() (int, error)
+	WriteBuffer() (int, error)
+}
+
+// WriteBuffer retrieves the size of the operating system's receive buffer
+// associated with the Conn.
+func (c *Conn) ReadBuffer() (int, error) {
+	conn, ok := c.sock.(bufferGetter)
+	if !ok {
+		return -1, notSupported("get-read-buffer")
+	}
+
+	n, err := conn.ReadBuffer()
+	return n, newOpError("get-read-buffer", err)
+}
+
+// WriteBuffer retrieves the size of the operating system's transmit buffer
+// associated with the Conn.
+func (c *Conn) WriteBuffer() (int, error) {
+	conn, ok := c.sock.(bufferGetter)
+	if !ok {
+		return -1, notSupported("get-write-buffer")
+	}
+
+	n, err := conn.WriteBuffer()
+	return n, newOpError("get-write-buffer", err)
 }
 
 // A syscallConner is a Socket that supports syscall.Conn.
