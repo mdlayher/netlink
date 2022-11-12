@@ -3,41 +3,41 @@ name: Linux Integration Test
 on:
   push:
     branches:
-      - '*'
+      - "*"
   pull_request:
     branches:
-      - '*'
+      - "*"
 
 jobs:
   build:
     strategy:
       matrix:
-        go-version: [1.13, 1.19]
+        go-version: [1.18, 1.19]
     runs-on: ubuntu-latest
 
     steps:
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go-version }}
-      id: go
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+        id: go
 
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v2
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
 
-    - name: Create a network namespace for privileged tests
-      run: sudo ip netns add unpriv0
+      - name: Create a network namespace for privileged tests
+        run: sudo ip netns add unpriv0
 
-    - name: Build netlink test binary for privileged tests
-      run: go test -c -race .
+      - name: Build netlink test binary for privileged tests
+        run: go test -c -race .
 
-    - name: Run privileged netlink tests
-      run: sudo ./netlink.test -test.v -test.run TestIntegration*
+      - name: Run privileged netlink tests
+        run: sudo ./netlink.test -test.v -test.run TestIntegration*
 
-    - name: Build integration test binary for privileged tests
-      working-directory: ./internal/integration
-      run: go test -c -race .
+      - name: Build integration test binary for privileged tests
+        working-directory: ./internal/integration
+        run: go test -c -race .
 
-    - name: Run privileged integration tests
-      working-directory: ./internal/integration
-      run: sudo ./integration.test -test.v
+      - name: Run privileged integration tests
+        working-directory: ./internal/integration
+        run: sudo ./integration.test -test.v
