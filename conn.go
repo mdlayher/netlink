@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"context"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -67,15 +68,22 @@ func Dial(family int, config *Config) (*Conn, error) {
 		return nil, err
 	}
 
-	return NewConn(c, pid), nil
+	return setupConn(c, pid), nil
 }
 
 // NewConn creates a Conn using the specified Socket and PID for netlink
 // communications.
 //
-// NewConn is primarily useful for tests. Most applications should use
-// Dial instead.
+// NewConn is primarily useful for tests. Most applications should use Dial
+// instead.
 func NewConn(sock Socket, pid uint32) *Conn {
+	// TODO(mdlayher): deprecate this function alongside package nltest.
+
+	return setupConn(sock, pid)
+}
+
+// setupConn performs internal setup logic for a Socket to create a Conn.
+func setupConn(sock Socket, pid uint32) *Conn {
 	// Seed the sequence number using a random number generator.
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	seq := r.Uint32()
@@ -103,7 +111,8 @@ func (c *Conn) debug(fn func(d *debugger)) {
 	fn(c.d)
 }
 
-// Close closes the connection and unblocks any pending read operations.
+// Close closes the connection and unblocks any pending read or write
+// operations.
 func (c *Conn) Close() error {
 	// Close does not acquire a lock because it must be able to interrupt any
 	// blocked system calls, such as when Receive is waiting on a multicast
@@ -116,15 +125,26 @@ func (c *Conn) Close() error {
 
 // Execute sends a single Message to netlink using Send, receives one or more
 // replies using Receive, and then checks the validity of the replies against
-// the request using Validate.
+// the request using Validate. It passes context.Background internally. See the
+// documentation of ExecuteContext for more information.
+func (c *Conn) Execute(m Message) ([]Message, error) {
+	return c.ExecuteContext(context.Background(), m)
+}
+
+// ExecuteContext sends a single Message to netlink using Send, receives one or
+// more replies using Receive, and then checks the validity of the replies
+// against the request using Validate.
 //
 // Execute acquires a lock for the duration of the function call which blocks
 // concurrent calls to Send, SendMessages, and Receive, in order to ensure
 // consistency between netlink request/reply messages.
 //
-// See the documentation of Send, Receive, and Validate for details about
-// each function.
-func (c *Conn) Execute(m Message) ([]Message, error) {
+// See the documentation of Send, Receive, and Validate for details about each
+// function.
+//
+// The provided context must be non-nil. If the context expires before messages
+// are sent and/or received, an error is returned.
+func (c *Conn) ExecuteContext(ctx context.Context, m Message) ([]Message, error) {
 	// Acquire the write lock and invoke the internal implementations of Send
 	// and Receive which require the lock already be held.
 	c.mu.Lock()
@@ -135,7 +155,7 @@ func (c *Conn) Execute(m Message) ([]Message, error) {
 		return nil, err
 	}
 
-	res, err := c.lockedReceive()
+	res, err := c.lockedReceive(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +167,10 @@ func (c *Conn) Execute(m Message) ([]Message, error) {
 	return res, nil
 }
 
-// SendMessages sends multiple Messages to netlink. The handling of
-// a Header's Length, Sequence and PID fields is the same as when
-// calling Send.
+// TODO(mdlayher): SendContext and SendMessagesContext?
+
+// SendMessages sends multiple Messages to netlink. The handling of a Header's
+// Length, Sequence and PID fields is the same as when calling Send.
 func (c *Conn) SendMessages(msgs []Message) ([]Message, error) {
 	// Wait for any concurrent calls to Execute to finish before proceeding.
 	c.mu.RLock()
@@ -176,19 +197,19 @@ func (c *Conn) SendMessages(msgs []Message) ([]Message, error) {
 	return msgs, nil
 }
 
-// Send sends a single Message to netlink.  In most cases, a Header's Length,
+// Send sends a single Message to netlink. In most cases, a Header's Length,
 // Sequence, and PID fields should be set to 0, so they can be populated
-// automatically before the Message is sent.  On success, Send returns a copy
-// of the Message with all parameters populated, for later validation.
+// automatically before the Message is sent. On success, Send returns a copy of
+// the Message with all parameters populated, for later validation.
 //
-// If Header.Length is 0, it will be automatically populated using the
-// correct length for the Message, including its payload.
+// If Header.Length is 0, it will be automatically populated using the correct
+// length for the Message, including its payload.
 //
-// If Header.Sequence is 0, it will be automatically populated using the
-// next sequence number for this connection.
+// If Header.Sequence is 0, it will be automatically populated using the next
+// sequence number for this connection.
 //
-// If Header.PID is 0, it will be automatically populated using a PID
-// assigned by netlink.
+// If Header.PID is 0, it will be automatically populated using a PID assigned
+// by netlink.
 func (c *Conn) Send(m Message) (Message, error) {
 	// Wait for any concurrent calls to Execute to finish before proceeding.
 	c.mu.RLock()
@@ -218,24 +239,35 @@ func (c *Conn) lockedSend(m Message) (Message, error) {
 	return m, nil
 }
 
-// Receive receives one or more messages from netlink.  Multi-part messages are
-// handled transparently and returned as a single slice of Messages, with the
-// final empty "multi-part done" message removed.
+// Receive receives one or more messages from netlink. It passes
+// context.Background internally. See the documentation of ReceiveContext for
+// more information.
+func (c *Conn) Receive() ([]Message, error) {
+	return c.ReceiveContext(context.Background())
+}
+
+// ReceiveContext receives one or more messages from netlink using the provided
+// context. Multi-part messages are handled transparently and returned as a
+// single slice of Messages, with the final empty "multi-part done" message
+// removed.
 //
 // If any of the messages indicate a netlink error, that error will be returned.
-func (c *Conn) Receive() ([]Message, error) {
+//
+// The provided context must be non-nil. If the context expires before messages
+// are received, an error is returned.
+func (c *Conn) ReceiveContext(ctx context.Context) ([]Message, error) {
 	// Wait for any concurrent calls to Execute to finish before proceeding.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.lockedReceive()
+	return c.lockedReceive(ctx)
 }
 
-// lockedReceive implements Receive, but must be called with c.mu acquired for reading.
-// We rely on the kernel to deal with concurrent reads and writes to the netlink
-// socket itself.
-func (c *Conn) lockedReceive() ([]Message, error) {
-	msgs, err := c.receive()
+// lockedReceive implements Receive, but must be called with c.mu acquired for
+// reading. We rely on the kernel to deal with concurrent reads and writes to
+// the netlink socket itself.
+func (c *Conn) lockedReceive(ctx context.Context) ([]Message, error) {
+	msgs, err := c.receive(ctx)
 	if err != nil {
 		c.debug(func(d *debugger) {
 			d.debugf(1, "recv: err: %v", err)
@@ -266,7 +298,7 @@ func (c *Conn) lockedReceive() ([]Message, error) {
 
 // receive is the internal implementation of Conn.Receive, which can be called
 // recursively to handle multi-part messages.
-func (c *Conn) receive() ([]Message, error) {
+func (c *Conn) receive(ctx context.Context) ([]Message, error) {
 	// NB: All non-nil errors returned from this function *must* be of type
 	// OpError in order to maintain the appropriate contract with callers of
 	// this package.
@@ -276,7 +308,19 @@ func (c *Conn) receive() ([]Message, error) {
 
 	var res []Message
 	for {
-		msgs, err := c.sock.Receive()
+		var (
+			msgs []Message
+			err  error
+		)
+
+		if conn, ok := c.sock.(interface {
+			// Opt-in for context support.
+			ReceiveContext(context.Context) ([]Message, error)
+		}); ok {
+			msgs, err = conn.ReceiveContext(ctx)
+		} else {
+			msgs, err = c.sock.Receive()
+		}
 		if err != nil {
 			return nil, newOpError("receive", err)
 		}

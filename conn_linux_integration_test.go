@@ -4,6 +4,7 @@
 package netlink_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -99,7 +100,7 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 	// file descriptor.
 	//
 	// See: http://lists.infradead.org/pipermail/libnl/2017-February/002293.html.
-	execN := func(n int) {
+	execN := func(ctx context.Context, n int) {
 		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 		if err != nil {
 			panicf("failed to dial generic netlink: %v", err)
@@ -113,7 +114,7 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 		}
 
 		for i := 0; i < n; i++ {
-			msgs, err := c.Execute(req)
+			msgs, err := c.ExecuteContext(ctx, req)
 			if err != nil {
 				panicf("failed to send request: %v", err)
 			}
@@ -129,16 +130,19 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 		iterations = 10000
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
 	var wg sync.WaitGroup
 	wg.Add(workers)
+	defer wg.Wait()
+
 	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			execN(iterations)
+			execN(ctx, iterations)
 		}()
 	}
-
-	wg.Wait()
 }
 
 func TestIntegrationConnConcurrentOneConn(t *testing.T) {
@@ -151,7 +155,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 		t.Fatalf("failed to dial netlink: %v", err)
 	}
 
-	execN := func(n int) {
+	execN := func(ctx context.Context, n int) {
 		req := netlink.Message{
 			Header: netlink.Header{
 				Flags: netlink.Request | netlink.Acknowledge,
@@ -170,7 +174,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 				panicf("failed to send request: %v", err)
 			}
 
-			msgs, err := c.Receive()
+			msgs, err := c.ReceiveContext(ctx)
 			if err != nil {
 				panicf("failed to receive reply: %v", err)
 			}
@@ -190,6 +194,9 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 		iterations = 10000
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
 	var wg sync.WaitGroup
 	wg.Add(workers)
 	defer wg.Wait()
@@ -197,7 +204,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			execN(iterations)
+			execN(ctx, iterations)
 		}()
 	}
 }
@@ -296,6 +303,69 @@ func TestIntegrationConnConcurrentCloseUnblocksReceive(t *testing.T) {
 	serr := err.(*netlink.OpError).Err
 	if diff := cmp.Diff("use of closed file", serr.Error()); diff != "" {
 		t.Fatalf("unexpected error from receive (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnReceiveContextCanceledBefore(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Unblock immediately due to canceled context.
+	_, err = c.ReceiveContext(ctx)
+	if diff := cmp.Diff(context.Canceled, err, cmpopts.EquateErrors()); diff != "" {
+		t.Fatalf("unexpected receive error (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnReceiveContextCanceledDuring(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	// Context is canceled during a blocking operation but without an
+	// explicit deadline passed on the context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		cancel()
+	}()
+
+	_, err = c.ReceiveContext(ctx)
+	if diff := cmp.Diff(context.Canceled, err, cmpopts.EquateErrors()); diff != "" {
+		t.Fatalf("unexpected receive error (-want +got):\n%s", diff)
+	}
+}
+
+func TestIntegrationConnReceiveContextDeadlineExceeded(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	// Unblock due to deadline exceeded.
+	_, err = c.ReceiveContext(ctx)
+	if diff := cmp.Diff(context.DeadlineExceeded, err, cmpopts.EquateErrors()); diff != "" {
+		t.Fatalf("unexpected receive error (-want +got):\n%s", diff)
 	}
 }
 

@@ -121,13 +121,18 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
+	return c.ReceiveContext(context.Background())
+}
+
+// Receive receives one or more Messages from netlink with context support.
+func (c *conn) ReceiveContext(ctx context.Context) ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
 	for {
 		// Peek at the buffer to see how many bytes are available.
 		//
 		// TODO(mdlayher): deal with OOB message data if available, such as
 		// when PacketInfo ConnOption is true.
-		n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, unix.MSG_PEEK)
+		n, _, _, _, err := c.s.Recvmsg(ctx, b, nil, unix.MSG_PEEK)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +147,7 @@ func (c *conn) Receive() ([]Message, error) {
 	}
 
 	// Read out all available messages
-	n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
+	n, _, _, _, err := c.s.Recvmsg(ctx, b, nil, 0)
 	if err != nil {
 		return nil, err
 	}
