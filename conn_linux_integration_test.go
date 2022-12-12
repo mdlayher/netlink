@@ -853,8 +853,8 @@ func TestIntegrationConnStrict(t *testing.T) {
 
 	err = sc.Control(func(fd uintptr) {
 		for k := range opts {
-			// The kernel uses 0 for false and 1 for true.
-			if v, err := unix.GetsockoptInt(int(fd), unix.SOL_NETLINK, k); err == nil && v == 1 {
+			// The kernel returns a non-zero value for true.
+			if v, err := unix.GetsockoptInt(int(fd), unix.SOL_NETLINK, k); err == nil && v != 0 {
 				opts[k] = true
 			}
 		}
