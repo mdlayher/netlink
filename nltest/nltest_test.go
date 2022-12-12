@@ -2,12 +2,14 @@ package nltest_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/josharian/native"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
 )
@@ -196,6 +198,8 @@ func TestConnExecuteNoMessages(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
+	skipBigEndian(t)
+
 	const (
 		eperm  = 1
 		enoent = 2
@@ -531,4 +535,10 @@ func TestCheckRequest(t *testing.T) {
 
 var noop = func(req []netlink.Message) ([]netlink.Message, error) {
 	return nil, nil
+}
+
+func skipBigEndian(t *testing.T) {
+	if binary.ByteOrder(native.Endian) == binary.BigEndian {
+		t.Skip("skipping test on big-endian system")
+	}
 }
