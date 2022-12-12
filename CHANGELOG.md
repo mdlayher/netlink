@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.7.1
+
+- [Bug Fix]: test only changes to avoid failures on big endian machines.
+
 ## v1.7.0
 
 **This is the first release of package netlink that only supports Go 1.18+.
