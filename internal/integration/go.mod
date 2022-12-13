@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/josharian/native v1.0.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
 	github.com/mdlayher/genetlink v1.2.0 // indirect
 	github.com/mdlayher/socket v0.4.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
