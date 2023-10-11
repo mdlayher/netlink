@@ -6,8 +6,8 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/jsimonetti/rtnetlink v1.3.2
 	github.com/mdlayher/ethtool v0.0.0-20221212131811-ba3b4bc2e02c
-	golang.org/x/net v0.9.0
-	golang.org/x/sys v0.7.0
+	golang.org/x/net v0.17.0
+	golang.org/x/sys v0.13.0
 )
 
 require (
