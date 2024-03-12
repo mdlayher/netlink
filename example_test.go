@@ -6,6 +6,7 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	"github.com/mdlayher/netlink/nltest"
+	"golang.org/x/sys/unix"
 )
 
 // This example demonstrates using a netlink.Conn to execute requests against
@@ -107,4 +108,60 @@ func exampleAttributes() []byte {
 			}),
 		},
 	})
+}
+
+func ExampleConn_listenMulticastAllNSID() {
+	const (
+		// Speak to route netlink using netlink
+		familyRoute = 0
+
+		// Listen for events triggered by addition or deletion of
+		// network interfaces
+		rtmGroupLink = 0x1
+	)
+
+	c, err := netlink.Dial(familyRoute, &netlink.Config{
+		// Groups is a bitmask; more than one group can be specified
+		// by OR'ing multiple group values together
+		Groups: rtmGroupLink,
+		// Enable control messages to receive the netnsid
+		// since we're going to set NETLINK_LISTEN_ALL_NSID
+		EnableControlMessages: true,
+	})
+	if err != nil {
+		log.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+	c.SetOption(netlink.ListenAllNSID, true)
+
+	for {
+		// Listen for netlink messages triggered by multicast groups
+		msgs, err := c.Receive()
+		if err != nil {
+			log.Fatalf("failed to receive messages: %v", err)
+		}
+
+		// Iterate over recieved messages and print them
+		for _, msg := range msgs {
+			// If the message contains oob data, parse it and print the netnsid
+			if msg.OobData != nil {
+				// ParseSocketControlMessage returns a slice of ControlMessages
+				cmsg, err := unix.ParseSocketControlMessage(msg.OobData)
+				if err != nil {
+					log.Printf("Error parsing oob data: %v", err)
+					continue
+				}
+				// Iterate over the control messages, find the
+				// one with level SOL_NETLINK and type NETLINK_LISTEN_ALL_NSID
+				for _, oob := range cmsg {
+					if oob.Header.Level == unix.SOL_NETLINK && oob.Header.Type == unix.NETLINK_LISTEN_ALL_NSID {
+						netnsid := int(oob.Data[0])
+						log.Printf("netnsid: %d", netnsid)
+						break
+					}
+				}
+			}
+			log.Printf("msg: %+v", msg)
+		}
+	}
 }

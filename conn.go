@@ -590,4 +590,10 @@ type Config struct {
 	// When possible, setting Strict to true is recommended for applications
 	// running on modern Linux kernels.
 	Strict bool
+
+	// EnableControlMessages enables the use of control messages for
+	// netlink. This option is intended for advanced use cases where the
+	// caller needs to receive control messages that contain ancillary data.
+	// For example, when using options like `ListenAllNSID`.
+	EnableControlMessages bool
 }
