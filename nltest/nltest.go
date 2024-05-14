@@ -202,6 +202,10 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 	return msgs, err
 }
 
+func (c *socket) ReceiveToBuf(buf []byte) ([]netlink.Message, error) {
+	return nil, nil
+}
+
 func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
 }
