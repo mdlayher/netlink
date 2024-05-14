@@ -24,7 +24,8 @@ type conn struct{}
 func dial(_ int, _ *Config) (*conn, uint32, error) { return nil, 0, errUnimplemented }
 func newError(_ int) error                         { return errUnimplemented }
 
-func (c *conn) Send(_ Message) error           { return errUnimplemented }
-func (c *conn) SendMessages(_ []Message) error { return errUnimplemented }
-func (c *conn) Receive() ([]Message, error)    { return nil, errUnimplemented }
-func (c *conn) Close() error                   { return errUnimplemented }
+func (c *conn) Send(_ Message) error                       { return errUnimplemented }
+func (c *conn) SendMessages(_ []Message) error             { return errUnimplemented }
+func (c *conn) Receive() ([]Message, error)                { return nil, errUnimplemented }
+func (c *conn) ReceiveToBuf(buf []byte) ([]Message, error) { return nil, errUnimplemented }
+func (c *conn) Close() error                               { return errUnimplemented }
