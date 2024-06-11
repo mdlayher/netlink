@@ -6,6 +6,7 @@ package netlink
 import (
 	"context"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -19,7 +20,8 @@ var _ Socket = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
-	s *socket.Conn
+	s       *socket.Conn
+	bufPool sync.Pool
 }
 
 // dial is the entry point for Dial. dial opens a netlink socket using
@@ -70,7 +72,15 @@ func newConn(s *socket.Conn, config *Config) (*conn, uint32, error) {
 		return nil, 0, err
 	}
 
-	c := &conn{s: s}
+	c := &conn{
+		s: s,
+		bufPool: sync.Pool{
+			New: func() interface{} {
+				b := make([]byte, 0, os.Getpagesize())
+				return &b
+			},
+		},
+	}
 	if config.Strict {
 		// The caller has requested the strict option set. Historically we have
 		// recommended checking for ENOPROTOOPT if the kernel does not support
@@ -121,7 +131,10 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
-	b := make([]byte, os.Getpagesize())
+	bufPtr := c.bufPool.Get().(*[]byte)
+	b := (*bufPtr)[:os.Getpagesize()]
+	defer c.bufPool.Put(bufPtr)
+
 	for {
 		// Peek at the buffer to see how many bytes are available.
 		//
@@ -147,7 +160,11 @@ func (c *conn) Receive() ([]Message, error) {
 		return nil, err
 	}
 
-	raw, err := syscall.ParseNetlinkMessage(b[:nlmsgAlign(n)])
+	// ParseNetlinkMessage references in its return the provided buffer.
+	// Therefore, create a new buf with the expected size.
+	buf := make([]byte, nlmsgAlign(n))
+	copy(buf, b[:nlmsgAlign(n)])
+	raw, err := syscall.ParseNetlinkMessage(buf)
 	if err != nil {
 		return nil, err
 	}
