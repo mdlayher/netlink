@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/josharian/native"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
 	"golang.org/x/sys/unix"
@@ -116,7 +115,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if binary.ByteOrder(native.Endian) == binary.BigEndian {
+	if binary.ByteOrder(binary.NativeEndian) == binary.BigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }

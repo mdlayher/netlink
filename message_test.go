@@ -6,8 +6,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-
-	"github.com/josharian/native"
 )
 
 func TestHeaderFlagsString(t *testing.T) {
@@ -476,7 +474,7 @@ func TestValidate(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if binary.ByteOrder(native.Endian) == binary.BigEndian {
+	if binary.ByteOrder(binary.NativeEndian) == binary.BigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }
