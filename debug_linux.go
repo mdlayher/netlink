@@ -1,3 +1,5 @@
+//go:build linux
+
 package netlink
 
 import (
@@ -11,30 +13,66 @@ import (
 	"unsafe"
 
 	"github.com/mdlayher/netlink/nlenc"
+	"golang.org/x/sys/unix"
 )
 
-// Arguments used to create a debugger.
-var debugArgs []string
+// newDebugger creates a debugger by parsing key=value arguments.
+func newDebugger(args []string) *debugger {
+	d := &debugger{
+		Log:    log.New(os.Stderr, "nl: ", 0),
+		Level:  1,
+		Format: "mnl",
+	}
 
-func init() {
-	// Is netlink debugging enabled?
-	s := os.Getenv("NLDEBUG")
-	if s == "" {
+	for _, a := range args {
+		kv := strings.Split(a, "=")
+		if len(kv) != 2 {
+			// Ignore malformed pairs and assume callers wants defaults.
+			continue
+		}
+
+		switch kv[0] {
+		// Select the log level for the debugger.
+		case "level":
+			level, err := strconv.Atoi(kv[1])
+			if err != nil {
+				panicf("netlink: invalid NLDEBUG level: %q", a)
+			}
+
+			d.Level = level
+		case "format":
+			d.Format = kv[1]
+		}
+	}
+
+	return d
+}
+
+// debugf prints debugging information at the specified level, if d.Level is
+// high enough to print the message.
+func (d *debugger) debugf(level int, format string, v ...interface{}) {
+	if d.Level < level {
 		return
 	}
 
-	debugArgs = strings.Split(s, ",")
-}
+	switch d.Format {
+	case "mnl":
+		colorize := true
+		_, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
+		if err != nil {
+			colorize = false
+		}
 
-// A debugger is used to provide debugging information about a netlink connection.
-type debugger struct {
-	Log    *log.Logger
-	Level  int
-	Format string
-}
-
-func panicf(format string, a ...interface{}) {
-	panic(fmt.Sprintf(format, a...))
+		for _, iface := range v {
+			if msg, ok := iface.(Message); ok {
+				nlmsgFprintf(d.Log.Writer(), msg, colorize)
+			} else {
+				d.Log.Printf(format, v...)
+			}
+		}
+	default:
+		d.Log.Printf(format, v...)
+	}
 }
 
 /*
@@ -85,14 +123,13 @@ func nlmsgFprintfHeader(fd io.Writer, nlh Header) {
 		ternary(nlh.Flags&Acknowledge != 0, "A", "-"),
 		ternary(nlh.Flags&Echo != 0, "E", "-"),
 	)
-	fmt.Fprintf(fd, "|  %010d   |\t| sequence number|\n", nlh.Sequence)
+	fmt.Fprintf(fd, "|  %010d  |\t| sequence number|\n", nlh.Sequence)
 	fmt.Fprintf(fd, "|  %010d  |\t|     port ID    |\n", nlh.PID)
 	fmt.Fprintf(fd, "----------------\t------------------\n")
 }
 
 // nlmsgFprintf checks a single Message for netlink errors.
-func nlmsgFprintf(fd io.Writer, m Message) {
-	colorize := true
+func nlmsgFprintf(fd io.Writer, m Message, colorize bool) {
 	var hasHeader bool
 	nlmsgFprintfHeader(fd, m.Header)
 	switch {
