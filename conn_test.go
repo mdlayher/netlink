@@ -261,6 +261,23 @@ func TestConnSetBuffersUnsupported(t *testing.T) {
 	}
 }
 
+func TestConnBuffersUnsupported(t *testing.T) {
+	c := nltest.Dial(nil)
+	defer c.Close()
+
+	ops := []func() (int, error){
+		c.ReadBuffer,
+		c.WriteBuffer,
+	}
+
+	for _, op := range ops {
+		_, err := op()
+		if !strings.Contains(err.Error(), "not supported") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}
+
 func TestConnSyscallConnUnsupported(t *testing.T) {
 	c := nltest.Dial(nil)
 	defer c.Close()

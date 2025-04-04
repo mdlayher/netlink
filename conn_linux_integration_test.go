@@ -425,6 +425,58 @@ func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 	}
 }
 
+func TestIntegrationConnBuffersSyscallConn(t *testing.T) {
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	rcvBuff, err := c.ReadBuffer()
+	if err != nil {
+		t.Fatalf("failed to get read buffer size: %v", err)
+	}
+
+	sndBuff, err := c.WriteBuffer()
+	if err != nil {
+		t.Fatalf("failed to get write buffer size: %v", err)
+	}
+
+	// Now that we've read the buffers, we can check the size by asking the
+	// kernel using SyscallConn and getsockopt.
+
+	rc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatalf("failed to get syscall conn: %v", err)
+	}
+
+	mustSize := func(opt int) int {
+		var (
+			value int
+			serr  error
+		)
+
+		err := rc.Control(func(fd uintptr) {
+			value, serr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, opt)
+		})
+		if err != nil {
+			t.Fatalf("failed to call control: %v", err)
+		}
+		if serr != nil {
+			t.Fatalf("failed to call getsockopt: %v", serr)
+		}
+
+		return value
+	}
+
+	if diff := cmp.Diff(rcvBuff, mustSize(unix.SO_RCVBUF)); diff != "" {
+		t.Fatalf("unexpected read buffer size (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(sndBuff, mustSize(unix.SO_SNDBUF)); diff != "" {
+		t.Fatalf("unexpected write buffer size (-want +got):\n%s", diff)
+	}
+}
+
 func TestIntegrationConnSetBPFEmpty(t *testing.T) {
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
