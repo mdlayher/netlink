@@ -36,15 +36,16 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				Header: netlink.Header{
 					Length:   20,
 					Type:     netlink.Error,
-					Sequence: 1,
+					Sequence: 1234,
 					PID:      1,
 				},
 				// -2, little endian (ENOENT)
 				Data: []byte{0xfe, 0xff, 0xff, 0xff},
 			}},
 			want: &netlink.OpError{
-				Op:  "receive",
-				Err: unix.ENOENT,
+				Op:       "receive",
+				Err:      unix.ENOENT,
+				Sequence: 1234,
 			},
 		},
 		{

@@ -63,6 +63,11 @@ type OpError struct {
 	// library.
 	Err error
 
+	// Sequence contains the sequence number of the netlink message which caused
+	// this error. This will only be valid if Op is "receive", otherwise this
+	// field will be set to zero.
+	Sequence uint32
+
 	// Message and Offset contain additional error information provided by the
 	// kernel when the ExtendedAcknowledge option is set on a Conn and the
 	// kernel indicates the AcknowledgeTLVs flag in a response. If this option
