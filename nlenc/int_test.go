@@ -2,9 +2,10 @@ package nlenc
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"testing"
+
+	"golang.org/x/sys/cpu"
 )
 
 func TestUintPanic(t *testing.T) {
@@ -456,7 +457,7 @@ func TestInt32(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if NativeEndian() == binary.BigEndian {
+	if cpu.IsBigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }

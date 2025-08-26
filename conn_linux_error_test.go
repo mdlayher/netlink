@@ -4,13 +4,13 @@
 package netlink_test
 
 import (
-	"encoding/binary"
 	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
+	"golang.org/x/sys/cpu"
 	"golang.org/x/sys/unix"
 )
 
@@ -115,7 +115,7 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if binary.ByteOrder(binary.NativeEndian) == binary.BigEndian {
+	if cpu.IsBigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }
