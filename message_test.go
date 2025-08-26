@@ -2,10 +2,11 @@ package netlink
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"reflect"
 	"testing"
+
+	"golang.org/x/sys/cpu"
 )
 
 func TestHeaderFlagsString(t *testing.T) {
@@ -474,7 +475,7 @@ func TestValidate(t *testing.T) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if binary.ByteOrder(binary.NativeEndian) == binary.BigEndian {
+	if cpu.IsBigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }

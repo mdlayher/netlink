@@ -2,7 +2,6 @@ package nltest_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"reflect"
@@ -11,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
+	"golang.org/x/sys/cpu"
 )
 
 func TestConnSend(t *testing.T) {
@@ -537,7 +537,7 @@ var noop = func(req []netlink.Message) ([]netlink.Message, error) {
 }
 
 func skipBigEndian(t *testing.T) {
-	if binary.ByteOrder(binary.NativeEndian) == binary.BigEndian {
+	if cpu.IsBigEndian {
 		t.Skip("skipping test on big-endian system")
 	}
 }
