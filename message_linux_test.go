@@ -65,15 +65,19 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 				Header: Header{
 					Type: Error,
 					// Indicate the use of extended acknowledgement.
-					Flags: AcknowledgeTLVs,
+					Flags:    AcknowledgeTLVs,
+					Sequence: 3258842681,
 				},
 				Data: packExtACK(
 					-1,
 					// The caller's request message with arbitrary bytes that we
 					// skip over when parsing the TLVs.
 					&Message{
-						Header: Header{Length: 4},
-						Data:   []byte{0xff, 0xff, 0xff, 0xff},
+						Header: Header{
+							Length:   4,
+							Sequence: 3258842681,
+						},
+						Data: []byte{0xff, 0xff, 0xff, 0xff},
 					},
 					// The actual extended acknowledgement TLVs.
 					[]Attribute{
@@ -89,10 +93,11 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 				),
 			},
 			err: &OpError{
-				Op:      "receive",
-				Err:     unix.Errno(1),
-				Message: "bad request",
-				Offset:  2,
+				Op:       "receive",
+				Err:      unix.Errno(1),
+				Message:  "bad request",
+				Offset:   2,
+				Sequence: 3258842681,
 			},
 		},
 		{
@@ -101,7 +106,8 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 				Header: Header{
 					Type: Done,
 					// Indicate the use of extended acknowledgement.
-					Flags: Multi | AcknowledgeTLVs,
+					Flags:    Multi | AcknowledgeTLVs,
+					Sequence: 3258842681,
 				},
 				Data: packExtACK(
 					-1,
@@ -120,10 +126,11 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 				),
 			},
 			err: &OpError{
-				Op:      "receive",
-				Err:     unix.Errno(1),
-				Message: "bad request",
-				Offset:  2,
+				Op:       "receive",
+				Err:      unix.Errno(1),
+				Message:  "bad request",
+				Offset:   2,
+				Sequence: 3258842681,
 			},
 		},
 	}

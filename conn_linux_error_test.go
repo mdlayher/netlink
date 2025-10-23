@@ -43,8 +43,9 @@ func TestConnReceiveErrorLinux(t *testing.T) {
 				Data: []byte{0xfe, 0xff, 0xff, 0xff},
 			}},
 			want: &netlink.OpError{
-				Op:  "receive",
-				Err: unix.ENOENT,
+				Op:       "receive",
+				Err:      unix.ENOENT,
+				Sequence: 1,
 			},
 		},
 		{
