@@ -19,7 +19,8 @@ var _ Socket = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
-	s *socket.Conn
+	s                     *socket.Conn
+	enableControlMessages bool
 }
 
 // dial is the entry point for Dial. dial opens a netlink socket using
@@ -70,7 +71,7 @@ func newConn(s *socket.Conn, config *Config) (*conn, uint32, error) {
 		return nil, 0, err
 	}
 
-	c := &conn{s: s}
+	c := &conn{s: s, enableControlMessages: config.EnableControlMessages}
 	if config.Strict {
 		// The caller has requested the strict option set. Historically we have
 		// recommended checking for ENOPROTOOPT if the kernel does not support
@@ -124,9 +125,6 @@ func (c *conn) Receive() ([]Message, error) {
 	b := make([]byte, os.Getpagesize())
 	for {
 		// Peek at the buffer to see how many bytes are available.
-		//
-		// TODO(mdlayher): deal with OOB message data if available, such as
-		// when PacketInfo ConnOption is true.
 		n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, unix.MSG_PEEK)
 		if err != nil {
 			return nil, err
@@ -141,10 +139,21 @@ func (c *conn) Receive() ([]Message, error) {
 		b = make([]byte, len(b)*2)
 	}
 
+	// Only allocate a buffer for control messages if they are enabled.
+	var oob []byte
+	if c.enableControlMessages {
+		oob = make([]byte, os.Getpagesize())
+	}
+
 	// Read out all available messages
-	n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
+	n, oobn, _, _, err := c.s.Recvmsg(context.Background(), b, oob, 0)
 	if err != nil {
 		return nil, err
+	}
+
+	var rawOob []byte
+	if c.enableControlMessages {
+		rawOob = oob[:cmsgAlign(oobn)]
 	}
 
 	raw, err := syscall.ParseNetlinkMessage(b[:nlmsgAlign(n)])
@@ -155,10 +164,10 @@ func (c *conn) Receive() ([]Message, error) {
 	msgs := make([]Message, 0, len(raw))
 	for _, r := range raw {
 		m := Message{
-			Header: sysToHeader(r.Header),
-			Data:   r.Data,
+			Header:  sysToHeader(r.Header),
+			Data:    r.Data,
+			OobData: rawOob,
 		}
-
 		msgs = append(msgs, m)
 	}
 

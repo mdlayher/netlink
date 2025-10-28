@@ -194,12 +194,14 @@ type Header struct {
 
 // A Message is a netlink message.  It contains a Header and an arbitrary
 // byte payload, which may be decoded using information from the Header.
+// It may also contain out-of-band data, which was sent along with the message.
 //
 // Data is often populated with netlink attributes. For easy encoding and
 // decoding of attributes, see the AttributeDecoder and AttributeEncoder types.
 type Message struct {
-	Header Header
-	Data   []byte
+	Header  Header
+	Data    []byte
+	OobData []byte
 }
 
 // MarshalBinary marshals a Message into a byte slice.
