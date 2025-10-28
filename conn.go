@@ -35,8 +35,8 @@ type Conn struct {
 	// a netlink sockets connection.
 	sock Socket
 
-	// PID is the PID assigned by netlink.
-	PID uint32
+	// pid is the PID assigned by netlink.
+	pid uint32
 
 	// d provides debugging capabilities for a Conn if not nil.
 	d *debugger
@@ -89,7 +89,7 @@ func NewConn(sock Socket, pid uint32) *Conn {
 	return &Conn{
 		seq:  seq,
 		sock: sock,
-		PID:  pid,
+		pid:  pid,
 		d:    d,
 	}
 }
@@ -497,6 +497,13 @@ func (c *Conn) WriteBuffer() (int, error) {
 	return buff, nil
 }
 
+// PID returns the PID associated with the Conn. It is also known as
+// the port ID in netlink terminology.
+// https://docs.kernel.org/userspace-api/netlink/intro.html#nlmsg-pid
+func (c *Conn) PID() uint32 {
+	return c.pid
+}
+
 // A syscallConner is a Socket that supports syscall.Conn.
 type syscallConner interface {
 	Socket
@@ -537,7 +544,7 @@ func (c *Conn) fixMsg(m *Message, ml int) {
 	}
 
 	if m.Header.PID == 0 {
-		m.Header.PID = c.PID
+		m.Header.PID = c.pid
 	}
 }
 
