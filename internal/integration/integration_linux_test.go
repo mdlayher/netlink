@@ -126,13 +126,18 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	_, err = c.Execute(netlink.Message{
+	sent, err := c.Send(netlink.Message{
 		Header: netlink.Header{
 			Type:  unix.RTM_GETROUTE,
 			Flags: netlink.Request | netlink.Dump,
 		},
 		Data: b,
 	})
+	if err != nil {
+		t.Fatalf("failed to send request: %v", err)
+	}
+
+	_, err = c.Receive()
 
 	oerr, ok := err.(*netlink.OpError)
 	if !ok {
@@ -143,9 +148,10 @@ func TestIntegrationRTNetlinkStrictCheckExtendedAcknowledge(t *testing.T) {
 	// offset just in case things change.
 
 	want := &netlink.OpError{
-		Op:      "receive",
-		Err:     unix.EINVAL,
-		Message: "Invalid values in header for FIB dump request",
+		Op:       "receive",
+		Err:      unix.EINVAL,
+		Message:  "Invalid values in header for FIB dump request",
+		Sequence: sent.Header.Sequence,
 	}
 
 	if diff := cmp.Diff(want, oerr); diff != "" {
@@ -324,6 +330,9 @@ func TestIntegrationEthtoolExtendedAcknowledge(t *testing.T) {
 		t.Fatal("no offset specified in *netlink.OpError")
 	}
 	oerr.Offset = 0
+
+	// Reset Sequence because we do not have access to the sent message.
+	oerr.Sequence = 0
 
 	want := &netlink.OpError{
 		Op:      "receive",
