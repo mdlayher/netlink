@@ -31,6 +31,33 @@ func TestMarshalAttributes(t *testing.T) {
 			err: errInvalidAttribute,
 		},
 		{
+			name: "one attribute, overflow",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: make([]byte, 0x10000),
+			}},
+			err: errAttributeOverflow,
+		},
+		{
+			name: "one attribute, smallest overflow",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: make([]byte, 0x10000-4),
+			}},
+			err: errAttributeOverflow,
+		},
+		{
+			name: "one attribute, largest possible size",
+			attrs: []Attribute{{
+				Type: 1,
+				Data: make([]byte, 0x10000-5),
+			}},
+			b: append([]byte{
+				0xff, 0xff,
+				0x01, 0x00,
+			}, make([]byte, 0x10000-4)...),
+		},
+		{
 			name: "one attribute, no data",
 			attrs: []Attribute{{
 				Length: 4,

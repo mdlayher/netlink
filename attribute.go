@@ -12,6 +12,12 @@ import (
 // errInvalidAttribute specifies if an Attribute's length is incorrect.
 var errInvalidAttribute = errors.New("invalid attribute; length too short or too large")
 
+// errInvalidAttribute specifies if an Attribute's data length overflows the length field.
+var errAttributeOverflow = errors.New("attribute size overflow; data length can be at most 65531 bytes")
+
+// errInvalidAttribute specifies if the provided buffer is too short.
+var errBufferTooShort = errors.New("buffer too short")
+
 // An Attribute is a netlink attribute.  Attributes are packed and unpacked
 // to and from the Data field of Message for some netlink families.
 type Attribute struct {
@@ -30,15 +36,22 @@ type Attribute struct {
 // marshal marshals the contents of a into b and returns the number of bytes
 // written to b, including attribute alignment padding.
 func (a *Attribute) marshal(b []byte) (int, error) {
-	if int(a.Length) < nlaHeaderLen {
+	if len(a.Data) > math.MaxUint16-nlaHeaderLen {
+		return 0, errAttributeOverflow
+	}
+	if int(a.Length) != nlaHeaderLen+len(a.Data) {
 		return 0, errInvalidAttribute
+	}
+	written := nlaHeaderLen + nlaAlign(len(a.Data))
+	if len(b) < written {
+		return 0, errBufferTooShort
 	}
 
 	nlenc.PutUint16(b[0:2], a.Length)
 	nlenc.PutUint16(b[2:4], a.Type)
-	n := copy(b[nlaHeaderLen:], a.Data)
+	copy(b[nlaHeaderLen:], a.Data)
 
-	return nlaHeaderLen + nlaAlign(n), nil
+	return written, nil
 }
 
 // unmarshal unmarshals the contents of a byte slice into an Attribute.
