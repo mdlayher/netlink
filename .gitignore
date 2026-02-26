@@ -2,3 +2,5 @@ internal/integration/integration.test
 netlink.test
 netlink-fuzz.zip
 testdata/
+go.work
+go.work.sum

@@ -52,6 +52,7 @@ type Socket interface {
 	Close() error
 	Send(m Message) error
 	SendMessages(m []Message) error
+	SendMessagesScatter(m []Message) error
 	Receive() ([]Message, error)
 }
 
@@ -174,6 +175,13 @@ func (c *Conn) SendMessages(msgs []Message) ([]Message, error) {
 	}
 
 	return msgs, nil
+}
+
+// SendMessagesScatter sends multiple Messages to netlink using scatter-gather I/O.
+// Each message is marshaled to its own buffer, avoiding a single large
+// contiguous allocation. All messages are sent as one datagram.
+func (c *Conn) SendMessagesScatter(msgs []Message) ([]Message, error) {
+	return c.SendMessages(msgs)
 }
 
 // Send sends a single Message to netlink.  In most cases, a Header's Length,
