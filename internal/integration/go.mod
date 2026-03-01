@@ -1,12 +1,12 @@
 module github.com/mdlayher/netlink/internal/integration
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/mdlayher/ethtool v0.5.1
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sys v0.41.0
 )
 
