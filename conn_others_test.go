@@ -28,6 +28,10 @@ func TestOthersConnUnimplemented(t *testing.T) {
 		t.Fatalf("unexpected error during c.SendMessages:\n- want: %v\n-  got: %v",
 			want, got)
 	}
+	if got := c.SendMessagesScatter(nil); want != got {
+		t.Fatalf("unexpected error during c.SendMessagesScatter:\n- want: %v\n-  got: %v",
+			want, got)
+	}
 
 	if _, got := c.Receive(); want != got {
 		t.Fatalf("unexpected error during c.Receive:\n- want: %v\n-  got: %v",

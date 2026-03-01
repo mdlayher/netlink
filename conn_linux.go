@@ -107,6 +107,23 @@ func (c *conn) SendMessages(messages []Message) error {
 	return err
 }
 
+// SendMessagesScatter sends multiple messages using scatter-gather I/O.
+// Each message is marshaled to its own buffer, avoiding a single large
+// contiguous allocation. All messages are sent as one datagram.
+func (c *conn) SendMessagesScatter(messages []Message) error {
+	buffers := make([][]byte, len(messages))
+	for i, m := range messages {
+		b, err := m.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		buffers[i] = b
+	}
+	sa := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
+	_, err := c.s.SendmsgBuffers(context.Background(), buffers, nil, sa, 0)
+	return err
+}
+
 // Send sends a single Message to netlink.
 func (c *conn) Send(m Message) error {
 	b, err := m.MarshalBinary()
@@ -208,7 +225,7 @@ func (c *conn) SetWriteDeadline(t time.Time) error { return c.s.SetWriteDeadline
 // associated with the Conn.
 func (c *conn) SetReadBuffer(bytes int) error { return c.s.SetReadBuffer(bytes) }
 
-// SetReadBuffer sets the size of the operating system's transmit buffer
+// SetWriteBuffer sets the size of the operating system's transmit buffer
 // associated with the Conn.
 func (c *conn) SetWriteBuffer(bytes int) error { return c.s.SetWriteBuffer(bytes) }
 
