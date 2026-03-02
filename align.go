@@ -35,3 +35,8 @@ const sizeofAttribute = 4
 
 // #define NLA_HDRLEN              ((int) NLA_ALIGN(sizeof(struct nlattr)))
 var nlaHeaderLen = nlaAlign(sizeofAttribute)
+
+// #define CMSG_ALIGN(len) ( ((len)+sizeof(long)-1) & ~(sizeof(long)-1) )
+func cmsgAlign(len int) int {
+	return ((len) + int(unsafe.Sizeof(int(0))-1)) & ^(int(unsafe.Sizeof(int(0)) - 1))
+}
