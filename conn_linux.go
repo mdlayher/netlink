@@ -142,9 +142,16 @@ func (c *conn) Receive() ([]Message, error) {
 	}
 
 	// Read out all available messages
-	n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
+	n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
 	if err != nil {
 		return nil, err
+	}
+
+	if flags&unix.MSG_TRUNC != 0 {
+		// Our buffer was too small to read the entire message,
+		// this should not happen since we peeked above, but if it does,
+		// return an error.
+		return nil, unix.ENOSPC
 	}
 
 	raw, err := syscall.ParseNetlinkMessage(b[:nlmsgAlign(n)])
