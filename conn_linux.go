@@ -126,7 +126,7 @@ func (c *conn) Receive() ([]Message, error) {
 	//
 	// TODO(mdlayher): deal with OOB message data if available, such as
 	// when PacketInfo ConnOption is true.
-	n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
+	n, _, _, _, err := c.s.Recvmsg(context.Background(), nil, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
 	if err != nil {
 		return nil, err
 	}
