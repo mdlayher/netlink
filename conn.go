@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"iter"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -235,13 +236,13 @@ func (c *Conn) Receive() ([]Message, error) {
 // We rely on the kernel to deal with concurrent reads and writes to the netlink
 // socket itself.
 func (c *Conn) lockedReceive() ([]Message, error) {
-	msgs, err := c.receive()
-	if err != nil {
-		c.debug(func(d *debugger) {
-			d.debugf(1, "recv: err: %v", err)
-		})
+	var msgs []Message
 
-		return nil, err
+	for msg, err := range c.lockedReceiveSeq() {
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, msg)
 	}
 
 	c.debug(func(d *debugger) {
@@ -250,62 +251,80 @@ func (c *Conn) lockedReceive() ([]Message, error) {
 		}
 	})
 
-	// When using nltest, it's possible for zero messages to be returned by receive.
-	if len(msgs) == 0 {
-		return msgs, nil
-	}
-
-	// Trim the final message with multi-part done indicator if
-	// present.
-	if m := msgs[len(msgs)-1]; m.Header.Flags&Multi != 0 && m.Header.Type == Done {
-		return msgs[:len(msgs)-1], nil
-	}
-
 	return msgs, nil
 }
 
-// receive is the internal implementation of Conn.Receive, which can be called
-// recursively to handle multi-part messages.
-func (c *Conn) receive() ([]Message, error) {
+// ReceiveSeq returns an iterator that yields netlink messages sequentially.
+// Each iteration returns a Message and an error. The iterator handles multi-part
+// messages transparently and stops when all messages are received or an error occurs.
+func (c *Conn) ReceiveSeq() iter.Seq2[Message, error] {
+	return func(yield func(Message, error) bool) {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+
+		for msg, err := range c.lockedReceiveSeq() {
+			if !yield(msg, err) {
+				return
+			}
+		}
+	}
+}
+
+// lockedReceiveSeq implements ReceiveSeq, but must be called with c.mu acquired for reading.
+func (c *Conn) lockedReceiveSeq() iter.Seq2[Message, error] {
 	// NB: All non-nil errors returned from this function *must* be of type
 	// OpError in order to maintain the appropriate contract with callers of
 	// this package.
 	//
 	// This contract also applies to functions called within this function,
 	// such as checkMessage.
-
-	var res []Message
-	for {
-		msgs, err := c.sock.Receive()
-		if err != nil {
-			return nil, newOpError("receive", err)
-		}
-
-		// If this message is multi-part, we will need to continue looping to
-		// drain all the messages from the socket.
-		var multi bool
-
-		for _, m := range msgs {
-			if err := checkMessage(m); err != nil {
-				return nil, err
+	return func(yield func(Message, error) bool) {
+		for {
+			msgs, err := c.sock.Receive()
+			if err != nil {
+				c.debug(func(d *debugger) {
+					d.debugf(1, "recv: err: %v", err)
+				})
+				yield(Message{}, newOpError("receive", err))
+				return
 			}
 
-			// Does this message indicate a multi-part message?
-			if m.Header.Flags&Multi == 0 {
-				// No, check the next messages.
-				continue
+			// If this message is more-part, we will need to continue looping to
+			// drain all the messages from the socket.
+			var more bool
+
+			for _, m := range msgs {
+				if err := checkMessage(m); err != nil {
+					yield(Message{}, err)
+					return
+				}
+
+				c.debug(func(d *debugger) {
+					d.debugf(1, "recv: %+v", m)
+				})
+
+				isMulti := m.Header.Flags&Multi != 0
+
+				// Skip the multi-part done message
+				if isMulti && m.Header.Type == Done {
+					more = false
+					continue
+				}
+
+				if !yield(m, nil) {
+					return
+				}
+
+				// Does this message indicate a multi-part message?
+				if isMulti {
+					more = m.Header.Type != Done
+				}
 			}
 
-			// Does this message indicate the last message in a series of
-			// multi-part messages from a single read?
-			multi = m.Header.Type != Done
-		}
-
-		res = append(res, msgs...)
-
-		if !multi {
-			// No more messages coming.
-			return res, nil
+			if !more {
+				// No more messages coming.
+				return
+			}
 		}
 	}
 }
