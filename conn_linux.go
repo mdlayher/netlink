@@ -131,7 +131,7 @@ func (c *conn) Receive() ([]Message, error) {
 		return nil, err
 	}
 	// Resize buffer to the expected size.
-	b = make([]byte, nlmsgAlign(n))
+	b = make([]byte, n)
 
 	// Read out all available messages
 	n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
