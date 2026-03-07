@@ -342,6 +342,79 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 	}
 }
 
+// TestIntegrationConnConcurrentSerializeReceive verifies that concurrent calls
+// to Receive are serialized correctly, and that a concurrent Receive call
+// cannot steal multipart message fragments mid-Receive.
+func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer c.Close()
+
+	const (
+		GENL_ID_CTRL       = 0x10
+		CTRL_CMD_GETFAMILY = 0x03
+		workers            = 2
+		iterations         = 100
+	)
+
+	// Request a dump to trigger a multipart response, which will require multiple
+	// recvmsg calls on the socket.
+	req := netlink.Message{
+		Header: netlink.Header{
+			Type:  GENL_ID_CTRL,
+			Flags: netlink.Request | netlink.Dump,
+		},
+		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
+	}
+
+	msgs, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute request: %v", err)
+	}
+	want := len(msgs)
+
+	for range iterations {
+		if _, err := c.Send(req); err != nil {
+			t.Fatalf("failed to send request: %v", err)
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(workers)
+
+		for w := range workers {
+			// Each worker will try to receive the entire multipart message, but only
+			// one should succeed and the other should time out.
+			go func(worker int) {
+				defer wg.Done()
+
+				if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+					panicf("failed to set deadline: %v", err)
+				}
+				msgs, err := c.Receive()
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					// Timed out, which means we likely had a deadlock in Receive.
+					// This is expected if the other worker consumed the entire
+					// multipart message
+					return
+				}
+				if err != nil {
+					panicf("failed to receive: %v", err)
+				}
+
+				if diff := cmp.Diff(want, len(msgs)); diff != "" {
+					panicf("unexpected message count in worker %d (-want +got):\n%s", worker, diff)
+				}
+			}(w)
+		}
+
+		wg.Wait()
+	}
+}
+
 func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
 	tests := []struct {
 		name  string

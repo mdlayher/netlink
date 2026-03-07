@@ -224,9 +224,10 @@ func (c *Conn) lockedSend(m Message) (Message, error) {
 //
 // If any of the messages indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
-	// Wait for any concurrent calls to Execute to finish before proceeding.
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	// Wait for any concurrent calls to Execute and Receive to finish before
+	// proceeding.
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	return c.lockedReceive()
 }
