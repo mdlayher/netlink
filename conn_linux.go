@@ -121,7 +121,6 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
-	b := make([]byte, unix.SizeofNlMsghdr)
 	// Peek at the buffer to see how many bytes are available.
 	//
 	// TODO(mdlayher): deal with OOB message data if available, such as
@@ -130,8 +129,8 @@ func (c *conn) Receive() ([]Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Resize buffer to the expected size.
-	b = make([]byte, n)
+	// Request buffer for the expected size.
+	b := make([]byte, n)
 
 	// Read out all available messages
 	n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
