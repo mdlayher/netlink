@@ -121,25 +121,16 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
-	b := make([]byte, os.Getpagesize())
-	for {
-		// Peek at the buffer to see how many bytes are available.
-		//
-		// TODO(mdlayher): deal with OOB message data if available, such as
-		// when PacketInfo ConnOption is true.
-		n, _, _, _, err := c.s.Recvmsg(context.Background(), b, nil, unix.MSG_PEEK)
-		if err != nil {
-			return nil, err
-		}
-
-		// Break when we can read all messages
-		if n < len(b) {
-			break
-		}
-
-		// Double in size if not enough bytes
-		b = make([]byte, len(b)*2)
+	// Peek at the buffer to see how many bytes are available.
+	//
+	// TODO(mdlayher): deal with OOB message data if available, such as
+	// when PacketInfo ConnOption is true.
+	n, _, _, _, err := c.s.Recvmsg(context.Background(), nil, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
+	if err != nil {
+		return nil, err
 	}
+	// Request buffer for the expected size.
+	b := make([]byte, n)
 
 	// Read out all available messages
 	n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
