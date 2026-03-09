@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"golang.org/x/sys/cpu"
 )
 
@@ -469,6 +470,240 @@ func TestValidate(t *testing.T) {
 			if want, got := tt.err, oerr.Err; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
+			}
+		})
+	}
+}
+
+func TestParseMessagesIter(t *testing.T) {
+	tests := []struct {
+		name   string
+		b      []byte
+		msgs   []Message
+		errors []error
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name: "zero length field",
+			b: []byte{
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+			msgs:   []Message{{}},
+			errors: []error{errIncorrectMessageLength},
+		},
+		{
+			name: "no data",
+			b: []byte{
+				0x10, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+			msgs: []Message{{
+				Header: Header{
+					Length: 16,
+				},
+				Data: make([]byte, 0),
+			}},
+			errors: []error{nil},
+		},
+		{
+			name: "short length field",
+			b: []byte{
+				0x0f, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+			errors: []error{
+				errIncorrectMessageLength,
+			},
+			msgs: []Message{{}},
+		},
+		{
+			name: "long length field",
+			b: []byte{
+				0xff, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+			},
+			errors: []error{
+				errShortMessage,
+			},
+			msgs: []Message{{}},
+		},
+		{
+			name: "unaligned length",
+			b: []byte{
+				0x13, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63,
+			},
+			msgs:   []Message{{}},
+			errors: []error{errShortMessage},
+		},
+		{
+			name: "valid",
+			b: []byte{
+				0x14, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+			},
+			msgs: []Message{{
+				Header: Header{
+					Length: 20,
+				},
+				Data: []byte("abcd"),
+			}},
+			errors: []error{nil},
+		},
+		{
+			name: "valid with all header fields set",
+			b: []byte{
+				0x18, 0x00, 0x00, 0x00, // Length: 24
+				0x02, 0x00, // Type: Error
+				0x05, 0x00, // Flags: Request | Acknowledge
+				0x2a, 0x00, 0x00, 0x00, // Sequence: 42
+				0x64, 0x00, 0x00, 0x00, // PID: 100
+				0x61, 0x62, 0x63, 0x64, // Data
+				0x65, 0x66, 0x67, 0x68,
+			},
+			msgs: []Message{{
+				Header: Header{
+					Length:   24,
+					Type:     Error,
+					Flags:    Request | Acknowledge,
+					Sequence: 42,
+					PID:      100,
+				},
+				Data: []byte("abcdefgh"),
+			}},
+			errors: []error{nil},
+		},
+		{
+			name: "multiple with one invalid",
+			b: []byte{
+				0x14, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+				// Second message with short length field
+				0x0f, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+			},
+			msgs: []Message{
+				{
+					Header: Header{
+						Length: 20,
+					},
+					Data: []byte("abcd"),
+				},
+				{},
+			},
+			errors: []error{
+				nil,
+				errIncorrectMessageLength,
+			},
+		},
+		{
+			name: "multiple valid",
+			b: []byte{
+				0x14, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+				// Second message
+				0x18, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x65, 0x66, 0x67, 0x68,
+				0x69, 0x6a, 0x6b, 0x6c,
+			},
+			msgs: []Message{
+				{
+					Header: Header{
+						Length: 20,
+					},
+					Data: []byte("abcd"),
+				},
+				{
+					Header: Header{
+						Length: 24,
+					},
+					Data: []byte("efghijkl"),
+				},
+			},
+			errors: []error{nil, nil},
+		},
+		{
+			name: "multiple valid with trailing data",
+			b: []byte{
+				0x14, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64,
+				// Second message
+				0x14, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x65, 0x66, 0x67, 0x68,
+				// Trailing data that should be ignored
+				0xca, 0xfe, 0xba, 0xbe,
+				0xca, 0xfe, 0xba, 0xbe,
+			},
+			msgs: []Message{
+				{
+					Header: Header{
+						Length: 20,
+					},
+					Data: []byte("abcd"),
+				},
+				{
+					Header: Header{
+						Length: 20,
+					},
+					Data: []byte("efgh"),
+				},
+			},
+			errors: []error{nil, nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var msgs []Message
+			var errs []error
+			for msg, err := range parseMessagesIter(tt.b) {
+				errs = append(errs, err)
+				msgs = append(msgs, msg)
+			}
+
+			if diff := cmp.Diff(tt.msgs, msgs); diff != "" {
+				t.Fatalf("unexpected messages (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tt.errors, errs, cmp.Comparer(func(x, y error) bool {
+				return errors.Is(x, y) || errors.Is(y, x)
+			})); diff != "" {
+				t.Fatalf("unexpected errors (-want +got):\n%s", diff)
 			}
 		})
 	}
