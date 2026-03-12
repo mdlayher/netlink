@@ -145,19 +145,13 @@ func (c *conn) Receive() ([]Message, error) {
 		return nil, unix.ENOSPC
 	}
 
-	raw, err := syscall.ParseNetlinkMessage(b[:nlmsgAlign(n)])
-	if err != nil {
-		return nil, err
-	}
-
-	msgs := make([]Message, 0, len(raw))
-	for _, r := range raw {
-		m := Message{
-			Header: sysToHeader(r.Header),
-			Data:   r.Data,
+	var msgs []Message
+	for msg, err := range parseMessagesIter(b[:nlmsgAlign(n)]) {
+		if err != nil {
+			return nil, err
 		}
 
-		msgs = append(msgs, m)
+		msgs = append(msgs, msg)
 	}
 
 	return msgs, nil
