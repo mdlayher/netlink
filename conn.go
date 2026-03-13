@@ -423,6 +423,7 @@ const (
 type optionSetter interface {
 	Socket
 	SetOption(option ConnOption, enable bool) error
+	SetRawOption(option int, value int) error
 }
 
 // SetOption enables or disables a netlink socket option for the Conn.
@@ -433,6 +434,17 @@ func (c *Conn) SetOption(option ConnOption, enable bool) error {
 	}
 
 	return newOpError("set-option", conn.SetOption(option, enable))
+}
+
+// SetRawOption sets a netlink socket option for the Conn using the raw
+// option number and value, which is useful for options not covered by ConnOption.
+func (c *Conn) SetRawOption(option int, value int) error {
+	conn, ok := c.sock.(optionSetter)
+	if !ok {
+		return notSupported("set-raw-option")
+	}
+
+	return newOpError("set-raw-option", conn.SetRawOption(option, value))
 }
 
 // A bufferedSocket is a Socket that supports getting & setting connection

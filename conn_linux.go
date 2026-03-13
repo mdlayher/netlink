@@ -192,6 +192,12 @@ func (c *conn) SetOption(option ConnOption, enable bool) error {
 	return c.s.SetsockoptInt(unix.SOL_NETLINK, o, v)
 }
 
+// SetRawOption sets a netlink socket option for the Conn, without any interpretation of the option or value.
+// This is intended for advanced users who need to set options that are not exposed by the SetOption method, and should be used with care.
+func (c *conn) SetRawOption(option int, value int) error {
+	return c.s.SetsockoptInt(unix.SOL_NETLINK, option, value)
+}
+
 func (c *conn) SetDeadline(t time.Time) error      { return c.s.SetDeadline(t) }
 func (c *conn) SetReadDeadline(t time.Time) error  { return c.s.SetReadDeadline(t) }
 func (c *conn) SetWriteDeadline(t time.Time) error { return c.s.SetWriteDeadline(t) }
