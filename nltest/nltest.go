@@ -185,13 +185,13 @@ func (c *socket) Receive() ([]netlink.Message, error) {
 		}
 	}
 
-	// When a multi-part message is detected, return all messages except for the
-	// final "multi-part done", so that a second call to Receive from netlink.Conn
-	// will drain that message.
+	// When a multi-part message is detected, return messages in batches, so that
+	// multiple calls to Receive from netlink.Conn are needed to receive all
+	// messages.
 	if multi {
-		last := c.msgs[len(c.msgs)-1]
-		ret := c.msgs[:len(c.msgs)-1]
-		c.msgs = []netlink.Message{last}
+		batchSize := (len(c.msgs) + 1) / 2
+		ret := c.msgs[:batchSize]
+		c.msgs = c.msgs[batchSize:]
 
 		return ret, c.err
 	}
