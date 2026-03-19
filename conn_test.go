@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
 )
@@ -284,5 +285,58 @@ func TestConnSyscallConnUnsupported(t *testing.T) {
 
 	if _, err := c.SyscallConn(); !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConnReceiveIterMultipaEarlyExit(t *testing.T) {
+	msgs := []netlink.Message{
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x01},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x02},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x03},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x04},
+		},
+		{},
+	}
+
+	responded := false
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
+		if responded {
+			return nil, io.EOF
+		}
+		responded = true
+		return nltest.Multipart(msgs)
+	})
+	defer c.Close()
+
+	// Send a message to trigger the multipart response.
+	if _, err := c.Send(netlink.Message{}); err != nil {
+		t.Fatalf("failed to send request: %v", err)
+	}
+
+	for msg, err := range c.ReceiveIter() {
+		if err != nil {
+			t.Fatalf("failed to receive messages: %v", err)
+		}
+		if diff := cmp.Diff(msgs[0], msg); diff != "" {
+			t.Fatalf("unexpected message received (-want +got):\n%s", diff)
+		}
+		break
+	}
+
+	got, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	// Early exit should have drained the buffer.
+	if diff := cmp.Diff([]netlink.Message(nil), got); diff != "" {
+		t.Fatalf("unexpected messages after early exit from multipart response (-want +got):\n%s", diff)
 	}
 }
