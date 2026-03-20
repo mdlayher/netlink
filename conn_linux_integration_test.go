@@ -90,6 +90,76 @@ func TestIntegrationConn(t *testing.T) {
 	}
 }
 
+func TestIntegrationConnFunc(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+
+	// Ask to send us an acknowledgement, which will contain an
+	// error code (or success) and a copy of the payload we sent in
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+	}
+
+	// Perform a request using ExecuteFunc, receive replies, and validate the replies
+	var msgs []netlink.Message
+	err = c.ExecuteFunc(req, func(m netlink.Message) {
+		msgs = append(msgs, m)
+	})
+	if err != nil {
+		t.Fatalf("failed to execute request: %v", err)
+	}
+	if want, got := 1, len(msgs); want != got {
+		t.Fatalf("unexpected message count from netlink:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("error closing netlink connection: %v", err)
+	}
+
+	m := msgs[0]
+
+	if want, got := 0, int(nlenc.Uint32(m.Data[0:4])); want != got {
+		t.Fatalf("unexpected error code:\n- want: %v\n-  got: %v", want, got)
+	}
+
+	if want, got := 36, int(m.Header.Length); want != got {
+		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := netlink.Error, m.Header.Type; want != got {
+		t.Fatalf("unexpected header type:\n- want: %v\n-  got: %v", want, got)
+	}
+	// Recent kernel versions (> 4.14) return a 256 here instead of a 0
+	if want, wantAlt, got := 0, 256, int(m.Header.Flags); want != got && wantAlt != got {
+		t.Fatalf("unexpected header flags:\n- want: %v or %v\n-  got: %v", want, wantAlt, got)
+	}
+
+	// Sequence number is not checked because we assign one at random when
+	// a Conn is created. PID is not checked because running tests in parallel
+	// results in only the first socket getting assigned the process's PID as
+	// its netlink PID.
+
+	// Skip error code and unmarshal the copy of request sent back by
+	// skipping the success code at bytes 0-4
+	var reply netlink.Message
+	if err := (&reply).UnmarshalBinary(m.Data[4:]); err != nil {
+		t.Fatalf("failed to unmarshal reply: %v", err)
+	}
+
+	if want, got := req.Header.Flags, reply.Header.Flags; want != got {
+		t.Fatalf("unexpected copy header flags:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := len(req.Data), len(reply.Data); want != got {
+		t.Fatalf("unexpected copy header data length:\n- want: %v\n-  got: %v", want, got)
+	}
+}
+
 func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 	t.Parallel()
 	skipShort(t)
