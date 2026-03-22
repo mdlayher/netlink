@@ -7,6 +7,7 @@ import (
 	"context"
 	"iter"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -20,7 +21,8 @@ var _ Socket = &conn{}
 
 // A conn is the Linux implementation of a netlink sockets connection.
 type conn struct {
-	s *socket.Conn
+	s    *socket.Conn
+	pool *sync.Pool
 }
 
 // dial is the entry point for Dial. dial opens a netlink socket using
@@ -72,6 +74,16 @@ func newConn(s *socket.Conn, config *Config) (*conn, uint32, error) {
 	}
 
 	c := &conn{s: s}
+
+	if config.MessageBufferSize > 0 {
+		c.pool = &sync.Pool{
+			New: func() any {
+				b := make([]byte, config.MessageBufferSize)
+				return &b
+			},
+		}
+	}
+
 	if config.Strict {
 		// The caller has requested the strict option set. Historically we have
 		// recommended checking for ENOPROTOOPT if the kernel does not support
@@ -133,22 +145,33 @@ func (c *conn) Receive() ([]Message, error) {
 	return msgs, nil
 }
 
-// getMsgBufferSize peeks at the upcoming message to determine the size of the
-// buffer needed to read it.
-func (c *conn) getMsgBufferSize() (int, error) {
+// getBuffer returns the buffer to use for receiving messages and a function to
+// release it back to the pool if applicable. If the pool is not configured, a
+// new buffer is allocated by peeking the size of the next message to be
+// received.
+func (c *conn) getBuffer() ([]byte, func(), error) {
+	if c.pool != nil {
+		bp := c.pool.Get().(*[]byte)
+		return *bp, func() { c.pool.Put(bp) }, nil
+	}
+
 	n, _, _, _, err := c.s.Recvmsg(context.Background(), nil, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
-	return n, err
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return make([]byte, n), func() {}, nil
 }
 
 // ReceiveIter returns an iterator over Messages received from netlink.
 func (c *conn) ReceiveIter() iter.Seq2[Message, error] {
 	return func(yield func(Message, error) bool) {
-		n, err := c.getMsgBufferSize()
+		b, release, err := c.getBuffer()
 		if err != nil {
 			yield(Message{}, err)
 			return
 		}
-		b := make([]byte, n)
+		defer release()
 
 		// Read out all available messages
 		// TODO(mdlayher): deal with OOB message data if available, such as
@@ -163,7 +186,7 @@ func (c *conn) ReceiveIter() iter.Seq2[Message, error] {
 			// Our buffer was too small to read the entire message,
 			// this should not happen since we peeked above, but if it does,
 			// return an error.
-			yield(Message{}, unix.ENOSPC)
+			yield(Message{}, errMessageTruncated)
 			return
 		}
 

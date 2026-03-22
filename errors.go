@@ -20,6 +20,10 @@ var (
 
 var errNotSupported = errors.New("operation not supported")
 
+// errMessageTruncated is returned when a received message was truncated
+// because the receive buffer was too small.
+var errMessageTruncated = errors.New("message truncated")
+
 // notSupported provides a concise constructor for "not supported" errors.
 func notSupported(op string) error {
 	return newOpError(op, errNotSupported)
