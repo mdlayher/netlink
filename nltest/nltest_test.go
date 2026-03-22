@@ -179,6 +179,87 @@ func TestConnReceiveMultipart(t *testing.T) {
 	}
 }
 
+func TestConnReceiveIterMultipart(t *testing.T) {
+	msgs := []netlink.Message{
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x01},
+			Header: netlink.Header{
+				Flags: netlink.Multi,
+			},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x02},
+			Header: netlink.Header{
+				Flags: netlink.Multi,
+			},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x03},
+			Header: netlink.Header{
+				Flags: netlink.Multi,
+			},
+		},
+		{
+			Data: []byte{0x00, 0x00, 0x00, 0x04},
+			Header: netlink.Header{
+				Flags: netlink.Multi,
+			},
+		},
+		{
+			Header: netlink.Header{
+				Type:  netlink.Done,
+				Flags: netlink.Multi,
+			},
+		},
+	}
+
+	responded := false
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
+		// This is necessary so that nltest does not assume that the subsequent call
+		// to Receive is a multicast response. This would cause it to rerun this
+		// callback and return the same messages again, instead of simulating no
+		// more messages coming.
+		// TODO: Is there a better way to handle mutlicast responses from nltest?
+		if !responded {
+			responded = true
+			return nltest.Multipart(msgs)
+		}
+		return nil, io.EOF
+	})
+	defer c.Close()
+
+	// Send an empty request to trigger the multipart response.
+	if _, err := c.Send(netlink.Message{}); err != nil {
+		t.Fatalf("failed to send request: %v", err)
+	}
+
+	var got []netlink.Message
+	for msg, err := range c.ReceiveIter() {
+		if err != nil {
+			t.Fatalf("failed to receive messages: %v", err)
+		}
+		got = append(got, msg)
+	}
+
+	// Expect all messages but the one with the Done type.
+	want := msgs[:len(msgs)-1]
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected multipart messages (-want +got):\n%s", diff)
+	}
+
+	// Any subsequent call to Receive should return no messages, since they're
+	// all drained from the previous call.
+	got, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive messages: %v", err)
+	}
+
+	want = nil
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected messages after multipart response (-want +got):\n%s", diff)
+	}
+}
+
 func TestConnExecuteOK(t *testing.T) {
 	req := netlink.Message{
 		Header: netlink.Header{

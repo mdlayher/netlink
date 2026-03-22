@@ -5,6 +5,7 @@ package netlink
 
 import (
 	"context"
+	"iter"
 	"os"
 	"syscall"
 	"time"
@@ -121,40 +122,62 @@ func (c *conn) Send(m Message) error {
 
 // Receive receives one or more Messages from netlink.
 func (c *conn) Receive() ([]Message, error) {
-	// Peek at the buffer to see how many bytes are available.
-	//
-	// TODO(mdlayher): deal with OOB message data if available, such as
-	// when PacketInfo ConnOption is true.
-	n, _, _, _, err := c.s.Recvmsg(context.Background(), nil, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
-	if err != nil {
-		return nil, err
-	}
-	// Request buffer for the expected size.
-	b := make([]byte, n)
-
-	// Read out all available messages
-	n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	if flags&unix.MSG_TRUNC != 0 {
-		// Our buffer was too small to read the entire message,
-		// this should not happen since we peeked above, but if it does,
-		// return an error.
-		return nil, unix.ENOSPC
-	}
-
 	var msgs []Message
-	for msg, err := range parseMessagesIter(b[:nlmsgAlign(n)]) {
+	for msg, err := range c.ReceiveIter() {
 		if err != nil {
 			return nil, err
 		}
-
 		msgs = append(msgs, msg)
 	}
 
 	return msgs, nil
+}
+
+// getMsgBufferSize peeks at the upcoming message to determine the size of the
+// buffer needed to read it.
+func (c *conn) getMsgBufferSize() (int, error) {
+	n, _, _, _, err := c.s.Recvmsg(context.Background(), nil, nil, unix.MSG_PEEK|unix.MSG_TRUNC)
+	return n, err
+}
+
+// ReceiveIter returns an iterator over Messages received from netlink.
+func (c *conn) ReceiveIter() iter.Seq2[Message, error] {
+	return func(yield func(Message, error) bool) {
+		n, err := c.getMsgBufferSize()
+		if err != nil {
+			yield(Message{}, err)
+			return
+		}
+		b := make([]byte, n)
+
+		// Read out all available messages
+		// TODO(mdlayher): deal with OOB message data if available, such as
+		// when PacketInfo ConnOption is true.
+		n, _, flags, _, err := c.s.Recvmsg(context.Background(), b, nil, 0)
+		if err != nil {
+			yield(Message{}, err)
+			return
+		}
+
+		if flags&unix.MSG_TRUNC != 0 {
+			// Our buffer was too small to read the entire message,
+			// this should not happen since we peeked above, but if it does,
+			// return an error.
+			yield(Message{}, unix.ENOSPC)
+			return
+		}
+
+		for msg, err := range parseMessagesIter(b[:nlmsgAlign(n)]) {
+			if err != nil {
+				yield(Message{}, err)
+				return
+			}
+
+			if !yield(msg, nil) {
+				return
+			}
+		}
+	}
 }
 
 // Close closes the connection.
