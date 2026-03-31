@@ -1117,6 +1117,48 @@ func TestIntegrationConnStrict(t *testing.T) {
 	}
 }
 
+func TestIntegrationConnMessageBufferSize(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *netlink.Config
+		wantErr bool
+	}{
+		{
+			name: "valid message buffer size",
+			cfg:  &netlink.Config{MessageBufferSize: 8192},
+		},
+		{
+			name:    "invalid message buffer size",
+			cfg:     &netlink.Config{MessageBufferSize: 1},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := netlink.Dial(unix.NETLINK_GENERIC, tt.cfg)
+			if err != nil {
+				t.Fatalf("failed to dial netlink: %v", err)
+			}
+			defer c.Close()
+
+			req := netlink.Message{
+				Header: netlink.Header{
+					Flags: netlink.Request | netlink.Acknowledge,
+				},
+			}
+
+			_, err = c.Execute(req)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected an error, but none occurred")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("failed to execute request: %v", err)
+			}
+		})
+	}
+}
+
 func mustBeTimeoutNetError(t *testing.T, err error) {
 	t.Helper()
 

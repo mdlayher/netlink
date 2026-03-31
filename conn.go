@@ -671,4 +671,21 @@ type Config struct {
 	// When possible, setting Strict to true is recommended for applications
 	// running on modern Linux kernels.
 	Strict bool
+
+	// MessageBufferSize specifies a fixed buffer size for receiving netlink
+	// messages. When set, the connection will reuse a single pre-allocated
+	// buffer of this size instead of peeking at each message to determine
+	// the exact size needed.
+	//
+	// This is useful for high-throughput applications where the overhead of
+	// peeking at each message is undesirable and the maximum message size
+	// is known in advance.
+	//
+	// If set to 0 (the default), the connection will peek at the upcoming
+	// message before allocating a buffer for it.
+	//
+	// Note: this is not the same as the kernel socket receive buffer which
+	// can be configured using SetReadBuffer. MessageBufferSize only controls
+	// the userspace buffer passed to recvmsg.
+	MessageBufferSize int
 }
