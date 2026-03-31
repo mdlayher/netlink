@@ -1,6 +1,38 @@
 # CHANGELOG
 
-## 1.9.0
+## v1.10.0
+
+- [New API]: [#270](https://github.com/mdlayher/netlink/pull/270) added
+  `MessageBufferSize` option to `netlink.Config` for configuring the size of the
+  copy buffer used for receiving messages. This can improve performance in
+  high-throughput applications by reducing the number of syscalls needed to
+  receive messages.
+- [Improvement]: [#219](https://github.com/mdlayher/netlink/pull/219) added
+  debug logging inspired by libmnl. This is now the new default when setting
+  `NLDEBUG` in the environment.
+- [New API]: [#258](https://github.com/mdlayher/netlink/pull/258) added
+  `netlink.Conn.ReceiveIter` for iterating over responses without collecting
+  them into a slice. It also optimized `netlink.Conn.Receive` to use this new
+  API internally so that less memory is used.
+- [Improvement]: [#269](https://github.com/mdlayher/netlink/pull/269) made it so
+  `nltest.Conn.Receive` can be used to test that multi-part messages are drained
+  properly.
+- [Improvement]: [#266](https://github.com/mdlayher/netlink/pull/266) optimized
+  the initial parsing of netlink messages in `netlink.Socket.Receive` by adding
+  an iterator for parsing messages directly from the receive buffer.
+- [Improvement]: [#267](https://github.com/mdlayher/netlink/pull/267) added
+  integration test benchmarks for multi-part dumps.
+- [Improvement]: [#215](https://github.com/mdlayher/netlink/pull/215) optimized
+  the internal peek/allocate logic in `netlink.Socket.Receive`. Messages are
+  no longer being copied during peeking and the buffer is allocated to the exact
+  size of the upcoming message.
+- [Bug Fix]: [#265](https://github.com/mdlayher/netlink/pull/265) fixed a bug
+  where concurrent calls to `netlink.Conn.Receive` could race with each other
+  when handling multi-part messages. Calls to `Receive` are now serialized.
+- [Improvement]: [#264](https://github.com/mdlayher/netlink/pull/264) added
+  handling for truncated messages in `netlink.Socket.Receive`.
+
+## v1.9.0
 
 **This is the first release of package netlink that only supports Go 1.24+.**
 
@@ -14,7 +46,7 @@
 - [Improvement]: [#228](https://github.com/mdlayher/netlink/pull/228) fixed
   skipping of specific tests on big-endian hosts.
 
-## 1.8.0
+## v1.8.0
 
 - [Improvement]: Updated dependencies, test with Go 1.23 to 1.25.
 - [Improvement]: Use Go 1.21's binary.NativeEndian (#220)

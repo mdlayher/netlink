@@ -20,6 +20,6 @@ require (
 
 // We require a recent release, but in reality the integration tests should
 // always use the netlink module at the root of the repository.
-require github.com/mdlayher/netlink v1.9.0
+require github.com/mdlayher/netlink v1.10.0
 
 replace github.com/mdlayher/netlink => ../../
