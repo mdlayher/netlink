@@ -6,6 +6,11 @@ updates:
       - "/internal/integration"
     schedule:
       interval: "monthly"
+    groups:
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
+        group-by: dependency-name
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
