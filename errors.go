@@ -99,11 +99,11 @@ func (e *OpError) Error() string {
 	}
 
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintf("netlink %s: %v", e.Op, e.Err))
+	_, _ = fmt.Fprintf(&sb, "netlink %s: %v", e.Op, e.Err)
 
 	if e.Message != "" || e.Offset != 0 {
-		_, _ = sb.WriteString(fmt.Sprintf(", offset: %d, message: %q",
-			e.Offset, e.Message))
+		_, _ = fmt.Fprintf(&sb, ", offset: %d, message: %q",
+			e.Offset, e.Message)
 	}
 
 	return sb.String()

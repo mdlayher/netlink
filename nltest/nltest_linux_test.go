@@ -21,7 +21,7 @@ func TestLinuxDialError(t *testing.T) {
 }
 
 func TestLinuxSyscallError(t *testing.T) {
-	c := nltest.Dial(func(req []netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, unix.ENOENT
 	})
 

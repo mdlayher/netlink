@@ -68,7 +68,7 @@ func BenchmarkUnmarshalAttributes(b *testing.B) {
 
 func makeAttributes(n int) []netlink.Attribute {
 	attrs := make([]netlink.Attribute, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		attrs = append(attrs, netlink.Attribute{
 			Type: uint16(i),
 			Data: make([]byte, n),

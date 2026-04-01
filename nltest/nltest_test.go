@@ -322,7 +322,7 @@ func TestConnExecuteMultipartOK(t *testing.T) {
 func TestConnExecuteError(t *testing.T) {
 	err := errors.New("foo")
 
-	c := nltest.Dial(func(creq []netlink.Message) ([]netlink.Message, error) {
+	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		// Error should be surfaced by Execute's call to Receive.
 		return nil, err
 	})
@@ -691,7 +691,7 @@ func TestCheckRequest(t *testing.T) {
 	}
 }
 
-var noop = func(req []netlink.Message) ([]netlink.Message, error) {
+var noop = func(_ []netlink.Message) ([]netlink.Message, error) {
 	return nil, nil
 }
 

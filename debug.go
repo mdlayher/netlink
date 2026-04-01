@@ -28,6 +28,6 @@ type debugger struct {
 }
 
 // panicf is a helper to panic with formatted text.
-func panicf(format string, a ...interface{}) {
+func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
 }

@@ -43,7 +43,7 @@ func newDebugger(args []string) *debugger {
 }
 
 // debugf prints debugging information at the specified level, if d.Level is high enough to print the message.
-func (d *debugger) debugf(level int, format string, v ...interface{}) {
+func (d *debugger) debugf(level int, format string, v ...any) {
 	if d.Level < level {
 		return
 	}
