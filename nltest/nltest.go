@@ -172,7 +172,7 @@ func (c *socket) ReceiveIter() iter.Seq2[netlink.Message, error] {
 				// no replies if needed.
 				msgs, err := c.fn(nil)
 				if err == io.EOF {
-					err = nil
+					err = nil //nolint:ineffassign
 					return
 				}
 
@@ -249,6 +249,6 @@ func (c *socket) ReceiveIter() iter.Seq2[netlink.Message, error] {
 	}
 }
 
-func panicf(format string, a ...interface{}) {
+func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
 }

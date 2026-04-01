@@ -80,7 +80,7 @@ func TestConnSend(t *testing.T) {
 
 	// Keep sending to verify sequence number increment
 	seq := m.Header.Sequence
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		out, err := c.Send(netlink.Message{})
 		if err != nil {
 			t.Fatalf("failed to send message: %v", err)

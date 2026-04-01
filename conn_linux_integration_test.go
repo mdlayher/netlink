@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package netlink_test
 
@@ -112,7 +111,7 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 			},
 		}
 
-		for i := 0; i < n; i++ {
+		for range n {
 			msgs, err := c.Execute(req)
 			if err != nil {
 				panicf("failed to send request: %v", err)
@@ -131,7 +130,7 @@ func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
 			execN(iterations)
@@ -159,7 +158,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 		}
 
 		var res netlink.Message
-		for i := 0; i < n; i++ {
+		for range n {
 			// Don't expect a "valid" request/reply because we are not serializing
 			// our Send/Receive calls via Execute or with an external lock.
 			//
@@ -194,7 +193,7 @@ func TestIntegrationConnConcurrentOneConn(t *testing.T) {
 	wg.Add(workers)
 	defer wg.Wait()
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
 			execN(iterations)
@@ -272,7 +271,7 @@ func TestIntegrationConnConcurrentCloseUnblocksReceive(t *testing.T) {
 
 		// Multiple Close operations should be a no-op.
 		<-sigC
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			time.Sleep(50 * time.Millisecond)
 
 			if err := c.Close(); err != nil {
@@ -315,7 +314,7 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 			},
 		}
 
-		for i := 0; i < n; i++ {
+		for range n {
 			// Execute will internally call Validate to ensure its
 			// request/response transaction is serialized appropriately, and
 			// any errors doing so will be reported here.
@@ -334,7 +333,7 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 	wg.Add(workers)
 	defer wg.Wait()
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
 			execN(iterations)
@@ -355,8 +354,8 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 	defer c.Close()
 
 	const (
-		GENL_ID_CTRL       = 0x10
-		CTRL_CMD_GETFAMILY = 0x03
+		GENL_ID_CTRL       = 0x10 //nolint:revive
+		CTRL_CMD_GETFAMILY = 0x03 //nolint:revive
 		workers            = 2
 		iterations         = 100
 	)
@@ -428,8 +427,8 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 	defer c.Close()
 
 	const (
-		GENL_ID_CTRL       = 0x10
-		CTRL_CMD_GETFAMILY = 0x03
+		GENL_ID_CTRL       = 0x10 //nolint:revive
+		CTRL_CMD_GETFAMILY = 0x03 //nolint:revive
 		workers            = 2
 		iterations         = 100
 	)
@@ -501,8 +500,8 @@ func TestReceiveIter(t *testing.T) {
 	defer c.Close()
 
 	const (
-		GENL_ID_CTRL       = 0x10
-		CTRL_CMD_GETFAMILY = 0x03
+		GENL_ID_CTRL       = 0x10 //nolint:revive
+		CTRL_CMD_GETFAMILY = 0x03 //nolint:revive
 	)
 
 	// Request a dump to trigger a multipart response, which will require multiple
@@ -528,7 +527,7 @@ func TestReceiveIter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to receive message: %v", err)
 		}
-		m.Header.Sequence -= 1
+		m.Header.Sequence--
 		got = append(got, m)
 	}
 
@@ -1214,6 +1213,6 @@ func shell(t *testing.T, name string, arg ...string) {
 	}
 }
 
-func panicf(format string, a ...interface{}) {
+func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
 }
