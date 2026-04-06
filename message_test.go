@@ -476,6 +476,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestParseMessagesIter(t *testing.T) {
+	skipBigEndian(t)
 	tests := []struct {
 		name   string
 		b      []byte
