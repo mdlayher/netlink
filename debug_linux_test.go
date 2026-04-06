@@ -11,6 +11,7 @@ import (
 )
 
 func TestNlmsgFprintf(t *testing.T) {
+	skipBigEndian(t)
 	// netlink messages obtained from https://github.com/google/nftables/blob/e99829fb4f26d75fdd0cfce8ba4632744e72c2bc/nftables_test.go#L245C1-L246C94
 	tests := []struct {
 		name     string
