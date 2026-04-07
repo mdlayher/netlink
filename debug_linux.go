@@ -3,6 +3,7 @@
 package netlink
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/sys/unix"
 )
 
@@ -102,7 +102,7 @@ func nlmsgFprintf(fd io.Writer, m Message, colorize bool) {
 		return
 	}
 
-	c := nlenc.Int32(m.Data[:endErrno])
+	c := int32(binary.NativeEndian.Uint32(m.Data[:endErrno]))
 	if c != 0 {
 		b := m.Data[0:4]
 		fmt.Fprintf(fd, "| %.2x %.2x %.2x %.2x  |\t",
@@ -139,9 +139,9 @@ func nlmsgFprintf(fd io.Writer, m Message, colorize bool) {
 			break
 		}
 		// Extract the length of the attribute.
-		l := int(nlenc.Uint16(data[i : i+2]))
+		l := int(binary.NativeEndian.Uint16(data[i:]))
 		// extract the type
-		t := nlenc.Uint16(data[i+2 : i+4])
+		t := binary.NativeEndian.Uint16(data[i+2:])
 		// print attribute header
 		if colorize {
 			fmt.Fprintf(fd, "|\033[1;31m%05d|\033[1;32m%s%s|\033[1;34m%05d\033[0m|\t",

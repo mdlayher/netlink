@@ -3,6 +3,7 @@
 package netlink_test
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -17,7 +18,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
@@ -54,7 +54,7 @@ func TestIntegrationConn(t *testing.T) {
 
 	m := msgs[0]
 
-	if want, got := 0, int(nlenc.Uint32(m.Data[0:4])); want != got {
+	if want, got := 0, int(binary.NativeEndian.Uint32(m.Data[0:])); want != got {
 		t.Fatalf("unexpected error code:\n- want: %v\n-  got: %v", want, got)
 	}
 
