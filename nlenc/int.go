@@ -7,6 +7,8 @@ import (
 
 // PutUint8 encodes a uint8 into b.
 // If b is not exactly 1 byte in length, PutUint8 will panic.
+//
+// Deprecated: Use inline "b[n] = v" instead.
 func PutUint8(b []byte, v uint8) {
 	if l := len(b); l != 1 {
 		panic(fmt.Sprintf("PutUint8: unexpected byte slice length: %d", l))
@@ -65,6 +67,8 @@ func PutInt32(b []byte, v int32) {
 
 // Uint8 decodes a uint8 from b.
 // If b is not exactly 1 byte in length, Uint8 will panic.
+//
+// Deprecated: Use inline "b[n]" instead.
 func Uint8(b []byte) uint8 {
 	if l := len(b); l != 1 {
 		panic(fmt.Sprintf("Uint8: unexpected byte slice length: %d", l))
@@ -123,6 +127,8 @@ func Int32(b []byte) int32 {
 
 // Uint8Bytes encodes a uint8 into a newly-allocated byte slice. It is a
 // shortcut for allocating a new byte slice and filling it using PutUint8.
+//
+// Deprecated: Use inline "[]byte{v}" instead.
 func Uint8Bytes(v uint8) []byte {
 	return []byte{v}
 }
