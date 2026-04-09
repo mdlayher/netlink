@@ -213,26 +213,29 @@ func TestUint8(t *testing.T) {
 }
 
 func TestUint16(t *testing.T) {
-	skipBigEndian(t)
 	tests := []struct {
-		v uint16
-		b []byte
+		v      uint16
+		le, be []byte
 	}{
 		{
-			v: 0x1,
-			b: []byte{0x01, 0x00},
+			v:  0x1,
+			le: []byte{0x01, 0x00},
+			be: []byte{0x00, 0x01},
 		},
 		{
-			v: 0x0102,
-			b: []byte{0x02, 0x01},
+			v:  0x0102,
+			le: []byte{0x02, 0x01},
+			be: []byte{0x01, 0x02},
 		},
 		{
-			v: 0x1234,
-			b: []byte{0x34, 0x12},
+			v:  0x1234,
+			le: []byte{0x34, 0x12},
+			be: []byte{0x12, 0x34},
 		},
 		{
-			v: 0xffff,
-			b: []byte{0xff, 0xff},
+			v:  0xffff,
+			le: []byte{0xff, 0xff},
+			be: []byte{0xff, 0xff},
 		},
 	}
 
@@ -241,21 +244,24 @@ func TestUint16(t *testing.T) {
 			b := make([]byte, 2)
 			PutUint16(b, tt.v)
 
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			var want []byte
+			if cpu.IsBigEndian {
+				want = tt.be
+			} else {
+				want = tt.le
+			}
+
+			if got := b; !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 
-			v := Uint16(b)
-
-			if want, got := tt.v, v; want != got {
+			if want, got := tt.v, Uint16(b); want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
 					want, got)
 			}
 
-			b = Uint16Bytes(tt.v)
-
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			if got := Uint16Bytes(tt.v); !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
@@ -264,34 +270,39 @@ func TestUint16(t *testing.T) {
 }
 
 func TestUint32(t *testing.T) {
-	skipBigEndian(t)
 	tests := []struct {
-		v uint32
-		b []byte
+		v      uint32
+		le, be []byte
 	}{
 		{
-			v: 0x1,
-			b: []byte{0x01, 0x00, 0x00, 0x00},
+			v:  0x1,
+			le: []byte{0x01, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x01},
 		},
 		{
-			v: 0x0102,
-			b: []byte{0x02, 0x01, 0x00, 0x00},
+			v:  0x0102,
+			le: []byte{0x02, 0x01, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x01, 0x02},
 		},
 		{
-			v: 0x1234,
-			b: []byte{0x34, 0x12, 0x00, 0x00},
+			v:  0x1234,
+			le: []byte{0x34, 0x12, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x12, 0x34},
 		},
 		{
-			v: 0xffff,
-			b: []byte{0xff, 0xff, 0x00, 0x00},
+			v:  0xffff,
+			le: []byte{0xff, 0xff, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0xff, 0xff},
 		},
 		{
-			v: 0x01020304,
-			b: []byte{0x04, 0x03, 0x02, 0x01},
+			v:  0x01020304,
+			le: []byte{0x04, 0x03, 0x02, 0x01},
+			be: []byte{0x01, 0x02, 0x03, 0x04},
 		},
 		{
-			v: 0x1a2a3a4a,
-			b: []byte{0x4a, 0x3a, 0x2a, 0x1a},
+			v:  0x1a2a3a4a,
+			le: []byte{0x4a, 0x3a, 0x2a, 0x1a},
+			be: []byte{0x1a, 0x2a, 0x3a, 0x4a},
 		},
 	}
 
@@ -300,21 +311,24 @@ func TestUint32(t *testing.T) {
 			b := make([]byte, 4)
 			PutUint32(b, tt.v)
 
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			var want []byte
+			if cpu.IsBigEndian {
+				want = tt.be
+			} else {
+				want = tt.le
+			}
+
+			if got := b; !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 
-			v := Uint32(b)
-
-			if want, got := tt.v, v; want != got {
+			if want, got := tt.v, Uint32(b); want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
 					want, got)
 			}
 
-			b = Uint32Bytes(tt.v)
-
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			if got := Uint32Bytes(tt.v); !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
@@ -323,42 +337,49 @@ func TestUint32(t *testing.T) {
 }
 
 func TestUint64(t *testing.T) {
-	skipBigEndian(t)
 	tests := []struct {
-		v uint64
-		b []byte
+		v      uint64
+		le, be []byte
 	}{
 		{
-			v: 0x1,
-			b: []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			v:  0x1,
+			le: []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 		},
 		{
-			v: 0x0102,
-			b: []byte{0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			v:  0x0102,
+			le: []byte{0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02},
 		},
 		{
-			v: 0x1234,
-			b: []byte{0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			v:  0x1234,
+			le: []byte{0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34},
 		},
 		{
-			v: 0xffff,
-			b: []byte{0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			v:  0xffff,
+			le: []byte{0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff},
 		},
 		{
-			v: 0x01020304,
-			b: []byte{0x04, 0x03, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00},
+			v:  0x01020304,
+			le: []byte{0x04, 0x03, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04},
 		},
 		{
-			v: 0x1a2a3a4a,
-			b: []byte{0x4a, 0x3a, 0x2a, 0x1a, 0x00, 0x00, 0x00, 0x00},
+			v:  0x1a2a3a4a,
+			le: []byte{0x4a, 0x3a, 0x2a, 0x1a, 0x00, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x00, 0x1a, 0x2a, 0x3a, 0x4a},
 		},
 		{
-			v: 0x0102030405060708,
-			b: []byte{0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01},
+			v:  0x0102030405060708,
+			le: []byte{0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01},
+			be: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 		},
 		{
-			v: 0x1a2a3a4a5a6a7a8a,
-			b: []byte{0x8a, 0x7a, 0x6a, 0x5a, 0x4a, 0x3a, 0x2a, 0x1a},
+			v:  0x1a2a3a4a5a6a7a8a,
+			le: []byte{0x8a, 0x7a, 0x6a, 0x5a, 0x4a, 0x3a, 0x2a, 0x1a},
+			be: []byte{0x1a, 0x2a, 0x3a, 0x4a, 0x5a, 0x6a, 0x7a, 0x8a},
 		},
 	}
 
@@ -367,21 +388,24 @@ func TestUint64(t *testing.T) {
 			b := make([]byte, 8)
 			PutUint64(b, tt.v)
 
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			var want []byte
+			if cpu.IsBigEndian {
+				want = tt.be
+			} else {
+				want = tt.le
+			}
+
+			if got := b; !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 
-			v := Uint64(b)
-
-			if want, got := tt.v, v; want != got {
+			if want, got := tt.v, Uint64(b); want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
 					want, got)
 			}
 
-			b = Uint64Bytes(tt.v)
-
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			if got := Uint64Bytes(tt.v); !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
@@ -390,42 +414,49 @@ func TestUint64(t *testing.T) {
 }
 
 func TestInt32(t *testing.T) {
-	skipBigEndian(t)
 	tests := []struct {
-		v int32
-		b []byte
+		v      int32
+		le, be []byte
 	}{
 		{
-			v: 0x1,
-			b: []byte{0x01, 0x00, 0x00, 0x00},
+			v:  0x1,
+			le: []byte{0x01, 0x00, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x00, 0x01},
 		},
 		{
-			v: 0x0102,
-			b: []byte{0x02, 0x01, 0x00, 0x00},
+			v:  0x0102,
+			le: []byte{0x02, 0x01, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x01, 0x02},
 		},
 		{
-			v: 0x1234,
-			b: []byte{0x34, 0x12, 0x00, 0x00},
+			v:  0x1234,
+			le: []byte{0x34, 0x12, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0x12, 0x34},
 		},
 		{
-			v: 0xffff,
-			b: []byte{0xff, 0xff, 0x00, 0x00},
+			v:  0xffff,
+			le: []byte{0xff, 0xff, 0x00, 0x00},
+			be: []byte{0x00, 0x00, 0xff, 0xff},
 		},
 		{
-			v: 0x01020304,
-			b: []byte{0x04, 0x03, 0x02, 0x01},
+			v:  0x01020304,
+			le: []byte{0x04, 0x03, 0x02, 0x01},
+			be: []byte{0x01, 0x02, 0x03, 0x04},
 		},
 		{
-			v: 0x1a2a3a4a,
-			b: []byte{0x4a, 0x3a, 0x2a, 0x1a},
+			v:  0x1a2a3a4a,
+			le: []byte{0x4a, 0x3a, 0x2a, 0x1a},
+			be: []byte{0x1a, 0x2a, 0x3a, 0x4a},
 		},
 		{
-			v: -1,
-			b: []byte{0xff, 0xff, 0xff, 0xff},
+			v:  -1,
+			le: []byte{0xff, 0xff, 0xff, 0xff},
+			be: []byte{0xff, 0xff, 0xff, 0xff},
 		},
 		{
-			v: -2,
-			b: []byte{0xfe, 0xff, 0xff, 0xff},
+			v:  -2,
+			le: []byte{0xfe, 0xff, 0xff, 0xff},
+			be: []byte{0xff, 0xff, 0xff, 0xfe},
 		},
 	}
 
@@ -434,30 +465,27 @@ func TestInt32(t *testing.T) {
 			b := make([]byte, 4)
 			PutInt32(b, tt.v)
 
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			var want []byte
+			if cpu.IsBigEndian {
+				want = tt.be
+			} else {
+				want = tt.le
+			}
+
+			if got := b; !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 
-			v := Int32(b)
-
-			if want, got := tt.v, v; want != got {
+			if want, got := tt.v, Int32(b); want != got {
 				t.Fatalf("unexpected integer:\n- want: 0x%04x\n-  got: 0x%04x",
 					want, got)
 			}
 
-			b = Int32Bytes(tt.v)
-
-			if want, got := tt.b, b; !bytes.Equal(want, got) {
+			if got := Int32Bytes(tt.v); !bytes.Equal(want, got) {
 				t.Fatalf("unexpected bytes:\n- want: [%# x]\n-  got: [%# x]",
 					want, got)
 			}
 		})
-	}
-}
-
-func skipBigEndian(t *testing.T) {
-	if cpu.IsBigEndian {
-		t.Skip("skipping test on big-endian system")
 	}
 }

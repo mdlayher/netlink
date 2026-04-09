@@ -7,6 +7,8 @@ import (
 )
 
 // NativeEndian returns the native byte order of this system.
+//
+// Deprecated: Use [binary.NativeEndian] instead.
 func NativeEndian() binary.ByteOrder {
 	// TODO(mdlayher): consider deprecating and removing this function for v2.
 	return binary.NativeEndian

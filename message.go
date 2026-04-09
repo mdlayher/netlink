@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"iter"
 	"unsafe"
-
-	"github.com/mdlayher/netlink/nlenc"
 )
 
 // Flags which may apply to netlink attribute types when communicating with
@@ -213,11 +211,11 @@ func (m Message) MarshalBinary() ([]byte, error) {
 
 	b := make([]byte, ml)
 
-	nlenc.PutUint32(b[0:4], m.Header.Length)
-	nlenc.PutUint16(b[4:6], uint16(m.Header.Type))
-	nlenc.PutUint16(b[6:8], uint16(m.Header.Flags))
-	nlenc.PutUint32(b[8:12], m.Header.Sequence)
-	nlenc.PutUint32(b[12:16], m.Header.PID)
+	binary.NativeEndian.PutUint32(b[0:], m.Header.Length)
+	binary.NativeEndian.PutUint16(b[4:], uint16(m.Header.Type))
+	binary.NativeEndian.PutUint16(b[6:], uint16(m.Header.Flags))
+	binary.NativeEndian.PutUint32(b[8:], m.Header.Sequence)
+	binary.NativeEndian.PutUint32(b[12:], m.Header.PID)
 	copy(b[16:], m.Data)
 
 	return b, nil
@@ -233,15 +231,15 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	}
 
 	// Don't allow misleading length
-	m.Header.Length = nlenc.Uint32(b[0:4])
+	m.Header.Length = binary.NativeEndian.Uint32(b[0:])
 	if int(m.Header.Length) != len(b) {
 		return errShortMessage
 	}
 
-	m.Header.Type = HeaderType(nlenc.Uint16(b[4:6]))
-	m.Header.Flags = HeaderFlags(nlenc.Uint16(b[6:8]))
-	m.Header.Sequence = nlenc.Uint32(b[8:12])
-	m.Header.PID = nlenc.Uint32(b[12:16])
+	m.Header.Type = HeaderType(binary.NativeEndian.Uint16(b[4:]))
+	m.Header.Flags = HeaderFlags(binary.NativeEndian.Uint16(b[6:]))
+	m.Header.Sequence = binary.NativeEndian.Uint32(b[8:])
+	m.Header.PID = binary.NativeEndian.Uint32(b[12:])
 	m.Data = b[16:]
 
 	return nil
@@ -284,7 +282,7 @@ func checkMessage(m Message) error {
 		return newOpError("receive", errShortErrorMessage)
 	}
 
-	c := nlenc.Int32(m.Data[:endErrno])
+	c := int32(binary.NativeEndian.Uint32(m.Data[:endErrno]))
 	if c == 0 {
 		// 0 indicates no error.
 		return nil
@@ -359,7 +357,7 @@ func checkMessage(m Message) error {
 func parseMessagesIter(b []byte) iter.Seq2[Message, error] {
 	return func(yield func(Message, error) bool) {
 		for len(b) >= nlmsgHeaderLen {
-			length := binary.NativeEndian.Uint32(b[0:4])
+			length := binary.NativeEndian.Uint32(b[0:])
 			if int(length) < nlmsgHeaderLen {
 				yield(Message{}, errIncorrectMessageLength)
 				return

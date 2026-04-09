@@ -34,8 +34,8 @@ func (a *Attribute) marshal(b []byte) (int, error) {
 		return 0, errInvalidAttribute
 	}
 
-	nlenc.PutUint16(b[0:2], a.Length)
-	nlenc.PutUint16(b[2:4], a.Type)
+	binary.NativeEndian.PutUint16(b[0:], a.Length)
+	binary.NativeEndian.PutUint16(b[2:], a.Type)
 	n := copy(b[nlaHeaderLen:], a.Data)
 
 	return nlaHeaderLen + nlaAlign(n), nil
@@ -47,8 +47,8 @@ func (a *Attribute) unmarshal(b []byte) error {
 		return errInvalidAttribute
 	}
 
-	a.Length = nlenc.Uint16(b[0:2])
-	a.Type = nlenc.Uint16(b[2:4])
+	a.Length = binary.NativeEndian.Uint16(b[0:])
+	a.Type = binary.NativeEndian.Uint16(b[2:])
 
 	if int(a.Length) > len(b) {
 		return errInvalidAttribute
@@ -243,7 +243,7 @@ func (ad *AttributeDecoder) available() (int, error) {
 		}
 
 		// Extract the length of the attribute.
-		l := int(nlenc.Uint16(ad.b[i : i+2]))
+		l := int(binary.NativeEndian.Uint16(ad.b[i:]))
 
 		// Ignore zero-length attributes.
 		if l != 0 {
