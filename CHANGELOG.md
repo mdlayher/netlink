@@ -1,6 +1,26 @@
 # CHANGELOG
 
+## v1.11.0
+
+**This is the first release of package netlink that only supports Go 1.25+.**
+
+- [Bug Fix]: [#280](https://github.com/mdlayher/netlink/pull/280) fixed a
+critical bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter` would
+panic if the received message was unaligned.
+- [Improvement]: [#277](https://github.com/mdlayher/netlink/pull/277) added
+big-endian test fixtures for nlenc and deprecated endian helpers in favor of
+binary.NativeEndian.
+- [Improvement]: [#276](https://github.com/mdlayher/netlink/pull/276) fixed
+skipping of tests on big-endian hosts.
+- [Improvement]: [#273](https://github.com/mdlayher/netlink/pull/273) added
+golangci-lint to the CI pipeline and fixed all existing lint issues.
+- [Improvement]: [#272](https://github.com/mdlayher/netlink/pull/272) updated
+dependencies and Go version to 1.25.
+
 ## v1.10.0
+
+**Users of this version should upgrade to v1.11.0 as this version contains a
+critical bug.**
 
 - [New API]: [#270](https://github.com/mdlayher/netlink/pull/270) added
   `MessageBufferSize` option to `netlink.Config` for configuring the size of the
