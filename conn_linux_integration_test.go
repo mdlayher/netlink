@@ -1158,6 +1158,80 @@ func TestIntegrationConnMessageBufferSize(t *testing.T) {
 	}
 }
 
+// TestIntegrationConnReceiveUnaligned regression test for
+// https://github.com/mdlayher/netlink/issues/279
+func TestIntegrationConnReceiveUnaligned(t *testing.T) {
+	t.Parallel()
+
+	// Use NETLINK_USERSOCK to safely bounce messages between userspace PIDs
+	// without the kernel trying to process them.
+	c, err := netlink.Dial(unix.NETLINK_USERSOCK, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	pid := c.PID()
+
+	// 133 is not a multiple of 4. nlmsgAlign(133) = 136.
+	// This exact size caused the slice bounds panic in v1.10.0.
+	const unalignedLen = 133
+	const alignedLen = 136 // nlmsgAlign(unalignedLen)
+	b := make([]byte, unalignedLen)
+
+	// Populate a valid netlink header so the parser accepts it.
+	// We MUST set the length to the ALIGNED length because mdlayher/netlink
+	// strictly asserts that parsed Header.Length == aligned slice length.
+	binary.NativeEndian.PutUint32(b[0:4], alignedLen)
+	binary.NativeEndian.PutUint16(b[4:6], uint16(netlink.Noop))
+	binary.NativeEndian.PutUint16(b[6:8], uint16(netlink.Request))
+	binary.NativeEndian.PutUint32(b[8:12], 1)
+	binary.NativeEndian.PutUint32(b[12:16], pid)
+
+	rc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatalf("failed to get syscall conn: %v", err)
+	}
+
+	// Send the unaligned 133-byte message directly to our own socket PID.
+	var writeErr error
+	err = rc.Write(func(fd uintptr) bool {
+		addr := &unix.SockaddrNetlink{
+			Family: unix.AF_NETLINK,
+			Pid:    pid,
+		}
+		writeErr = unix.Sendto(int(fd), b, 0, addr)
+		return true
+	})
+	if err != nil {
+		t.Fatalf("rc.Write failed: %v", err)
+	}
+	if writeErr != nil {
+		t.Fatalf("failed to send unaligned message: %v", writeErr)
+	}
+
+	// Prevent the test from hanging indefinitely if routing fails.
+	if err := c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+
+	// Attempt to receive the message.
+	// Without the fix in conn_linux.go, this PANICS with "slice bounds out of range".
+	// With the fix, it successfully reads the padded 136-byte buffer.
+	msgs, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive message: %v", err)
+	}
+
+	if want, got := 1, len(msgs); want != got {
+		t.Fatalf("unexpected message count from netlink:\n- want: %v\n-  got: %v", want, got)
+	}
+
+	if want, got := alignedLen, int(msgs[0].Header.Length); want != got {
+		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
+	}
+}
+
 func mustBeTimeoutNetError(t *testing.T, err error) {
 	t.Helper()
 
