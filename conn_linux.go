@@ -147,7 +147,8 @@ func (c *conn) Receive() ([]Message, error) {
 // getBuffer returns the buffer to use for receiving messages and a function to
 // release it back to the pool if applicable. If the pool is not configured, a
 // new buffer is allocated by peeking the size of the next message to be
-// received.
+// received. The buffer size is aligned to the next multiple of the alignment of a netlink
+// message, to avoid panic when parsing messages from the buffer.
 func (c *conn) getBuffer() ([]byte, func(), error) {
 	if c.pool != nil {
 		bp := c.pool.Get().(*[]byte)
@@ -159,7 +160,7 @@ func (c *conn) getBuffer() ([]byte, func(), error) {
 		return nil, nil, err
 	}
 
-	return make([]byte, n), func() {}, nil
+	return make([]byte, nlmsgAlign(n)), func() {}, nil
 }
 
 // ReceiveIter returns an iterator over Messages received from netlink.
