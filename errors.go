@@ -124,7 +124,8 @@ type timeout interface {
 
 // Timeout reports whether the error was caused by an I/O timeout.
 func (e *OpError) Timeout() bool {
-	if ne, ok := e.Err.(*os.SyscallError); ok {
+	ne := &os.SyscallError{}
+	if errors.As(e.Err, &ne) {
 		t, ok := ne.Err.(timeout)
 		return ok && t.Timeout()
 	}
@@ -138,7 +139,8 @@ type temporary interface {
 
 // Temporary reports whether an operation may succeed if retried.
 func (e *OpError) Temporary() bool {
-	if ne, ok := e.Err.(*os.SyscallError); ok {
+	ne := &os.SyscallError{}
+	if errors.As(e.Err, &ne) {
 		t, ok := ne.Err.(temporary)
 		return ok && t.Temporary()
 	}

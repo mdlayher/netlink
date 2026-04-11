@@ -2,9 +2,14 @@
 
 package nltest
 
-import "golang.org/x/sys/unix"
+import (
+	"errors"
+
+	"golang.org/x/sys/unix"
+)
 
 func isSyscallError(err error) bool {
-	_, ok := err.(unix.Errno)
+	var errno unix.Errno
+	ok := errors.As(err, &errno)
 	return ok
 }

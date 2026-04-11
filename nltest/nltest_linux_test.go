@@ -35,7 +35,7 @@ func TestLinuxSyscallError(t *testing.T) {
 	if !errors.As(err, &serr) {
 		t.Fatalf("error did not contain *os.SyscallError")
 	}
-	if serr.Err != unix.ENOENT {
+	if !errors.Is(serr.Err, unix.ENOENT) {
 		t.Fatalf("expected ENOENT, but got: %v", serr.Err)
 	}
 }
