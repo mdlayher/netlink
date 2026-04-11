@@ -215,7 +215,7 @@ func TestMarshalAttributes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b, err := MarshalAttributes(tt.attrs)
 
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(want, got) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}
@@ -395,7 +395,7 @@ func TestUnmarshalAttributes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attrs, err := UnmarshalAttributes(tt.b)
 
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(want, got) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}

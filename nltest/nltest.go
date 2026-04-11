@@ -2,6 +2,7 @@
 package nltest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -166,29 +167,23 @@ func (c *socket) ReceiveIter() iter.Seq2[netlink.Message, error] {
 		// No messages set by Send means that we are emulating a
 		// multicast response or an error occurred.
 		if len(c.msgs) == 0 {
-			switch c.err {
-			case nil:
-				// No error, simulate multicast, but also return EOF to simulate
-				// no replies if needed.
+			switch {
+			case c.err == nil:
 				msgs, err := c.fn(nil)
-				if err == io.EOF {
-					err = nil //nolint:ineffassign
+				if errors.Is(err, io.EOF) {
 					return
 				}
-
 				if err != nil {
 					yield(netlink.Message{}, err)
 					return
 				}
-
 				for _, m := range msgs {
 					if !yield(m, nil) {
 						return
 					}
 				}
 				return
-			case io.EOF:
-				// EOF, simulate no replies in multi-part message.
+			case errors.Is(c.err, io.EOF):
 				return
 			}
 

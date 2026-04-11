@@ -221,7 +221,7 @@ func TestMessageMarshal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b, err := tt.m.MarshalBinary()
 
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(want, got) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 			if err != nil {
@@ -311,7 +311,7 @@ func TestMessageUnmarshal(t *testing.T) {
 			var m Message
 			err := (&m).UnmarshalBinary(tt.b)
 
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(want, got) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 			if err != nil {
@@ -467,7 +467,7 @@ func TestValidate(t *testing.T) {
 					want, got)
 			}
 
-			if want, got := tt.err, oerr.Err; want != got {
+			if want, got := tt.err, oerr.Err; !errors.Is(want, got) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
 					want, got)
 			}
