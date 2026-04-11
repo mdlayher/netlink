@@ -2,6 +2,12 @@ module github.com/mdlayher/netlink
 
 go 1.25.0
 
+retract (
+	// contains a critical bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter`
+	// would panic if the received message was unaligned.
+	v1.10.0
+)
+
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/mdlayher/socket v0.6.0
