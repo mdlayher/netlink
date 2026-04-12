@@ -259,14 +259,33 @@ func TestMessageUnmarshal(t *testing.T) {
 			err:  errUnalignedMessage,
 		},
 		{
-			name: "fuzz crasher: length shorter than slice",
+			name: "length shorter than slice",
 			b:    []byte("\x1d000000000000000"),
 			err:  errShortMessage,
 		},
 		{
-			name: "fuzz crasher: length longer than slice",
+			name: "header length below minimum",
+			b: []byte{
+				0x0c, 0x00, 0x00, 0x00, // Length: 12 (< nlmsgHeaderLen)
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+			err: errShortMessage,
+		},
+		{
+			name: "OK length shorter than aligned slice",
 			b:    []byte("\x13\x00\x00\x000000000000000000"),
-			err:  errShortMessage,
+			m: Message{
+				Header: Header{
+					Length:   19,
+					Type:     0x3030,
+					Flags:    0x3030,
+					Sequence: 0x30303030,
+					PID:      0x30303030,
+				},
+				Data: []byte{0x30, 0x30, 0x30},
+			},
 		},
 		{
 			name: "OK no data",
@@ -302,6 +321,25 @@ func TestMessageUnmarshal(t *testing.T) {
 				0x02, 0x00, 0x00, 0x00,
 				0x14, 0x00, 0x00, 0x00,
 				0x61, 0x62, 0x63, 0x64,
+			},
+		},
+		{
+			name: "OK unaligned length with padding",
+			b: []byte{
+				0x15, 0x00, 0x00, 0x00,
+				0x00, 0x00,
+				0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x61, 0x62, 0x63, 0x64, // Data
+				0x65,             // Data (unaligned byte)
+				0x00, 0x00, 0x00, // NLMSG_ALIGN padding
+			},
+			m: Message{
+				Header: Header{
+					Length: 21,
+				},
+				Data: []byte("abcde"),
 			},
 		},
 	}
