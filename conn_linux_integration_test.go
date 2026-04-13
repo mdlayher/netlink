@@ -1158,6 +1158,94 @@ func TestIntegrationConnMessageBufferSize(t *testing.T) {
 	}
 }
 
+func TestIntegrationConnMessageBufferSizeCopiesMessageData(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_USERSOCK, &netlink.Config{
+		MessageBufferSize: 64,
+	})
+	if err != nil {
+		t.Fatalf("failed to dial netlink: %v", err)
+	}
+	defer c.Close()
+
+	pid := c.PID()
+	rc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatalf("failed to get syscall conn: %v", err)
+	}
+
+	send := func(seq uint32, payload []byte) {
+		t.Helper()
+
+		const headerLen = 16
+		length := headerLen + len(payload)
+		alignedLength := (length + 3) &^ 3
+
+		b := make([]byte, alignedLength)
+		binary.NativeEndian.PutUint32(b[0:4], uint32(alignedLength))
+		binary.NativeEndian.PutUint16(b[4:6], uint16(netlink.Noop))
+		binary.NativeEndian.PutUint16(b[6:8], uint16(netlink.Request))
+		binary.NativeEndian.PutUint32(b[8:12], seq)
+		binary.NativeEndian.PutUint32(b[12:16], pid)
+		copy(b[headerLen:], payload)
+
+		var writeErr error
+		err := rc.Write(func(fd uintptr) bool {
+			addr := &unix.SockaddrNetlink{
+				Family: unix.AF_NETLINK,
+				Pid:    pid,
+			}
+			writeErr = unix.Sendto(int(fd), b, 0, addr)
+			return true
+		})
+		if err != nil {
+			t.Fatalf("rc.Write failed: %v", err)
+		}
+		if writeErr != nil {
+			t.Fatalf("failed to send message: %v", writeErr)
+		}
+	}
+
+	firstPayload := []byte{1, 1, 1, 1}
+	send(1, firstPayload)
+
+	if err := c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+	first, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive first message: %v", err)
+	}
+	if want, got := 1, len(first); want != got {
+		t.Fatalf("unexpected first message count:\n- want: %v\n-  got: %v", want, got)
+	}
+	if diff := cmp.Diff(firstPayload, first[0].Data); diff != "" {
+		t.Fatalf("unexpected first message payload (-want +got):\n%s", diff)
+	}
+
+	secondPayload := []byte{2, 2, 2, 2}
+	send(2, secondPayload)
+
+	if err := c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+	second, err := c.Receive()
+	if err != nil {
+		t.Fatalf("failed to receive second message: %v", err)
+	}
+	if want, got := 1, len(second); want != got {
+		t.Fatalf("unexpected second message count:\n- want: %v\n-  got: %v", want, got)
+	}
+	if diff := cmp.Diff(secondPayload, second[0].Data); diff != "" {
+		t.Fatalf("unexpected second message payload (-want +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff(firstPayload, first[0].Data); diff != "" {
+		t.Fatalf("first message payload was overwritten (-want +got):\n%s", diff)
+	}
+}
+
 // TestIntegrationConnReceiveUnaligned regression test for
 // https://github.com/mdlayher/netlink/issues/279
 func TestIntegrationConnReceiveUnaligned(t *testing.T) {
