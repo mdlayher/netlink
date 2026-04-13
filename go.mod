@@ -3,6 +3,9 @@ module github.com/mdlayher/netlink
 go 1.25.0
 
 retract (
+  // contains a bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter` reject
+  // valid netlink messages whose header length is not aligned.
+  v1.11.0
 	// contains a critical bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter`
 	// would panic if the received message was unaligned.
 	v1.10.0
