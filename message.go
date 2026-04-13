@@ -232,7 +232,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 
 	// Don't allow misleading length
 	m.Header.Length = binary.NativeEndian.Uint32(b[0:])
-	if int(m.Header.Length) != len(b) {
+	if int(m.Header.Length) < nlmsgHeaderLen || int(m.Header.Length) > len(b) {
 		return errShortMessage
 	}
 
@@ -240,7 +240,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	m.Header.Flags = HeaderFlags(binary.NativeEndian.Uint16(b[6:]))
 	m.Header.Sequence = binary.NativeEndian.Uint32(b[8:])
 	m.Header.PID = binary.NativeEndian.Uint32(b[12:])
-	m.Data = b[16:]
+	m.Data = b[nlmsgHeaderLen:m.Header.Length]
 
 	return nil
 }
