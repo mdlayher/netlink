@@ -163,6 +163,21 @@ func (c *conn) getBuffer() ([]byte, func(), error) {
 	return make([]byte, nlmsgAlign(n)), func() {}, nil
 }
 
+// ownedBuffer trims b to the aligned size of the received datagram and, when
+// using pooled buffers, copies it to memory owned by the caller.
+func (c *conn) ownedBuffer(b []byte, n int) []byte {
+	aligned := nlmsgAlign(n)
+	if c.pool == nil {
+		return b[:aligned]
+	}
+
+	// A pooled buffer may not have an aligned length. Copy the received bytes
+	// to an aligned buffer and let the zero-value tail bytes act as padding.
+	out := make([]byte, aligned)
+	copy(out, b[:n])
+	return out
+}
+
 // ReceiveIter returns an iterator over Messages received from netlink.
 func (c *conn) ReceiveIter() iter.Seq2[Message, error] {
 	return func(yield func(Message, error) bool) {
@@ -190,7 +205,7 @@ func (c *conn) ReceiveIter() iter.Seq2[Message, error] {
 			return
 		}
 
-		for msg, err := range parseMessagesIter(b[:nlmsgAlign(n)]) {
+		for msg, err := range parseMessagesIter(c.ownedBuffer(b, n)) {
 			if err != nil {
 				yield(Message{}, err)
 				return
