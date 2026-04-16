@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v1.11.1
+- [Bug Fix]: [#283](https://github.com/mdlayher/netlink/pull/283) fixed a bug
+where `netlink.Conn.Receive` would reject valid netlink messages whose header
+length is not aligned. This is common with nfqueue, nflog and conntrack events.
+- [Bug Fix]: [#284](https://github.com/mdlayher/netlink/pull/284) fixed a bug
+where `netlink.Message.Data` could be silently overwritten by subsequent
+`netlink.Conn.Receive` calls when `netlink.Config.MessageBufferSize` is enabled,
+due to pooled buffer reuse.
+- [Improvement]: [#282](https://github.com/mdlayher/netlink/pull/282) improved
+error handling by usage of `errors` package.
+
 ## v1.11.0
 
 **This is the first release of package netlink that only supports Go 1.25+.**
