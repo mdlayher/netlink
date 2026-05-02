@@ -491,6 +491,55 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 	}
 }
 
+// TestIntegrationConnConcurrentSendWhileReceiving verifies that Send can
+// proceed concurrently with a blocking Receive, as required by patterns like
+// NFQUEUE where one goroutine reads packets and another sends verdicts.
+func TestIntegrationConnConcurrentSendWhileReceiving(t *testing.T) {
+	t.Parallel()
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+
+	// Detect deadlock: if Receive holds an exclusive lock, Send blocks until
+	// Receive returns, hanging the test indefinitely.
+	timer := time.AfterFunc(10*time.Second, func() {
+		panic("deadlock: Send blocked waiting for Receive to release its lock")
+	})
+	defer timer.Stop()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer wg.Wait()
+	defer c.Close()
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+	}
+
+	sigC := make(chan struct{})
+	go func() {
+		defer wg.Done()
+
+		// Wait for the main goroutine to enter Receive, then give it time to
+		// block in recvmsg before attempting Send.
+		<-sigC
+		time.Sleep(50 * time.Millisecond)
+
+		if _, err := c.Send(req); err != nil {
+			panicf("Send failed while Receive was blocking: %v", err)
+		}
+
+		c.Close()
+	}()
+
+	close(sigC)
+	c.Receive()
+}
+
 func TestReceiveIter(t *testing.T) {
 	t.Parallel()
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
