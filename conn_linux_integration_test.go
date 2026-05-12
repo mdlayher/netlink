@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"math/rand"
 	"net"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nltest"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
@@ -488,6 +490,73 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 		}
 
 		wg.Wait()
+	}
+}
+
+// TestConnSendConcurrentWithReceive verifies that Send can proceed concurrently
+// with a blocking Receive, as required by patterns like NFQUEUE where one
+// goroutine reads packets and another sends verdicts.
+func TestConnSendConcurrentWithReceive(t *testing.T) {
+	t.Parallel()
+
+	sock := &blockingSocket{
+		receivingC: make(chan struct{}),
+		doneC:      make(chan struct{}),
+	}
+
+	c := netlink.NewConn(sock, nltest.PID)
+
+	var wg sync.WaitGroup
+	wg.Go(func() { c.Receive() })
+
+	// Block until ReceiveIter has entered its blocking state
+	select {
+	case <-sock.receivingC:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Receive to enter blocking state")
+	}
+
+	// Send must not block while Receive is holding Conn.receiveMu
+	sendDone := make(chan error, 1)
+	go func() {
+		_, err := c.Send(netlink.Message{})
+		sendDone <- err
+	}()
+
+	select {
+	case err := <-sendDone:
+		if err != nil {
+			t.Fatalf("Send failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("deadlock: Send blocked while Receive was running")
+	}
+
+	c.Close()
+	wg.Wait()
+}
+
+// blockingSocket is a netlink.Socket whose ReceiveIter blocks until Close.
+// receivingC is closed when ReceiveIter first enters its blocking state,
+// providing a deterministic synchronisation point for tests.
+type blockingSocket struct {
+	receivingOnce sync.Once
+	receivingC    chan struct{}
+	doneC         chan struct{}
+	closeOnce     sync.Once
+}
+
+func (s *blockingSocket) Close() error {
+	s.closeOnce.Do(func() { close(s.doneC) })
+	return nil
+}
+func (s *blockingSocket) Send(_ netlink.Message) error           { return nil }
+func (s *blockingSocket) SendMessages(_ []netlink.Message) error { return nil }
+func (s *blockingSocket) Receive() ([]netlink.Message, error)    { return nil, nil }
+func (s *blockingSocket) ReceiveIter() iter.Seq2[netlink.Message, error] {
+	return func(_ func(netlink.Message, error) bool) {
+		s.receivingOnce.Do(func() { close(s.receivingC) })
+		<-s.doneC
 	}
 }
 

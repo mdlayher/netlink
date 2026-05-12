@@ -32,6 +32,12 @@ type Conn struct {
 	// transaction within Execute.
 	mu sync.RWMutex
 
+	// receiveMu serializes concurrent Receive and ReceiveIter calls to prevent
+	// races in multi-part message handling and the peek/allocate logic in
+	// conn_linux.go. It is separate from mu so that Send can proceed
+	// concurrently with Receive.
+	receiveMu sync.Mutex
+
 	// sock is the operating system-specific implementation of
 	// a netlink sockets connection.
 	sock Socket
@@ -226,10 +232,13 @@ func (c *Conn) lockedSend(m Message) (Message, error) {
 //
 // If any of the messages indicate a netlink error, that error will be returned.
 func (c *Conn) Receive() ([]Message, error) {
-	// Wait for any concurrent calls to Execute and Receive to finish before
-	// proceeding.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// Wait for any concurrent calls to Execute to finish before proceeding.
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Serialize concurrent Receive calls. See receiveMu for details.
+	c.receiveMu.Lock()
+	defer c.receiveMu.Unlock()
 
 	return c.lockedReceive()
 }
@@ -242,8 +251,13 @@ func (c *Conn) Receive() ([]Message, error) {
 // response is multi-part, the remaining messages will be discarded.
 func (c *Conn) ReceiveIter() iter.Seq2[Message, error] {
 	return func(yield func(Message, error) bool) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
+		// Wait for any concurrent calls to Execute to finish before proceeding.
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+
+		// Serialize concurrent ReceiveIter calls. See receiveMu for details.
+		c.receiveMu.Lock()
+		defer c.receiveMu.Unlock()
 
 		for msg, err := range c.lockedReceiveIter() {
 			if err != nil {
