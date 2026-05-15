@@ -1,32 +1,41 @@
 # CHANGELOG
 
+## v1.11.2
+
+- [Bug Fix]: [#291](https://github.com/mdlayher/netlink/pull/291) fixed a bug
+  where `netlink.Conn.Receive` would block concurrent calls to
+  `netlink.Conn.Send` when blocking in `recvmsg`.
+- [Improvement]: [#289](https://github.com/mdlayher/netlink/pull/289) updated
+  `golang.org/x/net` and `golang.org/x/sys` dependencies.
+
 ## v1.11.1
+
 - [Bug Fix]: [#283](https://github.com/mdlayher/netlink/pull/283) fixed a bug
-where `netlink.Conn.Receive` would reject valid netlink messages whose header
-length is not aligned. This is common with nfqueue, nflog and conntrack events.
+  where `netlink.Conn.Receive` would reject valid netlink messages whose header
+  length is not aligned. This is common with nfqueue, nflog and conntrack events.
 - [Bug Fix]: [#284](https://github.com/mdlayher/netlink/pull/284) fixed a bug
-where `netlink.Message.Data` could be silently overwritten by subsequent
-`netlink.Conn.Receive` calls when `netlink.Config.MessageBufferSize` is enabled,
-due to pooled buffer reuse.
+  where `netlink.Message.Data` could be silently overwritten by subsequent
+  `netlink.Conn.Receive` calls when `netlink.Config.MessageBufferSize` is enabled,
+  due to pooled buffer reuse.
 - [Improvement]: [#282](https://github.com/mdlayher/netlink/pull/282) improved
-error handling by usage of `errors` package.
+  error handling by usage of `errors` package.
 
 ## v1.11.0
 
 **This is the first release of package netlink that only supports Go 1.25+.**
 
 - [Bug Fix]: [#280](https://github.com/mdlayher/netlink/pull/280) fixed a
-critical bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter` would
-panic if the received message was unaligned.
+  critical bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter` would
+  panic if the received message was unaligned.
 - [Improvement]: [#277](https://github.com/mdlayher/netlink/pull/277) added
-big-endian test fixtures for nlenc and deprecated endian helpers in favor of
-binary.NativeEndian.
+  big-endian test fixtures for nlenc and deprecated endian helpers in favor of
+  binary.NativeEndian.
 - [Improvement]: [#276](https://github.com/mdlayher/netlink/pull/276) fixed
-skipping of tests on big-endian hosts.
+  skipping of tests on big-endian hosts.
 - [Improvement]: [#273](https://github.com/mdlayher/netlink/pull/273) added
-golangci-lint to the CI pipeline and fixed all existing lint issues.
+  golangci-lint to the CI pipeline and fixed all existing lint issues.
 - [Improvement]: [#272](https://github.com/mdlayher/netlink/pull/272) updated
-dependencies and Go version to 1.25.
+  dependencies and Go version to 1.25.
 
 ## v1.10.0
 
