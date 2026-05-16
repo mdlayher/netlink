@@ -3,6 +3,9 @@ module github.com/mdlayher/netlink
 go 1.25.0
 
 retract (
+	// contains a bug where `netlink.Conn.Receive` blocks concurrent calls to
+	// `netlink.Conn.Send` when blocking in `recvmsg`.
+	v1.11.1
 	// contains a bug where `netlink.Conn.Receive` and `netlink.Conn.ReceiveIter` reject
 	// valid netlink messages whose header length is not aligned.
 	v1.11.0
