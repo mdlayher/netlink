@@ -478,13 +478,23 @@ type AttributeEncoder struct {
 	// If not set, the native byte order will be used.
 	ByteOrder binary.ByteOrder
 
-	attrs []Attribute
-	err   error
+	attrs  []Attribute
+	length int
+	err    error
 }
 
 // NewAttributeEncoder creates an AttributeEncoder that encodes Attributes.
 func NewAttributeEncoder() *AttributeEncoder {
 	return &AttributeEncoder{ByteOrder: binary.NativeEndian}
+}
+
+func (ae *AttributeEncoder) push(a Attribute) {
+	if len(a.Data) > math.MaxUint16-nlaHeaderLen {
+		ae.err = errors.New("attribute data is too large to fit in a netlink attribute")
+		return
+	}
+	ae.length += nlaHeaderLen + nlaAlign(len(a.Data))
+	ae.attrs = append(ae.attrs, a)
 }
 
 // Uint8 encodes uint8 data into an Attribute specified by typ.
@@ -493,7 +503,7 @@ func (ae *AttributeEncoder) Uint8(typ uint16, v uint8) {
 		return
 	}
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: []byte{v},
 	})
@@ -508,7 +518,7 @@ func (ae *AttributeEncoder) Uint16(typ uint16, v uint16) {
 	b := make([]byte, 2)
 	ae.ByteOrder.PutUint16(b, v)
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -523,7 +533,7 @@ func (ae *AttributeEncoder) Uint32(typ uint16, v uint32) {
 	b := make([]byte, 4)
 	ae.ByteOrder.PutUint32(b, v)
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -538,7 +548,7 @@ func (ae *AttributeEncoder) Uint64(typ uint16, v uint64) {
 	b := make([]byte, 8)
 	ae.ByteOrder.PutUint64(b, v)
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -550,7 +560,7 @@ func (ae *AttributeEncoder) Int8(typ uint16, v int8) {
 		return
 	}
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: []byte{uint8(v)},
 	})
@@ -565,7 +575,7 @@ func (ae *AttributeEncoder) Int16(typ uint16, v int16) {
 	b := make([]byte, 2)
 	ae.ByteOrder.PutUint16(b, uint16(v))
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -580,7 +590,7 @@ func (ae *AttributeEncoder) Int32(typ uint16, v int32) {
 	b := make([]byte, 4)
 	ae.ByteOrder.PutUint32(b, uint32(v))
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -595,7 +605,7 @@ func (ae *AttributeEncoder) Int64(typ uint16, v int64) {
 	b := make([]byte, 8)
 	ae.ByteOrder.PutUint64(b, uint64(v))
 
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -609,7 +619,7 @@ func (ae *AttributeEncoder) Flag(typ uint16, v bool) {
 	}
 
 	// Flags have no length or data fields.
-	ae.attrs = append(ae.attrs, Attribute{Type: typ})
+	ae.push(Attribute{Type: typ})
 }
 
 // String encodes string s as a null-terminated string into an Attribute
@@ -619,13 +629,7 @@ func (ae *AttributeEncoder) String(typ uint16, s string) {
 		return
 	}
 
-	// Length checking, thanks ubiquitousbyte on GitHub.
-	if len(s) > math.MaxUint16-nlaHeaderLen {
-		ae.err = errors.New("string is too large to fit in a netlink attribute")
-		return
-	}
-
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: nlenc.Bytes(s),
 	})
@@ -637,12 +641,7 @@ func (ae *AttributeEncoder) Bytes(typ uint16, b []byte) {
 		return
 	}
 
-	if len(b) > math.MaxUint16-nlaHeaderLen {
-		ae.err = errors.New("byte slice is too large to fit in a netlink attribute")
-		return
-	}
-
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -665,12 +664,7 @@ func (ae *AttributeEncoder) Do(typ uint16, fn func() ([]byte, error)) {
 		return
 	}
 
-	if len(b) > math.MaxUint16-nlaHeaderLen {
-		ae.err = errors.New("byte slice produced by Do is too large to fit in a netlink attribute")
-		return
-	}
-
-	ae.attrs = append(ae.attrs, Attribute{
+	ae.push(Attribute{
 		Type: typ,
 		Data: b,
 	})
@@ -695,6 +689,9 @@ func (ae *AttributeEncoder) Nested(typ uint16, fn func(nae *AttributeEncoder) er
 		return nae.Encode()
 	})
 }
+
+// Len returns the number of bytes that the encoded attributes will occupy.
+func (ae *AttributeEncoder) Len() int { return ae.length }
 
 // Encode returns the encoded bytes representing the attributes.
 func (ae *AttributeEncoder) Encode() ([]byte, error) {
