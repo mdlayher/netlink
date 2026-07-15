@@ -1169,6 +1169,130 @@ func TestAttributeEncoderOK(t *testing.T) {
 	}
 }
 
+func TestAttributeEncoderLen(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func(ae *AttributeEncoder)
+		want int
+	}{
+		{
+			name: "empty",
+			fn:   func(_ *AttributeEncoder) {},
+			want: 0,
+		},
+		{
+			// 4 header + 1 data, padded to 4.
+			name: "Uint8",
+			fn:   func(ae *AttributeEncoder) { ae.Uint8(1, 0xff) },
+			want: 8,
+		},
+		{
+			// 4 header + 2 data, padded to 4.
+			name: "Uint16",
+			fn:   func(ae *AttributeEncoder) { ae.Uint16(1, 0xffff) },
+			want: 8,
+		},
+		{
+			// 4 header + 4 data.
+			name: "Uint32",
+			fn:   func(ae *AttributeEncoder) { ae.Uint32(1, 0xdeadbeef) },
+			want: 8,
+		},
+		{
+			// 4 header + 8 data.
+			name: "Uint64",
+			fn:   func(ae *AttributeEncoder) { ae.Uint64(1, 0xdeadbeefcafebabe) },
+			want: 12,
+		},
+		{
+			// 4 header + 1 data, padded to 4.
+			name: "Int8",
+			fn:   func(ae *AttributeEncoder) { ae.Int8(1, -1) },
+			want: 8,
+		},
+		{
+			// 4 header + 2 data, padded to 4.
+			name: "Int16",
+			fn:   func(ae *AttributeEncoder) { ae.Int16(1, -1) },
+			want: 8,
+		},
+		{
+			// 4 header + 4 data.
+			name: "Int32",
+			fn:   func(ae *AttributeEncoder) { ae.Int32(1, -1) },
+			want: 8,
+		},
+		{
+			// 4 header + 8 data.
+			name: "Int64",
+			fn:   func(ae *AttributeEncoder) { ae.Int64(1, -1) },
+			want: 12,
+		},
+		{
+			// 4 header + 0 data.
+			name: "Flag true",
+			fn:   func(ae *AttributeEncoder) { ae.Flag(1, true) },
+			want: 4,
+		},
+		{
+			// Flag false adds nothing.
+			name: "Flag false",
+			fn:   func(ae *AttributeEncoder) { ae.Flag(1, false) },
+			want: 0,
+		},
+		{
+			// 4 header + "test\x00" (5 bytes), padded to 8.
+			name: "String",
+			fn:   func(ae *AttributeEncoder) { ae.String(1, "test") },
+			want: 12,
+		},
+		{
+			// 4 header + 3 data, padded to 4.
+			name: "Bytes",
+			fn:   func(ae *AttributeEncoder) { ae.Bytes(1, []byte{1, 2, 3}) },
+			want: 8,
+		},
+		{
+			// 4 header + 3 data, padded to 4.
+			name: "Do",
+			fn: func(ae *AttributeEncoder) {
+				ae.Do(1, func() ([]byte, error) { return []byte{1, 2, 3}, nil })
+			},
+			want: 8,
+		},
+		{
+			// Nested Uint32 (8 bytes) wrapped in outer attr: 4 header + 8 data.
+			name: "Nested",
+			fn: func(ae *AttributeEncoder) {
+				ae.Nested(1, func(nae *AttributeEncoder) error {
+					nae.Uint32(1, 42)
+					return nil
+				})
+			},
+			want: 12,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ae := NewAttributeEncoder()
+			tt.fn(ae)
+
+			if diff := cmp.Diff(tt.want, ae.Len()); diff != "" {
+				t.Fatalf("Len() mismatch (-want +got):\n%s", diff)
+			}
+
+			b, err := ae.Encode()
+			if err != nil {
+				t.Fatalf("Encode: %v", err)
+			}
+			if diff := cmp.Diff(len(b), ae.Len()); diff != "" {
+				t.Fatalf("Len() vs len(Encode()) mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func aeEndianTest(order binary.ByteOrder) func(ae *AttributeEncoder) {
 	return func(ae *AttributeEncoder) {
 		ae.ByteOrder = order
