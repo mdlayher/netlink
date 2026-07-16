@@ -10,7 +10,6 @@ updates:
       golang-x:
         patterns:
           - "golang.org/x/*"
-        group-by: dependency-name
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
