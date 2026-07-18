@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 
@@ -743,6 +744,78 @@ func TestParseMessagesIter(t *testing.T) {
 				return errors.Is(x, y) || errors.Is(y, x)
 			})); diff != "" {
 				t.Fatalf("unexpected errors (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestMarshalMessages(t *testing.T) {
+	skipBigEndian(t)
+
+	msgs := []Message{
+		{
+			Header: Header{Length: 20, Type: 1, Flags: Request, Sequence: 1},
+			Data:   []byte("msg1"),
+		},
+		{
+			Header: Header{Length: 20, Type: 2, Flags: Request, Sequence: 2},
+			Data:   []byte("msg2"),
+		},
+		{
+			Header: Header{Length: 20, Type: 3, Flags: Request, Sequence: 3},
+			Data:   []byte("msg3"),
+		},
+	}
+
+	buf, err := marshalMessages(msgs)
+	if err != nil {
+		t.Fatalf("marshalMessages: %v", err)
+	}
+
+	var got []Message
+	for m, err := range parseMessagesIter(buf) {
+		if err != nil {
+			t.Fatalf("parseMessagesIter: %v", err)
+		}
+		got = append(got, m)
+	}
+
+	if diff := cmp.Diff(msgs, got); diff != "" {
+		t.Fatalf("round-trip mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func BenchmarkMarshalMessages(b *testing.B) {
+	sizes := []struct {
+		name  string
+		count int
+	}{
+		{"1", 1},
+		{"8", 8},
+		{"64", 64},
+		{"512", 512},
+	}
+
+	dataSize := nlmsgAlign(math.MaxUint16)
+
+	for _, sz := range sizes {
+		msgs := make([]Message, sz.count)
+		for i := range msgs {
+			msgs[i] = Message{
+				Header: Header{
+					Length: uint32(nlmsgHeaderLen + dataSize),
+					Type:   1,
+					Flags:  Request,
+				},
+				Data: make([]byte, dataSize),
+			}
+		}
+
+		b.Run(sz.name, func(b *testing.B) {
+			for b.Loop() {
+				if _, err := marshalMessages(msgs); err != nil {
+					b.Fatal(err)
+				}
 			}
 		})
 	}

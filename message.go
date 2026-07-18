@@ -221,6 +221,19 @@ func (m Message) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
+// marshalMessages serializes multiple messages into a single byte slice.
+func marshalMessages(messages []Message) ([]byte, error) {
+	var buf []byte
+	for _, m := range messages {
+		b, err := m.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
+	return buf, nil
+}
+
 // UnmarshalBinary unmarshals the contents of a byte slice into a Message.
 func (m *Message) UnmarshalBinary(b []byte) error {
 	if len(b) < nlmsgHeaderLen {
