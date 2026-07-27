@@ -32,3 +32,33 @@ jobs:
 
       - name: Run tests
         run: go test -v -race -tags gofuzz ./...
+
+  big-endian:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+
+      - name: Check out code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install s390x emulator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-user-static
+
+      - name: Run tests on s390x
+        env:
+          GOOS: linux
+          GOARCH: s390x
+          CGO_ENABLED: "0"
+        run: |
+          go test \
+            -exec qemu-s390x-static \
+            -tags gofuzz \
+            -count=1 \
+            -skip Integration \
+            ./nlenc ./nltest .
