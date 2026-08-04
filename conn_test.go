@@ -124,6 +124,159 @@ func TestConnExecuteMultipart(t *testing.T) {
 	}
 }
 
+func TestConnExecuteAcknowledgementAfterReply(t *testing.T) {
+	const sequence = 1
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags:    netlink.Request | netlink.Acknowledge,
+			Sequence: sequence,
+		},
+	}
+
+	replies := []netlink.Message{
+		{
+			Header: netlink.Header{
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: []byte{0xff},
+		},
+		{
+			Header: netlink.Header{
+				Type:     netlink.Error,
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: make([]byte, 4),
+		},
+	}
+
+	var received bool
+	c := nltest.Dial(func(reqs []netlink.Message) ([]netlink.Message, error) {
+		if len(reqs) != 0 {
+			return replies[:1], nil
+		}
+		if received {
+			return nil, errors.New("unexpected extra receive")
+		}
+
+		received = true
+		return replies[1:], nil
+	})
+	defer c.Close()
+
+	got, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if diff := cmp.Diff(replies, got); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
+	}
+}
+
+func TestConnExecuteDoneAfterReply(t *testing.T) {
+	const sequence = 1
+
+	// Some do operations use netlink.Done as their terminal response.
+	// Netlink message types: https://docs.kernel.org/userspace-api/netlink/intro.html#netlink-message-types
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags:    netlink.Request | netlink.Acknowledge,
+			Sequence: sequence,
+		},
+	}
+
+	replies := []netlink.Message{
+		{
+			Header: netlink.Header{
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: []byte{0xff},
+		},
+		{
+			Header: netlink.Header{
+				Type:     netlink.Done,
+				Sequence: sequence,
+				PID:      1,
+			},
+		},
+	}
+
+	var received bool
+	c := nltest.Dial(func(reqs []netlink.Message) ([]netlink.Message, error) {
+		if len(reqs) != 0 {
+			return replies[:1], nil
+		}
+		if received {
+			return nil, errors.New("unexpected extra receive")
+		}
+
+		received = true
+		return replies[1:], nil
+	})
+	defer c.Close()
+
+	got, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if diff := cmp.Diff(replies, got); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
+	}
+}
+
+func TestConnExecuteMultipartAcknowledgement(t *testing.T) {
+	const sequence = 1
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags:    netlink.Request | netlink.Acknowledge,
+			Sequence: sequence,
+		},
+	}
+
+	replies := []netlink.Message{
+		{
+			Header: netlink.Header{
+				Flags:    netlink.Multi,
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: []byte{0xff},
+		},
+		{
+			Header: netlink.Header{
+				Type:     netlink.Error,
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: make([]byte, 4),
+		},
+	}
+
+	c := nltest.Dial(func(reqs []netlink.Message) ([]netlink.Message, error) {
+		if len(reqs) == 0 {
+			return nil, errors.New("unexpected extra receive")
+		}
+
+		return replies, nil
+	})
+	defer c.Close()
+
+	got, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if diff := cmp.Diff(replies, got); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
+	}
+}
+
 func TestConnExecuteNoMessages(t *testing.T) {
 	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
