@@ -91,126 +91,6 @@ func TestIntegrationConn(t *testing.T) {
 	}
 }
 
-func TestIntegrationConntrackGetAcknowledgement(t *testing.T) {
-	skipUnprivileged(t)
-
-	const (
-		IPCTNL_MSG_CT_NEW    netlink.HeaderType = 0x100 //nolint:revive
-		IPCTNL_MSG_CT_GET    netlink.HeaderType = 0x101 //nolint:revive
-		IPCTNL_MSG_CT_DELETE netlink.HeaderType = 0x102 //nolint:revive
-	)
-
-	c, err := netlink.Dial(unix.NETLINK_NETFILTER, nil)
-	if err != nil {
-		t.Fatalf("failed to dial netfilter netlink: %v", err)
-	}
-	defer c.Close()
-
-	sourceAddress := []byte{192, 0, 2, 1}
-	destinationAddress := []byte{192, 0, 2, 2}
-	sourcePort := uint16(32768 + rand.Intn(32768))
-	destinationPort := uint16(32768 + rand.Intn(32768))
-
-	encodeTuple := func(ae *netlink.AttributeEncoder, sourceAddress, destinationAddress []byte, sourcePort, destinationPort uint16) error {
-		ae.Nested(1, func(nae *netlink.AttributeEncoder) error {
-			nae.Bytes(1, sourceAddress)
-			nae.Bytes(2, destinationAddress)
-			return nil
-		})
-		ae.Nested(2, func(nae *netlink.AttributeEncoder) error {
-			nae.Uint8(1, unix.IPPROTO_UDP)
-			nae.Uint16(2, sourcePort)
-			nae.Uint16(3, destinationPort)
-			return nil
-		})
-		return nil
-	}
-
-	encode := func(original, reply bool, timeout uint32) []byte {
-		ae := netlink.NewAttributeEncoder()
-		ae.ByteOrder = binary.BigEndian
-		if original {
-			ae.Nested(1, func(nae *netlink.AttributeEncoder) error {
-				return encodeTuple(nae, sourceAddress, destinationAddress, sourcePort, destinationPort)
-			})
-		}
-		if reply {
-			ae.Nested(2, func(nae *netlink.AttributeEncoder) error {
-				return encodeTuple(nae, destinationAddress, sourceAddress, destinationPort, sourcePort)
-			})
-		}
-		if timeout != 0 {
-			ae.Uint32(7, timeout)
-		}
-
-		attrs, err := ae.Encode()
-		if err != nil {
-			t.Fatalf("failed to encode conntrack attributes: %v", err)
-		}
-
-		return append([]byte{unix.AF_INET, 0, 0, 0}, attrs...)
-	}
-
-	_, err = c.Execute(netlink.Message{
-		Header: netlink.Header{
-			Type:  IPCTNL_MSG_CT_NEW,
-			Flags: netlink.Request | netlink.Acknowledge | netlink.Create | netlink.Excl,
-		},
-		Data: encode(true, true, 30),
-	})
-	if err != nil {
-		t.Fatalf("failed to create conntrack entry: %v", err)
-	}
-
-	defer func() {
-		if err := c.SetReadDeadline(time.Time{}); err != nil {
-			t.Errorf("failed to reset read deadline: %v", err)
-			return
-		}
-		_, err := c.Execute(netlink.Message{
-			Header: netlink.Header{
-				Type:  IPCTNL_MSG_CT_DELETE,
-				Flags: netlink.Request | netlink.Acknowledge,
-			},
-			Data: encode(true, false, 0),
-		})
-		if err != nil {
-			t.Errorf("failed to delete conntrack entry: %v", err)
-		}
-	}()
-
-	if err := c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatalf("failed to set read deadline: %v", err)
-	}
-
-	msgs, err := c.Execute(netlink.Message{
-		Header: netlink.Header{
-			Type:  IPCTNL_MSG_CT_GET,
-			Flags: netlink.Request | netlink.Acknowledge,
-		},
-		Data: encode(false, true, 0),
-	})
-	if err != nil {
-		t.Fatalf("failed to get conntrack entry: %v", err)
-	}
-
-	if want, got := 2, len(msgs); want != got {
-		t.Fatalf("unexpected message count:\n- want: %v\n-  got: %v", want, got)
-	}
-	if want, got := IPCTNL_MSG_CT_NEW, msgs[0].Header.Type; want != got {
-		t.Fatalf("unexpected conntrack reply type:\n- want: %v\n-  got: %v", want, got)
-	}
-	if msgs[0].Header.Flags&netlink.Multi == 0 {
-		t.Fatalf("conntrack reply does not have multi flag: %v", msgs[0].Header.Flags)
-	}
-	if want, got := netlink.Error, msgs[1].Header.Type; want != got {
-		t.Fatalf("unexpected acknowledgement type:\n- want: %v\n-  got: %v", want, got)
-	}
-	if msgs[1].Header.Flags&netlink.Multi != 0 {
-		t.Fatalf("acknowledgement has multi flag: %v", msgs[1].Header.Flags)
-	}
-}
-
 func TestIntegrationConnConcurrentManyConns(t *testing.T) {
 	t.Parallel()
 	skipShort(t)
@@ -1506,6 +1386,126 @@ func TestIntegrationConnReceiveUnaligned(t *testing.T) {
 
 	if want, got := alignedLen, int(msgs[0].Header.Length); want != got {
 		t.Fatalf("unexpected header length:\n- want: %v\n-  got: %v", want, got)
+	}
+}
+
+func TestIntegrationConntrackGetMultiReplyFollowedByAcknowledgement(t *testing.T) {
+	skipUnprivileged(t)
+
+	const (
+		IPCTNL_MSG_CT_NEW    netlink.HeaderType = 0x100 //nolint:revive
+		IPCTNL_MSG_CT_GET    netlink.HeaderType = 0x101 //nolint:revive
+		IPCTNL_MSG_CT_DELETE netlink.HeaderType = 0x102 //nolint:revive
+	)
+
+	c, err := netlink.Dial(unix.NETLINK_NETFILTER, nil)
+	if err != nil {
+		t.Fatalf("failed to dial netfilter netlink: %v", err)
+	}
+	defer c.Close()
+
+	sourceAddress := []byte{192, 0, 2, 1}
+	destinationAddress := []byte{192, 0, 2, 2}
+	sourcePort := uint16(32768 + rand.Intn(32768))
+	destinationPort := uint16(32768 + rand.Intn(32768))
+
+	encodeTuple := func(ae *netlink.AttributeEncoder, sourceAddress, destinationAddress []byte, sourcePort, destinationPort uint16) error {
+		ae.Nested(1, func(nae *netlink.AttributeEncoder) error {
+			nae.Bytes(1, sourceAddress)
+			nae.Bytes(2, destinationAddress)
+			return nil
+		})
+		ae.Nested(2, func(nae *netlink.AttributeEncoder) error {
+			nae.Uint8(1, unix.IPPROTO_UDP)
+			nae.Uint16(2, sourcePort)
+			nae.Uint16(3, destinationPort)
+			return nil
+		})
+		return nil
+	}
+
+	encode := func(original, reply bool, timeout uint32) []byte {
+		ae := netlink.NewAttributeEncoder()
+		ae.ByteOrder = binary.BigEndian
+		if original {
+			ae.Nested(1, func(nae *netlink.AttributeEncoder) error {
+				return encodeTuple(nae, sourceAddress, destinationAddress, sourcePort, destinationPort)
+			})
+		}
+		if reply {
+			ae.Nested(2, func(nae *netlink.AttributeEncoder) error {
+				return encodeTuple(nae, destinationAddress, sourceAddress, destinationPort, sourcePort)
+			})
+		}
+		if timeout != 0 {
+			ae.Uint32(7, timeout)
+		}
+
+		attrs, err := ae.Encode()
+		if err != nil {
+			t.Fatalf("failed to encode conntrack attributes: %v", err)
+		}
+
+		return append([]byte{unix.AF_INET, 0, 0, 0}, attrs...)
+	}
+
+	_, err = c.Execute(netlink.Message{
+		Header: netlink.Header{
+			Type:  IPCTNL_MSG_CT_NEW,
+			Flags: netlink.Request | netlink.Acknowledge | netlink.Create | netlink.Excl,
+		},
+		Data: encode(true, true, 30),
+	})
+	if err != nil {
+		t.Fatalf("failed to create conntrack entry: %v", err)
+	}
+
+	defer func() {
+		if err := c.SetReadDeadline(time.Time{}); err != nil {
+			t.Errorf("failed to reset read deadline: %v", err)
+			return
+		}
+		_, err := c.Execute(netlink.Message{
+			Header: netlink.Header{
+				Type:  IPCTNL_MSG_CT_DELETE,
+				Flags: netlink.Request | netlink.Acknowledge,
+			},
+			Data: encode(true, false, 0),
+		})
+		if err != nil {
+			t.Errorf("failed to delete conntrack entry: %v", err)
+		}
+	}()
+
+	if err := c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+
+	msgs, err := c.Execute(netlink.Message{
+		Header: netlink.Header{
+			Type:  IPCTNL_MSG_CT_GET,
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+		Data: encode(false, true, 0),
+	})
+	if err != nil {
+		t.Fatalf("failed to get conntrack entry: %v", err)
+	}
+
+	if want, got := 2, len(msgs); want != got {
+		t.Fatalf("unexpected message count:\n- want: %v\n-  got: %v", want, got)
+	}
+	if want, got := IPCTNL_MSG_CT_NEW, msgs[0].Header.Type; want != got {
+		t.Fatalf("unexpected conntrack reply type:\n- want: %v\n-  got: %v", want, got)
+	}
+	if msgs[0].Header.Flags&netlink.Multi == 0 {
+		t.Fatalf("conntrack reply does not have multi flag: %v", msgs[0].Header.Flags)
+	}
+	if want, got := netlink.Error, msgs[1].Header.Type; want != got {
+		t.Fatalf("unexpected acknowledgement type:\n- want: %v\n-  got: %v", want, got)
+	}
+	if msgs[1].Header.Flags&netlink.Multi != 0 {
+		t.Fatalf("acknowledgement has multi flag: %v", msgs[1].Header.Flags)
 	}
 }
 

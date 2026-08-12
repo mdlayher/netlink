@@ -123,9 +123,8 @@ func (c *Conn) Close() error {
 }
 
 // Execute sends a single Message to netlink using Send, receives one or more
-// replies, and then checks the validity of the replies against the request
-// using Validate. If the request asks for an acknowledgement, Execute receives
-// replies until it encounters an Error message with error 0 (an ACK) or Done.
+// replies using Receive, and then checks the validity of the replies against
+// the request using Validate.
 //
 // Execute acquires a lock for the duration of the function call which blocks
 // concurrent calls to Send, SendMessages, and Receive, in order to ensure
@@ -144,7 +143,7 @@ func (c *Conn) Execute(m Message) ([]Message, error) {
 		return nil, err
 	}
 
-	res, err := c.lockedReceive(req.Header.Flags&Acknowledge != 0)
+	res, err := c.lockedReceive()
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +240,7 @@ func (c *Conn) Receive() ([]Message, error) {
 	c.receiveMu.Lock()
 	defer c.receiveMu.Unlock()
 
-	return c.lockedReceive(false)
+	return c.lockedReceive()
 }
 
 // ReceiveIter returns an iterator which can be used to receive messages from
@@ -260,7 +259,7 @@ func (c *Conn) ReceiveIter() iter.Seq2[Message, error] {
 		c.receiveMu.Lock()
 		defer c.receiveMu.Unlock()
 
-		for msg, err := range c.lockedReceiveIter(false) {
+		for msg, err := range c.lockedReceiveIter() {
 			if err != nil {
 				c.debug(func(d *debugger) {
 					d.debugf(1, "recv: err: %v", err)
@@ -280,13 +279,12 @@ func (c *Conn) ReceiveIter() iter.Seq2[Message, error] {
 }
 
 // lockedReceive implements Receive, but must be called with c.mu acquired for reading.
-// If waitForAck is true, it receives messages until an Error message with
-// error 0 (an ACK) or Done is encountered. We rely on the kernel to deal with
-// concurrent reads and writes to the netlink socket itself.
-func (c *Conn) lockedReceive(waitForAck bool) ([]Message, error) {
+// We rely on the kernel to deal with concurrent reads and writes to the netlink
+// socket itself.
+func (c *Conn) lockedReceive() ([]Message, error) {
 	var msgs []Message
 
-	for m, err := range c.lockedReceiveIter(waitForAck) {
+	for m, err := range c.lockedReceiveIter() {
 		if err != nil {
 			c.debug(func(d *debugger) {
 				d.debugf(1, "recv: err: %v", err)
@@ -306,9 +304,8 @@ func (c *Conn) lockedReceive(waitForAck bool) ([]Message, error) {
 
 // lockedReceiveIter returns an iterator which can be used to receive messages
 // from netlink, but must be called with c.mu acquired for the duration of the
-// iteration. If waitForAck is true, it receives messages until an Error
-// message with error 0 (an ACK) or Done is encountered.
-func (c *Conn) lockedReceiveIter(waitForAck bool) iter.Seq2[Message, error] {
+// iteration.
+func (c *Conn) lockedReceiveIter() iter.Seq2[Message, error] {
 	return func(yield func(Message, error) bool) {
 		// NB: All non-nil errors returned from this function *must* be of type
 		// OpError in order to maintain the appropriate contract with callers of
@@ -330,6 +327,7 @@ func (c *Conn) lockedReceiveIter(waitForAck bool) iter.Seq2[Message, error] {
 		}
 
 		for {
+			more = false
 			for m, err := range c.sock.ReceiveIter() {
 				if err != nil {
 					send(Message{}, newOpError("receive", err))
@@ -353,15 +351,6 @@ func (c *Conn) lockedReceiveIter(waitForAck bool) iter.Seq2[Message, error] {
 				}
 
 				send(m, nil)
-
-				// An ACK can arrive after one or more data messages. checkMessage returns an
-				// error for an Error message with a nonzero error code, so any Error message
-				// here is an ACK. Stop on that ACK or Done, matching YNL's receive path.
-				// Netlink message types: https://docs.kernel.org/userspace-api/netlink/intro.html#netlink-message-types
-				// YNL receive path: https://github.com/torvalds/linux/blob/v7.1/tools/net/ynl/lib/ynl.c#L561-L612
-				if m.Header.Type == Error || m.Header.Type == Done {
-					return
-				}
 				if stopped && !more {
 					// The user has stopped iterating and there are no more messages
 					// to read.
@@ -369,7 +358,7 @@ func (c *Conn) lockedReceiveIter(waitForAck bool) iter.Seq2[Message, error] {
 				}
 			}
 
-			if !more && !waitForAck {
+			if !more {
 				return
 			}
 		}
