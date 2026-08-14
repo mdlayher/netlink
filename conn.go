@@ -327,6 +327,7 @@ func (c *Conn) lockedReceiveIter() iter.Seq2[Message, error] {
 		}
 
 		for {
+			more = false
 			for m, err := range c.sock.ReceiveIter() {
 				if err != nil {
 					send(Message{}, newOpError("receive", err))

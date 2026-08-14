@@ -124,6 +124,54 @@ func TestConnExecuteMultipart(t *testing.T) {
 	}
 }
 
+func TestConnExecuteMultiReplyFollowedByAcknowledgement(t *testing.T) {
+	const sequence = 1
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Flags:    netlink.Request | netlink.Acknowledge,
+			Sequence: sequence,
+		},
+	}
+
+	replies := []netlink.Message{
+		{
+			Header: netlink.Header{
+				Flags:    netlink.Multi,
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: []byte{0xff},
+		},
+		{
+			Header: netlink.Header{
+				Type:     netlink.Error,
+				Sequence: sequence,
+				PID:      1,
+			},
+			Data: make([]byte, 4),
+		},
+	}
+
+	c := nltest.Dial(func(reqs []netlink.Message) ([]netlink.Message, error) {
+		if len(reqs) == 0 {
+			return nil, errors.New("unexpected extra receive")
+		}
+
+		return replies, nil
+	})
+	defer c.Close()
+
+	got, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+
+	if diff := cmp.Diff(replies, got); diff != "" {
+		t.Fatalf("unexpected replies (-want +got):\n%s", diff)
+	}
+}
+
 func TestConnExecuteNoMessages(t *testing.T) {
 	c := nltest.Dial(func(_ []netlink.Message) ([]netlink.Message, error) {
 		return nil, io.EOF
