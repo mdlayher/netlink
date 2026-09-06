@@ -1,6 +1,6 @@
 module github.com/mdlayher/netlink
 
-go 1.25.0
+go 1.26.0
 
 retract (
 	// contains a bug where `netlink.Conn.Receive` blocks concurrent calls to
