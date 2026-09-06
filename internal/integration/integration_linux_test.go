@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package integration_test
 
@@ -433,6 +432,6 @@ func shell(t *testing.T, name string, arg ...string) {
 	}
 }
 
-func panicf(format string, a ...interface{}) {
+func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
 }
