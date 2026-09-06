@@ -14,8 +14,8 @@ require (
 
 require (
 	github.com/mdlayher/genetlink v1.4.0 // indirect
-	github.com/mdlayher/socket v0.6.1 // indirect
-	golang.org/x/sync v0.20.0 // indirect
+	github.com/mdlayher/socket v0.7.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 )
 
 // We require a recent release, but in reality the integration tests should
