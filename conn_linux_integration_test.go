@@ -349,12 +349,6 @@ func TestIntegrationConnConcurrentSerializeExecute(t *testing.T) {
 func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 	t.Parallel()
 
-	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
-	defer c.Close()
-
 	const (
 		GENL_ID_CTRL       = 0x10 //nolint:revive
 		CTRL_CMD_GETFAMILY = 0x03 //nolint:revive
@@ -372,15 +366,32 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
 	}
 
-	msgs, err := c.Execute(req)
+	baseline, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	msgs, err := baseline.Execute(req)
 	if err != nil {
 		t.Fatalf("failed to execute request: %v", err)
 	}
 	want := len(msgs)
+	if err := baseline.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
 
 	for range iterations {
+		// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
+		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+		if err != nil {
+			t.Fatalf("failed to dial: %v", err)
+		}
+
 		if _, err := c.Send(req); err != nil {
 			t.Fatalf("failed to send request: %v", err)
+		}
+
+		if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+			t.Fatalf("failed to set deadline: %v", err)
 		}
 
 		var wg sync.WaitGroup
@@ -392,9 +403,6 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 			go func(worker int) {
 				defer wg.Done()
 
-				if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
-					panicf("failed to set deadline: %v", err)
-				}
 				msgs, err := c.Receive()
 				if errors.Is(err, os.ErrDeadlineExceeded) {
 					// Timed out, which means we likely had a deadlock in Receive.
@@ -413,6 +421,10 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 		}
 
 		wg.Wait()
+
+		if err := c.Close(); err != nil {
+			t.Fatalf("failed to close: %v", err)
+		}
 	}
 }
 
@@ -421,12 +433,6 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 // call cannot steal multipart message fragments mid-Receive.
 func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 	t.Parallel()
-
-	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
-	defer c.Close()
 
 	const (
 		GENL_ID_CTRL       = 0x10 //nolint:revive
@@ -445,15 +451,32 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
 	}
 
-	msgs, err := c.Execute(req)
+	baseline, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	msgs, err := baseline.Execute(req)
 	if err != nil {
 		t.Fatalf("failed to execute request: %v", err)
 	}
 	want := len(msgs)
+	if err := baseline.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
 
 	for range iterations {
+		// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
+		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+		if err != nil {
+			t.Fatalf("failed to dial: %v", err)
+		}
+
 		if _, err := c.Send(req); err != nil {
 			t.Fatalf("failed to send request: %v", err)
+		}
+
+		if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+			t.Fatalf("failed to set deadline: %v", err)
 		}
 
 		var wg sync.WaitGroup
@@ -464,10 +487,6 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 			// one should succeed and the other should time out.
 			go func(worker int) {
 				defer wg.Done()
-
-				if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
-					panicf("failed to set deadline: %v", err)
-				}
 
 				var msgs []netlink.Message
 				for m, err := range c.ReceiveIter() {
@@ -490,6 +509,10 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 		}
 
 		wg.Wait()
+
+		if err := c.Close(); err != nil {
+			t.Fatalf("failed to close: %v", err)
+		}
 	}
 }
 
