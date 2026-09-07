@@ -17,5 +17,19 @@ linters:
           - errcheck
         path: _test.go
 formatters:
-  exclusions:
-    generated: lax
+  enable:
+    - gci
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/mdlayher/netlink)
+    gofumpt:
+      extra:
+        group-params: true
+    goimports:
+      local-prefixes:
+        - github.com/mdlayher/netlink

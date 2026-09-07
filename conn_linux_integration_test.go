@@ -18,10 +18,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nltest"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nltest"
 )
 
 func TestIntegrationConn(t *testing.T) {

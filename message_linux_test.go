@@ -8,8 +8,9 @@ import (
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/sys/unix"
+
+	"github.com/mdlayher/netlink/nlenc"
 )
 
 func TestHeaderMemoryLayoutLinux(t *testing.T) {

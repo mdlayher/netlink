@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
-	"golang.org/x/sys/unix"
 )
 
 func TestLinuxDialError(t *testing.T) {

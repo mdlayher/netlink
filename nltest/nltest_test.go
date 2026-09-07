@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/sys/cpu"
+
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
-	"golang.org/x/sys/cpu"
 )
 
 func TestConnSend(t *testing.T) {

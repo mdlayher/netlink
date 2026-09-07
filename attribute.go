@@ -510,7 +510,7 @@ func (ae *AttributeEncoder) Uint8(typ uint16, v uint8) {
 }
 
 // Uint16 encodes uint16 data into an Attribute specified by typ.
-func (ae *AttributeEncoder) Uint16(typ uint16, v uint16) {
+func (ae *AttributeEncoder) Uint16(typ, v uint16) {
 	if ae.err != nil {
 		return
 	}

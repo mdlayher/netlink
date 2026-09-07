@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nltest"
 	"golang.org/x/sys/cpu"
 	"golang.org/x/sys/unix"
+
+	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nltest"
 )
 
 func TestConnReceiveErrorLinux(t *testing.T) {
