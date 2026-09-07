@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/mdlayher/netlink/nlenc"
 )
 

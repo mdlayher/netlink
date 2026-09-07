@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+
 	"github.com/mdlayher/netlink/internal/integration/testutil"
 )
 

@@ -188,7 +188,7 @@ func nlmsgFprintf(fd io.Writer, m Message, colorize bool) {
 }
 
 // ternary returns iftrue if cond is true, else iffalse.
-func ternary(cond bool, iftrue string, iffalse string) string {
+func ternary(cond bool, iftrue, iffalse string) string {
 	if cond {
 		return iftrue
 	}

@@ -10,7 +10,7 @@ const nlmsgAlignTo = 4
 
 // #define NLMSG_ALIGN(length) ( ((length)+NLMSG_ALIGNTO-1) & ~(NLMSG_ALIGNTO-1) )
 func nlmsgAlign(length int) int {
-	return ((length) + nlmsgAlignTo - 1) & ^(nlmsgAlignTo - 1)
+	return (length + nlmsgAlignTo - 1) & ^(nlmsgAlignTo - 1)
 }
 
 // #define NLMSG_LENGTH(length) ((length) + NLMSG_HDRLEN)
@@ -26,7 +26,7 @@ const nlaAlignTo = 4
 
 // #define NLA_ALIGN(length)          (((length) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 func nlaAlign(length int) int {
-	return ((length) + nlaAlignTo - 1) & ^(nlaAlignTo - 1)
+	return (length + nlaAlignTo - 1) & ^(nlaAlignTo - 1)
 }
 
 // Because this package's Attribute type contains a byte slice, unsafe.Sizeof

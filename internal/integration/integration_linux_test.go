@@ -15,9 +15,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/jsimonetti/rtnetlink"
 	"github.com/mdlayher/ethtool"
-	"github.com/mdlayher/netlink"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
+
+	"github.com/mdlayher/netlink"
 )
 
 func TestIntegrationConnMulticast(t *testing.T) {

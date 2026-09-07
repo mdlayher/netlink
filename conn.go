@@ -317,7 +317,7 @@ func (c *Conn) lockedReceiveIter() iter.Seq2[Message, error] {
 		var more, stopped bool
 		// send is a helper function to prevent yielding messages after the user
 		// has stopped iterating
-		var send = func(m Message, err error) {
+		send := func(m Message, err error) {
 			if stopped {
 				return
 			}

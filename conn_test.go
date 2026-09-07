@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nltest"
 )
