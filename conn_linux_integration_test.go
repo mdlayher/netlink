@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -367,65 +368,60 @@ func TestIntegrationConnConcurrentSerializeReceive(t *testing.T) {
 		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
 	}
 
-	baseline, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
-	msgs, err := baseline.Execute(req)
-	if err != nil {
-		t.Fatalf("failed to execute request: %v", err)
-	}
-	want := len(msgs)
-	if err := baseline.Close(); err != nil {
-		t.Fatalf("failed to close: %v", err)
-	}
-
 	for range iterations {
-		// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
-		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-		if err != nil {
-			t.Fatalf("failed to dial: %v", err)
-		}
+		retryIfFamiliesChanged(t, func(families []string) error {
+			want := len(families)
 
-		if _, err := c.Send(req); err != nil {
-			t.Fatalf("failed to send request: %v", err)
-		}
+			// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
+			c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+			if err != nil {
+				t.Fatalf("failed to dial: %v", err)
+			}
 
-		if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
-			t.Fatalf("failed to set deadline: %v", err)
-		}
+			if _, err := c.Send(req); err != nil {
+				t.Fatalf("failed to send request: %v", err)
+			}
 
-		var wg sync.WaitGroup
-		wg.Add(workers)
+			if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+				t.Fatalf("failed to set deadline: %v", err)
+			}
 
-		for w := range workers {
-			// Each worker will try to receive the entire multipart message, but only
-			// one should succeed and the other should time out.
-			go func(worker int) {
-				defer wg.Done()
+			errs := make([]error, workers)
 
-				msgs, err := c.Receive()
-				if errors.Is(err, os.ErrDeadlineExceeded) {
-					// Timed out, which means we likely had a deadlock in Receive.
-					// This is expected if the other worker consumed the entire
-					// multipart message
-					return
-				}
-				if err != nil {
-					panicf("failed to receive: %v", err)
-				}
+			var wg sync.WaitGroup
+			wg.Add(workers)
 
-				if diff := cmp.Diff(want, len(msgs)); diff != "" {
-					panicf("unexpected message count in worker %d (-want +got):\n%s", worker, diff)
-				}
-			}(w)
-		}
+			for w := range workers {
+				// Each worker will try to receive the entire multipart message, but only
+				// one should succeed and the other should time out.
+				go func(worker int) {
+					defer wg.Done()
 
-		wg.Wait()
+					msgs, err := c.Receive()
+					if errors.Is(err, os.ErrDeadlineExceeded) {
+						// Timed out, which means we likely had a deadlock in Receive.
+						// This is expected if the other worker consumed the entire
+						// multipart message
+						return
+					}
+					if err != nil {
+						panicf("failed to receive: %v", err)
+					}
 
-		if err := c.Close(); err != nil {
-			t.Fatalf("failed to close: %v", err)
-		}
+					if diff := cmp.Diff(want, len(msgs)); diff != "" {
+						errs[worker] = fmt.Errorf("unexpected message count in worker %d (-want +got):\n%s", worker, diff)
+					}
+				}(w)
+			}
+
+			wg.Wait()
+
+			if err := c.Close(); err != nil {
+				t.Fatalf("failed to close: %v", err)
+			}
+
+			return errors.Join(errs...)
+		})
 	}
 }
 
@@ -452,68 +448,63 @@ func TestIntegrationConnConcurrentSerializeReceiveIter(t *testing.T) {
 		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
 	}
 
-	baseline, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
-	msgs, err := baseline.Execute(req)
-	if err != nil {
-		t.Fatalf("failed to execute request: %v", err)
-	}
-	want := len(msgs)
-	if err := baseline.Close(); err != nil {
-		t.Fatalf("failed to close: %v", err)
-	}
-
 	for range iterations {
-		// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
-		c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
-		if err != nil {
-			t.Fatalf("failed to dial: %v", err)
-		}
+		retryIfFamiliesChanged(t, func(families []string) error {
+			want := len(families)
 
-		if _, err := c.Send(req); err != nil {
-			t.Fatalf("failed to send request: %v", err)
-		}
+			// Fresh connection per iteration to avoid stale fragments from a timed-out dump.
+			c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+			if err != nil {
+				t.Fatalf("failed to dial: %v", err)
+			}
 
-		if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
-			t.Fatalf("failed to set deadline: %v", err)
-		}
+			if _, err := c.Send(req); err != nil {
+				t.Fatalf("failed to send request: %v", err)
+			}
 
-		var wg sync.WaitGroup
-		wg.Add(workers)
+			if err := c.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+				t.Fatalf("failed to set deadline: %v", err)
+			}
 
-		for w := range workers {
-			// Each worker will try to receive the entire multipart message, but only
-			// one should succeed and the other should time out.
-			go func(worker int) {
-				defer wg.Done()
+			errs := make([]error, workers)
 
-				var msgs []netlink.Message
-				for m, err := range c.ReceiveIter() {
-					if errors.Is(err, os.ErrDeadlineExceeded) {
-						// Timed out, which means we likely had a deadlock in Receive.
-						// This is expected if the other worker consumed the entire
-						// multipart message
-						return
+			var wg sync.WaitGroup
+			wg.Add(workers)
+
+			for w := range workers {
+				// Each worker will try to receive the entire multipart message, but only
+				// one should succeed and the other should time out.
+				go func(worker int) {
+					defer wg.Done()
+
+					var msgs []netlink.Message
+					for m, err := range c.ReceiveIter() {
+						if errors.Is(err, os.ErrDeadlineExceeded) {
+							// Timed out, which means we likely had a deadlock in Receive.
+							// This is expected if the other worker consumed the entire
+							// multipart message
+							return
+						}
+						if err != nil {
+							panicf("failed to receive: %v", err)
+						}
+						msgs = append(msgs, m)
 					}
-					if err != nil {
-						panicf("failed to receive: %v", err)
+
+					if diff := cmp.Diff(want, len(msgs)); diff != "" {
+						errs[worker] = fmt.Errorf("unexpected message count in worker %d (-want +got):\n%s", worker, diff)
 					}
-					msgs = append(msgs, m)
-				}
+				}(w)
+			}
 
-				if diff := cmp.Diff(want, len(msgs)); diff != "" {
-					panicf("unexpected message count in worker %d (-want +got):\n%s", worker, diff)
-				}
-			}(w)
-		}
+			wg.Wait()
 
-		wg.Wait()
+			if err := c.Close(); err != nil {
+				t.Fatalf("failed to close: %v", err)
+			}
 
-		if err := c.Close(); err != nil {
-			t.Fatalf("failed to close: %v", err)
-		}
+			return errors.Join(errs...)
+		})
 	}
 }
 
@@ -607,26 +598,30 @@ func TestReceiveIter(t *testing.T) {
 		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
 	}
 
-	want, err := c.Execute(req)
-	if err != nil {
-		t.Fatalf("failed to execute request: %v", err)
-	}
-	var got []netlink.Message
-
-	if _, err := c.Send(req); err != nil {
-		t.Fatalf("failed to send request: %v", err)
-	}
-	for m, err := range c.ReceiveIter() {
+	retryIfFamiliesChanged(t, func([]string) error {
+		want, err := c.Execute(req)
 		if err != nil {
-			t.Fatalf("failed to receive message: %v", err)
+			t.Fatalf("failed to execute request: %v", err)
 		}
-		m.Header.Sequence--
-		got = append(got, m)
-	}
+		var got []netlink.Message
 
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("unexpected messages (-want +got):\n%s", diff)
-	}
+		if _, err := c.Send(req); err != nil {
+			t.Fatalf("failed to send request: %v", err)
+		}
+		for m, err := range c.ReceiveIter() {
+			if err != nil {
+				t.Fatalf("failed to receive message: %v", err)
+			}
+			m.Header.Sequence--
+			got = append(got, m)
+		}
+
+		if diff := cmp.Diff(want, got); diff != "" {
+			return fmt.Errorf("unexpected messages (-want +got):\n%s", diff)
+		}
+
+		return nil
+	})
 }
 
 func TestIntegrationConnSetBuffersSyscallConn(t *testing.T) {
@@ -1590,4 +1585,75 @@ func shell(t *testing.T, name string, arg ...string) {
 
 func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
+}
+
+// retryIfFamiliesChanged runs fn with the registered generic netlink families,
+// retrying if they changed meanwhile, e.g. due to a module being loaded.
+func retryIfFamiliesChanged(t *testing.T, fn func(families []string) error) {
+	t.Helper()
+
+	for {
+		before := genlFamilies(t)
+		err := fn(before)
+
+		if after := genlFamilies(t); !slices.Equal(before, after) {
+			t.Logf("generic netlink families changed, retrying:\nbefore: %v\n after: %v",
+				before, after)
+			continue
+		}
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return
+	}
+}
+
+// genlFamilies returns the names of the registered generic netlink families.
+func genlFamilies(t *testing.T) []string {
+	t.Helper()
+
+	const (
+		GENL_ID_CTRL          = 0x10 //nolint:revive
+		CTRL_CMD_GETFAMILY    = 0x03 //nolint:revive
+		CTRL_ATTR_FAMILY_NAME = 0x02 //nolint:revive
+	)
+
+	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer c.Close()
+
+	msgs, err := c.Execute(netlink.Message{
+		Header: netlink.Header{
+			Type:  GENL_ID_CTRL,
+			Flags: netlink.Request | netlink.Dump,
+		},
+		Data: []byte{CTRL_CMD_GETFAMILY, 1, 0, 0},
+	})
+	if err != nil {
+		t.Fatalf("failed to dump families: %v", err)
+	}
+
+	names := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		// Skip the genetlink header.
+		ad, err := netlink.NewAttributeDecoder(m.Data[4:])
+		if err != nil {
+			t.Fatalf("failed to create attribute decoder: %v", err)
+		}
+
+		for ad.Next() {
+			if ad.Type() == CTRL_ATTR_FAMILY_NAME {
+				names = append(names, ad.String())
+			}
+		}
+		if err := ad.Err(); err != nil {
+			t.Fatalf("failed to decode attributes: %v", err)
+		}
+	}
+
+	return names
 }
