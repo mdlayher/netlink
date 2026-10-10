@@ -323,8 +323,6 @@ func checkMessage(m Message) error {
 		Sequence: m.Header.Sequence,
 	}
 
-	// TODO(mdlayher): investigate the Capped flag.
-
 	if m.Header.Flags&AcknowledgeTLVs == 0 {
 		// No extended acknowledgement.
 		return oerr
@@ -339,14 +337,21 @@ func checkMessage(m Message) error {
 			return newOpError("receive", errShortErrorMessage)
 		}
 
-		// The TLVs should be at the offset indicated by the nlmsghdr.length,
-		// plus the offset where the header began. But make sure the calculated
-		// offset is still in-bounds.
-		h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+nlmsgHeaderLen][0]))
-		off = endErrno + int(h.Length)
+		if m.Header.Flags&Capped != 0 {
+			// Only the request's nlmsghdr was echoed back, but its length
+			// still reflects the full request, so the TLVs immediately follow
+			// the header.
+			off = endErrno + nlmsgHeaderLen
+		} else {
+			// The TLVs should be at the offset indicated by the
+			// nlmsghdr.length, plus the offset where the header began. But
+			// make sure the calculated offset is still in-bounds.
+			h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+nlmsgHeaderLen][0]))
+			off = endErrno + int(h.Length)
 
-		if len(m.Data) < off {
-			return newOpError("receive", errShortErrorMessage)
+			if len(m.Data) < off {
+				return newOpError("receive", errShortErrorMessage)
+			}
 		}
 	} else {
 		// There is no nlmsghdr preceding the TLVs, parse them directly.
