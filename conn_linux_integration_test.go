@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/user"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1525,6 +1526,69 @@ func TestIntegrationConntrackGetMultiReplyFollowedByAcknowledgement(t *testing.T
 	}
 	if msgs[1].Header.Flags&netlink.Multi != 0 {
 		t.Fatalf("acknowledgement has multi flag: %v", msgs[1].Header.Flags)
+	}
+}
+
+func TestIntegrationConnExtendedAcknowledgeCapped(t *testing.T) {
+	for _, capped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("capped %t", capped), func(t *testing.T) {
+			c, err := netlink.Dial(unix.NETLINK_ROUTE, nil)
+			if err != nil {
+				t.Fatalf("failed to dial netlink: %v", err)
+			}
+			defer c.Close()
+
+			if err := c.SetOption(netlink.ExtendedAcknowledge, true); err != nil {
+				if errors.Is(err, unix.ENOPROTOOPT) {
+					t.Skipf("skipping, extended acknowledge not supported by this kernel: %v", err)
+				}
+
+				t.Fatalf("failed to set extended acknowledge: %v", err)
+			}
+
+			if err := c.SetOption(netlink.CapAcknowledge, capped); err != nil {
+				t.Fatalf("failed to set cap acknowledge: %v", err)
+			}
+
+			// Send a RTM_GETLINK request with an IFLA_IFNAME attribute longer
+			// than IFNAMSIZ to trigger an ERANGE error with an extended
+			// acknowledgement message.
+			attrs, err := netlink.MarshalAttributes([]netlink.Attribute{{
+				Type: unix.IFLA_IFNAME,
+				Data: []byte(strings.Repeat("x", 2*unix.IFNAMSIZ) + "\x00"),
+			}})
+			if err != nil {
+				t.Fatalf("failed to marshal attributes: %v", err)
+			}
+
+			ifi := make([]byte, unix.SizeofIfInfomsg)
+
+			_, err = c.Execute(netlink.Message{
+				Header: netlink.Header{
+					Type:  unix.RTM_GETLINK,
+					Flags: netlink.Request,
+				},
+				Data: append(ifi, attrs...),
+			})
+
+			var oerr *netlink.OpError
+			if !errors.As(err, &oerr) {
+				t.Fatalf("expected OpError, but got: %v", err)
+			}
+			if !errors.Is(oerr, unix.ERANGE) {
+				t.Fatalf("expected ERANGE, but got: %v", oerr)
+			}
+			if oerr.Message == "" {
+				t.Fatalf("expected extended acknowledgement message, but got: %v", oerr)
+			}
+
+			// Where the invalid attribute starts within the sent request
+			ifnameOffset := unix.SizeofNlMsghdr + len(ifi)
+			if oerr.Offset != ifnameOffset {
+				t.Fatalf("expected offset %d (IFLA_IFNAME), but got: %d",
+					ifnameOffset, oerr.Offset)
+			}
+		})
 	}
 }
 

@@ -119,13 +119,19 @@ func nlmsgFprintf(fd io.Writer, m Message, colorize bool) {
 		if len(m.Data) < endErrno+nlmsgHeaderLen {
 			return
 		}
-		// The TLVs should be at the offset indicated by the nlmsghdr.length,
-		// plus the offset where the header began. But make sure the calculated
-		// offset is still in-bounds.
-		h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+nlmsgHeaderLen][0]))
-		off = endErrno + int(h.Length)
-		if len(m.Data) < off {
-			return
+		if m.Header.Flags&Capped != 0 {
+			// Only the request's nlmsghdr was echoed back, so the TLVs
+			// immediately follow the header.
+			off = endErrno + nlmsgHeaderLen
+		} else {
+			// The TLVs should be at the offset indicated by the
+			// nlmsghdr.length, plus the offset where the header began. But
+			// make sure the calculated offset is still in-bounds.
+			h := *(*Header)(unsafe.Pointer(&m.Data[endErrno : endErrno+nlmsgHeaderLen][0]))
+			off = endErrno + int(h.Length)
+			if len(m.Data) < off {
+				return
+			}
 		}
 	} else {
 		// There is no nlmsghdr preceding the TLVs, parse them directly.

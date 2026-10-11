@@ -79,7 +79,48 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 						},
 						Data: []byte{0xff, 0xff, 0xff, 0xff},
 					},
+					false,
 					// The actual extended acknowledgement TLVs.
+					[]Attribute{
+						{
+							Type: 1,
+							Data: nlenc.Bytes("bad request"),
+						},
+						{
+							Type: 2,
+							Data: nlenc.Uint32Bytes(2),
+						},
+					},
+				),
+			},
+			err: &OpError{
+				Op:       "receive",
+				Err:      unix.Errno(1),
+				Message:  "bad request",
+				Offset:   2,
+				Sequence: 3258842681,
+			},
+		},
+		{
+			name: "error capped",
+			m: Message{
+				Header: Header{
+					Type: Error,
+					// The kernel only echoes the request's header, but leaves
+					// the header's length set to the full request length.
+					Flags:    Capped | AcknowledgeTLVs,
+					Sequence: 3258842681,
+				},
+				Data: packExtACK(
+					-1,
+					// A large request, of which only the header is echoed.
+					&Message{
+						Header: Header{
+							Sequence: 3258842681,
+						},
+						Data: make([]byte, 1024),
+					},
+					true,
 					[]Attribute{
 						{
 							Type: 1,
@@ -113,6 +154,7 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 					-1,
 					// No message, straight to TLVs.
 					nil,
+					false,
 					[]Attribute{
 						{
 							Type: 1,
@@ -144,8 +186,9 @@ func Test_checkMessageExtendedAcknowledgementTLVs(t *testing.T) {
 	}
 }
 
-// packExtACK packs an extended acknowledgement response.
-func packExtACK(errno int32, m *Message, tlvs []Attribute) []byte {
+// packExtACK packs an extended acknowledgement response. If capped is set, only
+// the header of m is echoed back, as the kernel does with NETLINK_CAP_ACK.
+func packExtACK(errno int32, m *Message, capped bool, tlvs []Attribute) []byte {
 	b := nlenc.Int32Bytes(errno)
 
 	if m != nil {
@@ -154,6 +197,10 @@ func packExtACK(errno int32, m *Message, tlvs []Attribute) []byte {
 		mb, err := m.MarshalBinary()
 		if err != nil {
 			panicf("failed to marshal message: %v", err)
+		}
+
+		if capped {
+			mb = mb[:nlmsgHeaderLen]
 		}
 
 		b = append(b, mb...)
