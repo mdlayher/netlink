@@ -4,32 +4,152 @@ package netlink
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/sys/unix"
 )
 
+type debugTestAttribute func(*AttributeEncoder)
+
+func debugStringAttribute(typ uint16, value string) debugTestAttribute {
+	return func(ae *AttributeEncoder) { ae.String(typ, value) }
+}
+
+func debugUint32Attribute(typ uint16, value uint32) debugTestAttribute {
+	return func(ae *AttributeEncoder) { ae.Uint32(typ, value) }
+}
+
+func debugBytesAttribute(typ uint16, value []byte) debugTestAttribute {
+	return func(ae *AttributeEncoder) { ae.Bytes(typ, value) }
+}
+
+func debugNestedAttribute(typ uint16, attrs ...debugTestAttribute) debugTestAttribute {
+	return func(ae *AttributeEncoder) {
+		ae.Nested(typ, func(nae *AttributeEncoder) error {
+			for _, attr := range attrs {
+				attr(nae)
+			}
+			return nil
+		})
+	}
+}
+
+func debugExpression(name string, attrs ...debugTestAttribute) debugTestAttribute {
+	return debugNestedAttribute(
+		unix.NFTA_LIST_ELEM,
+		debugStringAttribute(unix.NFTA_EXPR_NAME, name),
+		debugNestedAttribute(unix.NFTA_EXPR_DATA, attrs...),
+	)
+}
+
+func debugMetaExpression(key, dreg uint32) debugTestAttribute {
+	return debugExpression(
+		"meta",
+		debugUint32Attribute(unix.NFTA_META_KEY, key),
+		debugUint32Attribute(unix.NFTA_META_DREG, dreg),
+	)
+}
+
+func debugCmpExpression(sreg, op uint32, value []byte) debugTestAttribute {
+	return debugExpression(
+		"cmp",
+		debugUint32Attribute(unix.NFTA_CMP_SREG, sreg),
+		debugUint32Attribute(unix.NFTA_CMP_OP, op),
+		debugNestedAttribute(
+			unix.NFTA_CMP_DATA,
+			debugBytesAttribute(unix.NFTA_DATA_VALUE, value),
+		),
+	)
+}
+
+func debugPayloadExpression(dreg, base, offset, length uint32) debugTestAttribute {
+	return debugExpression(
+		"payload",
+		debugUint32Attribute(unix.NFTA_PAYLOAD_DREG, dreg),
+		debugUint32Attribute(unix.NFTA_PAYLOAD_BASE, base),
+		debugUint32Attribute(unix.NFTA_PAYLOAD_OFFSET, offset),
+		debugUint32Attribute(unix.NFTA_PAYLOAD_LEN, length),
+	)
+}
+
+func debugImmediateExpression(dreg uint32, value []byte) debugTestAttribute {
+	return debugExpression(
+		"immediate",
+		debugUint32Attribute(unix.NFTA_IMMEDIATE_DREG, dreg),
+		debugNestedAttribute(
+			unix.NFTA_IMMEDIATE_DATA,
+			debugBytesAttribute(unix.NFTA_DATA_VALUE, value),
+		),
+	)
+}
+
+func debugNatExpression(
+	typ, family, addressRegister, portMinRegister, portMaxRegister uint32,
+) debugTestAttribute {
+	return debugExpression(
+		"nat",
+		debugUint32Attribute(unix.NFTA_NAT_TYPE, typ),
+		debugUint32Attribute(unix.NFTA_NAT_FAMILY, family),
+		debugUint32Attribute(unix.NFTA_NAT_REG_ADDR_MIN, addressRegister),
+		debugUint32Attribute(unix.NFTA_NAT_REG_PROTO_MIN, portMinRegister),
+		debugUint32Attribute(unix.NFTA_NAT_REG_PROTO_MAX, portMaxRegister),
+	)
+}
+
+func debugBigEndianUint16(value uint16) []byte {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, value)
+	return b
+}
+
+func debugNftablesMessageData(t *testing.T, attrs ...debugTestAttribute) []byte {
+	t.Helper()
+
+	ae := NewAttributeEncoder()
+
+	// nftables integer attribute payloads use network byte order. Attribute
+	// headers are written in native byte order by MarshalAttributes.
+	ae.ByteOrder = binary.BigEndian
+
+	for _, attr := range attrs {
+		attr(ae)
+	}
+
+	b, err := ae.Encode()
+	if err != nil {
+		t.Fatalf("failed to encode nftables attributes: %v", err)
+	}
+
+	return append([]byte{unix.NFPROTO_IPV4, 0, 0, 0}, b...)
+}
+
 func TestNlmsgFprintf(t *testing.T) {
-	skipBigEndian(t)
-	// netlink messages obtained from https://github.com/google/nftables/blob/e99829fb4f26d75fdd0cfce8ba4632744e72c2bc/nftables_test.go#L245C1-L246C94
+	// nftables messages modeled after https://github.com/google/nftables/blob/e99829fb4f26d75fdd0cfce8ba4632744e72c2bc/nftables_test.go#L245C1-L246C94
 	tests := []struct {
 		name     string
-		m        Message
+		m        func(t *testing.T) Message
 		colorize bool
 		want     string
 	}{
 		{
 			name: "nft add table ip nat",
-			m: Message{
-				Header: Header{
-					Length:   40,
-					Type:     HeaderType(uint16(unix.NFNL_SUBSYS_NFTABLES)<<8 | uint16(unix.NFT_MSG_NEWTABLE)),
-					Flags:    Request,
-					Sequence: 1,
-					PID:      1234,
-				},
-				Data: []byte("\x02\x00\x00\x00\x08\x00\x01\x00\x6e\x61\x74\x00\x08\x00\x02\x00\x00\x00\x00\x00"),
+			m: func(t *testing.T) Message {
+				return Message{
+					Header: Header{
+						Length:   40,
+						Type:     HeaderType(uint16(unix.NFNL_SUBSYS_NFTABLES)<<8 | uint16(unix.NFT_MSG_NEWTABLE)),
+						Flags:    Request,
+						Sequence: 1,
+						PID:      1234,
+					},
+					Data: debugNftablesMessageData(
+						t,
+						debugStringAttribute(unix.NFTA_TABLE_NAME, "nat"),
+						debugUint32Attribute(unix.NFTA_TABLE_FLAGS, 0),
+					),
+				}
 			},
 			colorize: false,
 			want: `----------------	------------------
@@ -48,15 +168,88 @@ func TestNlmsgFprintf(t *testing.T) {
 		},
 		{
 			name: "nft add rule nat prerouting iifname uplink0 udp dport 4070-4090 dnat 192.168.23.2:4070-4090",
-			m: Message{
-				Header: Header{
-					Length:   40,
-					Type:     HeaderType(uint16(unix.NFNL_SUBSYS_NFTABLES)<<8 | uint16(unix.NFT_MSG_NEWRULE)),
-					Flags:    Request,
-					Sequence: 1,
-					PID:      1234,
-				},
-				Data: []byte("\x02\x00\x00\x00\x08\x00\x01\x00\x6e\x61\x74\x00\x0f\x00\x02\x00\x70\x72\x65\x72\x6f\x75\x74\x69\x6e\x67\x00\x00\xf8\x01\x04\x80\x24\x00\x01\x80\x09\x00\x01\x00\x6d\x65\x74\x61\x00\x00\x00\x00\x14\x00\x02\x80\x08\x00\x02\x00\x00\x00\x00\x06\x08\x00\x01\x00\x00\x00\x00\x01\x38\x00\x01\x80\x08\x00\x01\x00\x63\x6d\x70\x00\x2c\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x00\x18\x00\x03\x80\x14\x00\x01\x00\x75\x70\x6c\x69\x6e\x6b\x30\x00\x00\x00\x00\x00\x00\x00\x00\x00\x24\x00\x01\x80\x09\x00\x01\x00\x6d\x65\x74\x61\x00\x00\x00\x00\x14\x00\x02\x80\x08\x00\x02\x00\x00\x00\x00\x10\x08\x00\x01\x00\x00\x00\x00\x01\x2c\x00\x01\x80\x08\x00\x01\x00\x63\x6d\x70\x00\x20\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x00\x0c\x00\x03\x80\x05\x00\x01\x00\x11\x00\x00\x00\x34\x00\x01\x80\x0c\x00\x01\x00\x70\x61\x79\x6c\x6f\x61\x64\x00\x24\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x02\x08\x00\x03\x00\x00\x00\x00\x02\x08\x00\x04\x00\x00\x00\x00\x02\x2c\x00\x01\x80\x08\x00\x01\x00\x63\x6d\x70\x00\x20\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x05\x0c\x00\x03\x80\x06\x00\x01\x00\x0f\xe6\x00\x00\x2c\x00\x01\x80\x08\x00\x01\x00\x63\x6d\x70\x00\x20\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x03\x0c\x00\x03\x80\x06\x00\x01\x00\x0f\xfa\x00\x00\x2c\x00\x01\x80\x0e\x00\x01\x00\x69\x6d\x6d\x65\x64\x69\x61\x74\x65\x00\x00\x00\x18\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x0c\x00\x02\x80\x08\x00\x01\x00\xc0\xa8\x17\x02\x2c\x00\x01\x80\x0e\x00\x01\x00\x69\x6d\x6d\x65\x64\x69\x61\x74\x65\x00\x00\x00\x18\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x02\x0c\x00\x02\x80\x06\x00\x01\x00\x0f\xe6\x00\x00\x2c\x00\x01\x80\x0e\x00\x01\x00\x69\x6d\x6d\x65\x64\x69\x61\x74\x65\x00\x00\x00\x18\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x03\x0c\x00\x02\x80\x06\x00\x01\x00\x0f\xfa\x00\x00\x38\x00\x01\x80\x08\x00\x01\x00\x6e\x61\x74\x00\x2c\x00\x02\x80\x08\x00\x01\x00\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x00\x02\x08\x00\x03\x00\x00\x00\x00\x01\x08\x00\x05\x00\x00\x00\x00\x02\x08\x00\x06\x00\x00\x00\x00\x03"),
+			m: func(t *testing.T) Message {
+				return Message{
+					Header: Header{
+						Length:   40,
+						Type:     HeaderType(uint16(unix.NFNL_SUBSYS_NFTABLES)<<8 | uint16(unix.NFT_MSG_NEWRULE)),
+						Flags:    Request,
+						Sequence: 1,
+						PID:      1234,
+					},
+					Data: debugNftablesMessageData(
+						t,
+						debugStringAttribute(unix.NFTA_RULE_TABLE, "nat"),
+						debugStringAttribute(unix.NFTA_RULE_CHAIN, "prerouting"),
+						debugNestedAttribute(
+							unix.NFTA_RULE_EXPRESSIONS,
+
+							debugMetaExpression(
+								unix.NFT_META_IIFNAME,
+								unix.NFT_REG_1,
+							),
+
+							debugCmpExpression(
+								unix.NFT_REG_1,
+								unix.NFT_CMP_EQ,
+								append([]byte("uplink0"), make([]byte, 9)...),
+							),
+
+							debugMetaExpression(
+								unix.NFT_META_L4PROTO,
+								unix.NFT_REG_1,
+							),
+
+							debugCmpExpression(
+								unix.NFT_REG_1,
+								unix.NFT_CMP_EQ,
+								[]byte{unix.IPPROTO_UDP},
+							),
+
+							debugPayloadExpression(
+								unix.NFT_REG_1,
+								unix.NFT_PAYLOAD_TRANSPORT_HEADER,
+								2,
+								2,
+							),
+
+							debugCmpExpression(
+								unix.NFT_REG_1,
+								unix.NFT_CMP_GTE,
+								debugBigEndianUint16(4070),
+							),
+
+							debugCmpExpression(
+								unix.NFT_REG_1,
+								unix.NFT_CMP_LTE,
+								debugBigEndianUint16(4090),
+							),
+
+							debugImmediateExpression(
+								unix.NFT_REG_1,
+								[]byte{192, 168, 23, 2},
+							),
+
+							debugImmediateExpression(
+								unix.NFT_REG_2,
+								debugBigEndianUint16(4070),
+							),
+
+							debugImmediateExpression(
+								unix.NFT_REG_3,
+								debugBigEndianUint16(4090),
+							),
+
+							debugNatExpression(
+								unix.NFT_NAT_DNAT,
+								unix.NFPROTO_IPV4,
+								unix.NFT_REG_1,
+								unix.NFT_REG_2,
+								unix.NFT_REG_3,
+							),
+						),
+					),
+				}
 			},
 			colorize: false,
 			want: `----------------	------------------
@@ -205,7 +398,8 @@ func TestNlmsgFprintf(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &bytes.Buffer{}
-			nlmsgFprintf(w, tt.m, tt.colorize)
+			m := tt.m(t)
+			nlmsgFprintf(w, m, tt.colorize)
 			got := w.String()
 			if got != tt.want {
 				t.Errorf("nlmsgFprintf() =\n%s,\nwant\n%s\ndiff:\n%s", got, tt.want, cmp.Diff(got, tt.want))

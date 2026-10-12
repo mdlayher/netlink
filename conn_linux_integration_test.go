@@ -576,7 +576,7 @@ func (s *blockingSocket) ReceiveIter() iter.Seq2[netlink.Message, error] {
 	}
 }
 
-func TestReceiveIter(t *testing.T) {
+func TestIntegrationReceiveIter(t *testing.T) {
 	t.Parallel()
 	c, err := netlink.Dial(unix.NETLINK_GENERIC, nil)
 	if err != nil {
