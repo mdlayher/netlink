@@ -8,14 +8,14 @@ require (
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/mdlayher/ethtool v0.6.1
 	github.com/vishvananda/netns v0.0.5
-	golang.org/x/net v0.59.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
 	github.com/mdlayher/genetlink v1.4.0 // indirect
-	github.com/mdlayher/socket v0.7.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
+	github.com/mdlayher/socket v0.8.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 )
 
 // We require a recent release, but in reality the integration tests should
