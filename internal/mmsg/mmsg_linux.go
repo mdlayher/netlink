@@ -4,7 +4,6 @@ package mmsg
 
 import (
 	"context"
-	"unsafe"
 
 	"github.com/mdlayher/socket"
 	"golang.org/x/sys/unix"
@@ -71,20 +70,12 @@ func New(s *socket.Conn, cfg Config) *Conn {
 func (c *Conn) Receive(ctx context.Context) ([]Datagram, error) {
 	var n int
 	err := c.s.ReadFunc(ctx, "recvmmsg", func(fd int) error {
-		rn, _, errno := unix.Syscall6(
-			unix.SYS_RECVMMSG,
-			uintptr(fd),
-			uintptr(unsafe.Pointer(&c.hdrs[0])),
-			uintptr(len(c.hdrs)),
-			unix.MSG_WAITFORONE,
-			0,
-			0,
-		)
+		rn, errno := recvmmsg(fd, c.hdrs, unix.MSG_WAITFORONE)
 		if errno != 0 {
 			return errno
 		}
 
-		n = int(rn)
+		n = rn
 		return nil
 	})
 	if err != nil {
