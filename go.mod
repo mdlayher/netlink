@@ -17,7 +17,7 @@ retract (
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/mdlayher/socket v0.8.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 )
 

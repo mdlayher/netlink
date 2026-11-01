@@ -8,7 +8,7 @@ require (
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/mdlayher/ethtool v0.6.1
 	github.com/vishvananda/netns v0.0.5
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 )
 
